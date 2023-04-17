@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test-and-lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Update toolchain
+      run: |
+        rustup default nightly
+        rustup component add clippy
+
+    - name: Show toolchain info
+      run: |
+        cargo --version --verbose
+        rustc --version
+        cargo clippy --version
+
+    - name: Lint
+      run: |
+        cargo clippy --workspace -- -D warnings
+
+    - name: Test
+      run: |
+        cargo test --workspace
