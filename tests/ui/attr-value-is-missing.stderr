@@ -1,0 +1,8 @@
+error: missing attribute value
+ --> tests/ui/attr-value-is-missing.rs:3:1
+  |
+3 | #[bitsize]
+  | ^^^^^^^^^^
+  |
+  = help: you need to define the size like this: `#[bitsize(32)]`
+  = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)

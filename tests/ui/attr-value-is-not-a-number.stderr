@@ -1,0 +1,7 @@
+error: attribute value is not a number
+ --> tests/ui/attr-value-is-not-a-number.rs:3:11
+  |
+3 | #[bitsize(...)]
+  |           ^^^
+  |
+  = help: you need to define the size like this: `#[bitsize(32)]`
