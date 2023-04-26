@@ -31,9 +31,8 @@ repository = "https://github.com/hecatia-elegua/bilge"
 # nightly = []
 
 [dependencies]
-# waiting for upstream
-arbitrary-int = { git = "https://github.com/hecatia-elegua/arbitrary-int", branch = "const_trait_impl", features = ["nightly"] }
-bilge-impl = { path = "bilge-impl", version = "=0.1.0" }
+arbitrary-int = { version = "1.2.4", features = ["nightly"], path = "../arbitrary-int" }
+bilge-impl = { version = "=0.1.0", path = "bilge-impl" }
 
 [dev-dependencies]
 trybuild = "1.0"
