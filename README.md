@@ -17,6 +17,7 @@ I wanted a design fitting rust:
 ## WARNING
 
 Our current version is still pre 1.0, which means nothing is completely stable.
+The lib is **no-std** and fully `const`, but still nightly-only (needed for several `const` features).
 
 However, constructors, getters, setters and From/TryFrom should stay the same, since their semantics are very clear.
 
@@ -62,8 +63,14 @@ let reg1 = Register::new(
 ```
 Or, if we add `#[derive(FromBits)]` to `Register` and want to parse a raw register value:
 ```rust
-let reg2 = Register::from(u14::new(0b11_1_0101010_1010));
+let mut reg2 = Register::from(u14::new(0b11_1_0101010_1010));
 ```
+And getting and setting fields is done like this:
+```rust
+let header = reg2.header();
+reg2.set_footer(Footer::new(false, Code::Success));
+```
+Any kinds of tuple and array are also supported.
 
 ### Fallible (TryFrom)
 In contrast to structs, enums don't have to declare all of their bits:
@@ -97,9 +104,11 @@ Again, let's try to print this:
 ```rust
 println!("{:?}", Device::try_from(0b0000_11_00));
 ```
-And again, `Device` doesn't implement `Debug`.
+And again, `Device` doesn't implement `Debug`:
 
-For bitfields you need to add `#[derive(DebugBits)]` to get an output like this:
+### DebugBits
+
+For structs, you need to add `#[derive(DebugBits)]` to get an output like this:
 ```rust
 Ok(Device { reserved_i: 0, class: Stationary, reserved_ii: 0 })
 ```
