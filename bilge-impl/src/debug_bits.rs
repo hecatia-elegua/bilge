@@ -5,7 +5,6 @@ use syn::{Data, Fields};
 
 use crate::shared::{self, unreachable};
 
-
 pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;

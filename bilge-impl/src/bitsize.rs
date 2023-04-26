@@ -1,7 +1,7 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
-use syn::{Item, ItemStruct, Type,ItemEnum, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
 
 use crate::shared::{self, BitSize, unreachable};
 
@@ -49,7 +49,7 @@ struct SplitAttributes {
     after_compression: Vec<Attribute>,
 }
 
-/// Intermediate Representation
+/// Intermediate Representation, just for bundling these together
 struct ItemIr {
     name: Ident,
     /// needed in from_bits and try_from_bits
@@ -195,6 +195,8 @@ fn generate_filled_check_for(ty: &Type) -> TokenStream {
     }
 }
 
+/// Allows you to give multiple fields the name `reserved` or `padding`
+/// by numbering them for you.
 fn modify_special_field_names(fields: &mut Fields) {
     // We could have just counted up, i.e. `reserved_0`, but people might interpret this as "reserved to zero".
     // Using some other, more useful unique info as postfix would be nice.
@@ -242,7 +244,7 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     let declared_bitsize = declared_bitsize as usize;
 
     let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
-        let field_size = shared::analyze_field_bitsize(&next.ty);
+        let field_size = shared::generate_field_bitsize(&next.ty);
         quote!(#acc + #field_size)
     });
 

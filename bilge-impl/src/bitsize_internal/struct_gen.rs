@@ -82,7 +82,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
             }
         },
         Path(_) => {
-            let size = shared::analyze_field_bitsize(ty);
+            let size = shared::generate_field_bitsize(ty);
             let mask = generate_ty_mask(ty);
             let return_statement = if is_getter {
                 quote! {
@@ -194,7 +194,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
             } }
         },
         Path(_) => {
-            let size = shared::analyze_field_bitsize(ty);
+            let size = shared::generate_field_bitsize(ty);
             quote! { {
                 let value: BaseIntOf<#ty> = <ArbIntOf<#ty>>::from(value).value();
                 let value: BaseIntOf<Self> = value as BaseIntOf<Self>;
@@ -226,7 +226,7 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
             tuple.elems.iter()
                 .map(|elem| {
                     let mask = generate_ty_mask(elem);
-                    let elem_size = shared::analyze_field_bitsize(elem);
+                    let elem_size = shared::generate_field_bitsize(elem);
                     let elem_offset = previous_elem_sizes.iter().cloned().reduce(|acc, next| quote!((#acc + #next)));
                     previous_elem_sizes.push(elem_size);
                     if let Some(elem_offset) = elem_offset {
@@ -243,7 +243,7 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
             let elem_ty = &array.elem;
             let len_expr = &array.len;
             let mask = generate_ty_mask(elem_ty);
-            let ty_size = shared::analyze_field_bitsize(elem_ty);
+            let ty_size = shared::generate_field_bitsize(elem_ty);
             quote! { {
                 let mask = #mask;
                 let mut field_mask = 0;

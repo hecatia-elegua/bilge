@@ -1,12 +1,12 @@
 use proc_macro2::{TokenStream, Ident};
 use quote::quote;
-use syn::{Item, ItemStruct, Type, ItemEnum, Attribute, Field};
+use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field};
 
 use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
 
-/// Intermediate Representation
+/// Intermediate Representation, just for bundling these together
 struct ItemIr<'a> {
     attrs: &'a Vec<Attribute>,
     name: &'a Ident,
@@ -47,7 +47,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     let mut previous_field_sizes = vec![];
     let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields.iter()
         .map(|field| {
-            let field_size = shared::analyze_field_bitsize(&field.ty);
+            let field_size = shared::generate_field_bitsize(&field.ty);
             // offset is needed for bit-shifting
             // struct Example { field1: u8, field2: u4, field3: u4 }
             // previous_field_sizes = []     -> unwrap_or_else -> field_offset = 0
