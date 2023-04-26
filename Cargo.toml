@@ -1,7 +1,21 @@
 [package]
 name = "bilge"
-version = "0.1.0"
 authors = ["Hecatia Elegua"]
+version.workspace = true
+description.workspace = true
+documentation.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+include = ["src/lib.rs", "LICENSE-*", "README.md"]
+
+[workspace]
+members = ["bilge-impl"]
+
+[workspace.package]
+version = "0.1.0"
 categories = ["data-structures", "no-std::no-alloc", "embedded", "rust-patterns"]
 description = "Use bitsized types as if they were a feature of rust."
 documentation = "https://docs.rs/bilge"
@@ -39,8 +53,3 @@ bench = false
 [[bench]]
 name = "compared"
 harness = false
-
-[workspace]
-members = [
-    "bilge-impl"
-]
