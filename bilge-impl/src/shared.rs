@@ -41,7 +41,7 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
         }
     }
     // parsing the #[bitsize_internal(num)] attribute macro
-    let internal_bitsize_attr = attrs.iter().find_map(|attr| {
+    let args = attrs.iter().find_map(|attr| {
         if attr.to_token_stream().to_string().contains("bitsize_internal") {
             if let Meta::List(list) = &attr.meta {
                 Some(list.tokens.clone())
@@ -52,19 +52,19 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
             None
         }
     }).unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
-    let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(internal_bitsize_attr);
+    let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args);
 
     (data, arb_int, ident, bitsize)
 }
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.
-pub fn bitsize_and_arbitrary_int_from(bitsize_attr: TokenStream) -> (BitSize, TokenStream) {
-    let bitsize: LitInt = syn::parse2(bitsize_attr.clone()).unwrap_or_else(|_|
-        abort!(bitsize_attr, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`")
+pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, TokenStream) {
+    let bitsize: LitInt = syn::parse2(bitsize_arg.clone()).unwrap_or_else(|_|
+        abort!(bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`")
     );
     // without postfix
     let bitsize = bitsize.base10_parse().unwrap_or_else(|_|
-        abort!(bitsize_attr, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE)
+        abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE)
     );
     let arb_int = syn::parse_str(&format!("u{bitsize}")).unwrap_or_else(unreachable);
     (bitsize, arb_int)

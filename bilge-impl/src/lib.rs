@@ -17,16 +17,16 @@ mod shared;
 /// Please open an issue if you have a usecase for bigger bitfields.
 #[proc_macro_error]
 #[proc_macro_attribute]
-pub fn bitsize(attr: TokenStream, item: TokenStream) -> TokenStream {
-    bitsize::bitsize(attr.into(), item.into()).into()
+pub fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
+    bitsize::bitsize(args.into(), item.into()).into()
 }
 
 /// This is internally used, not to be used by anything besides `bitsize`.
 /// No guarantees are given.
 #[proc_macro_error]
 #[proc_macro_attribute]
-pub fn bitsize_internal(attr: TokenStream, item: TokenStream) -> TokenStream {
-    bitsize_internal::bitsize_internal(attr.into(), item.into()).into()
+pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
+    bitsize_internal::bitsize_internal(args.into(), item.into()).into()
 }
 
 /// Generate an `impl TryFrom<uN>` for unfilled bitfields.
