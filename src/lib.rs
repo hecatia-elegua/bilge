@@ -1,8 +1,11 @@
+#![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![no_std]
 
+#[doc(no_inline)]
 pub use arbitrary_int::*;
 pub use bilge_impl::{bitsize, bitsize_internal, DebugBits, FromBits, TryFromBits};
 
+/// This is internally used, but might be useful. No guarantees are given (for now).
 pub trait Bitsized {
     type ArbitraryInt;
     const BITS: usize;
