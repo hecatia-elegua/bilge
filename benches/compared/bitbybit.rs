@@ -1,6 +1,7 @@
 use bitbybit::bitfield;
 use arbitrary_int::{u4, u12, u20, u5, u2};
 
+#[inline(never)]
 pub(crate) fn bitbybit(input: (u32, u32, u64, u16)) {
     let mut lpi = GicRedistributorLpi {
         control: RedistributorControl::new_with_raw_value(input.0),

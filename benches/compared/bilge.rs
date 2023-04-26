@@ -1,5 +1,6 @@
 use bilge::{Bitsized, Number, FromBits, bitsize, u4, u12, u20, u5, u2, DebugBits};
 
+#[inline(never)]
 pub fn bilge(input: (u32, u32, u64, u16)) {
     let mut lpi = GicRedistributorLpi {
         control: RedistributorControl::from(input.0),

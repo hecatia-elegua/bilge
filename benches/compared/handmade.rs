@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 //TODO: version with arbints or range checking? (to just get its benefits)
+#[inline(never)]
 pub(crate) fn handmade(input: (u32, u32, u64, u16)) {
     let mut lpi = GicRedistributorLpi {
         control: RedistributorControl(input.0),
