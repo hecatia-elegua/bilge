@@ -70,17 +70,17 @@ pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, Tok
     (bitsize, arb_int)
 }
 
-pub fn analyze_field_bitsize(ty: &Type) -> TokenStream {
+pub fn generate_field_bitsize(ty: &Type) -> TokenStream {
     use Type::*;
     match ty {
         Tuple(tuple) => {
-            tuple.elems.iter().map(analyze_field_bitsize)
+            tuple.elems.iter().map(generate_field_bitsize)
                 .reduce(|acc, next| quote!((#acc + #next)))
                 // `field: (),` will be handled like this:
                 .unwrap_or_else(|| quote!(0))
         },
         Array(array) => {
-            let elem_bitsize = analyze_field_bitsize(&array.elem);
+            let elem_bitsize = generate_field_bitsize(&array.elem);
             let len_expr = &array.len;
             quote!((#elem_bitsize * #len_expr))
         },
