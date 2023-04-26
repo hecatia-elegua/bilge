@@ -41,8 +41,10 @@ fn main() {
         u7::new(0b010_1010),
         Footer::new(true, Code::GoodExample)
     );
-    let reg2 = Register::from(u14::new(0b11_1_0101010_1010));
+    let mut reg2 = Register::from(u14::new(0b11_1_0101010_1010));
     assert_eq!(reg1.value, reg2.value);
+    let _header = reg2.header();
+    reg2.set_footer(Footer::new(false, Code::Success));
 
     let class = Class::try_from(u2::new(2));
     assert_eq!(class, Err(u2::new(2)));
