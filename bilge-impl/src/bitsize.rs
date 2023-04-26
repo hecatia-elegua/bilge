@@ -58,8 +58,8 @@ struct ItemIr {
     expanded: TokenStream,
 }
 
-pub(super) fn bitsize(attr: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, declared_bitsize) = parse(item, attr);
+pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
+    let (item, declared_bitsize) = parse(item, args);
     let attrs = split_attributes(&item);
     let ir = match item {
         Item::Struct(mut item) => {
@@ -80,14 +80,14 @@ pub(super) fn bitsize(attr: TokenStream, item: TokenStream) -> TokenStream {
     generate_common(ir, attrs, declared_bitsize)
 }
 
-fn parse(item: TokenStream, attr: TokenStream) -> (Item, BitSize) {
+fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
 
-    if attr.is_empty() {
+    if args.is_empty() {
         abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
     }
     
-    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(attr);
+    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
     if declared_bitsize > shared::MAX_STRUCT_BIT_SIZE {
         abort_call_site!("attribute is not a valid number"; help = "currently, numbers from 1 to {} are allowed", shared::MAX_STRUCT_BIT_SIZE)
     }
