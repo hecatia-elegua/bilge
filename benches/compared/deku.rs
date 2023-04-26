@@ -4,6 +4,7 @@ use deku::{DekuRead, DekuWrite, DekuUpdate, DekuContainerWrite};
 /// This is just a faulty implementation, but even just providing a value
 /// and getting it out again is currently (26.04.2023) not `const` in deku,
 /// so we'll wait until (if) that happens.
+#[inline(never)]
 pub(crate) fn deku(input: (u32, u32, u64, u16)) {       //input.0 = 0b1111_0000_0000_1001_1111_0000_0000_1001
     let mut control: [u8; 4] = input.0.to_le_bytes();   //[0b0000_1001, 0b1111_0000, 0b0000_1001, 0b1111_0000]
     for byte in &mut control {                          //[0b1001_0000, 0b0000_1111, 0b1001_0000, 0b0000_1111]

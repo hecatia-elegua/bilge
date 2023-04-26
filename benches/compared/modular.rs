@@ -3,6 +3,7 @@
 #![allow(dead_code)]
 use modular_bitfield::{bitfield, specifiers::{B20, B4, B12, B5, B2}, Specifier};
 
+#[inline(never)]
 pub(crate) fn modular(input: (u32, u32, u64, u16)) {
     // convert to modular_bitfield's expected inputs
     let control: [u8; 4] = input.0.to_le_bytes();
