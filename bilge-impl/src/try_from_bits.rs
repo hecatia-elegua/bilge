@@ -59,13 +59,18 @@ fn generate_field_check(ty: &Type) -> TokenStream {
 
 fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
     let is_ok: TokenStream = fields.iter()
-        .filter_map(|field| {
+        .map(|field| {
             let ty = &field.ty;
             if shared::is_always_filled(ty) {
-                None
+                let size = shared::generate_field_bitsize(ty);
+                quote! { {
+                    // we still need to shift by the element's size
+                    let size = #size;
+                    cursor >>= size;
+                    true
+                } }
             } else {
-                let check = generate_field_check(ty);
-                Some(check)
+                generate_field_check(ty)
             }
         })
         .reduce(|acc, next| quote!((#acc && #next)))
