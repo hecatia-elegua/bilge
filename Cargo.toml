@@ -23,8 +23,22 @@ bilge-impl = { path = "bilge-impl", version = "=0.1.0" }
 
 [dev-dependencies]
 trybuild = "1.0"
+# examples
 volatile = { git = "https://github.com/theseus-os/volatile" }
 zerocopy = "0.5.0"
+# benches
+criterion = "0.3"
+modular-bitfield = "0.11.2"
+bitbybit = "1.1.4"
+deku = "0.16"
+
+# criterion workaround to make `cargo bench -- --verbose` work
+[lib]
+bench = false
+
+[[bench]]
+name = "compared"
+harness = false
 
 [workspace]
 members = [
