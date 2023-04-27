@@ -31,7 +31,8 @@ repository = "https://github.com/hecatia-elegua/bilge"
 # nightly = []
 
 [dependencies]
-arbitrary-int = { version = "1.2.4", features = ["nightly"], path = "../arbitrary-int" }
+# clippy workaround, we can't add `path = "../arbitrary-int"` as well
+arbitrary-int = { version = "1.2.4", features = ["nightly"] }
 bilge-impl = { version = "=0.1.0", path = "bilge-impl" }
 
 [dev-dependencies]
