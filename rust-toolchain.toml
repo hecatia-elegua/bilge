@@ -1,2 +1,3 @@
 [toolchain]
+# keep this fixed to the version in .github/workflows/ci.yml, README.md
 channel = "nightly-2022-11-03"

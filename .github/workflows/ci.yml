@@ -16,6 +16,7 @@ jobs:
     - uses: actions/checkout@v3
 
     - name: Update toolchain
+      # keep this fixed to the version in rust-toolchain.toml, README.md
       run: |
         rustup default nightly-2022-11-03
         rustup component add clippy

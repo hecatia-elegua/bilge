@@ -21,6 +21,10 @@ The lib is **no-std** and fully `const`, but still nightly-only (needed for seve
 
 However, constructors, getters, setters and From/TryFrom should stay the same, since their semantics are very clear.
 
+[//]: # (keep this fixed to the version in .github/workflows/ci.yml, rust-toolchain.toml)
+
+The current version is tested on `nightly-2022-11-03`.
+
 ## Usage
 
 ### Infallible (From)
