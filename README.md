@@ -119,10 +119,17 @@ The syntax is kept very similar to usual rust structs for a simple reason:
 
 The endgoal of this library is to support the adoption of LLVM's arbitrary bitwidth integers into rust,
 thereby allowing rust-native bitfields.
-Until then, bilge is using the wonderful [`arbitrary-int`](https://github.com/danlehmann/arbitrary-int) crate by danlehmann.
+Until then, bilge is using the wonderful [`arbitrary-int` crate by danlehmann](https://github.com/danlehmann/arbitrary-int).
 
-It is _very_ possible that our inner type will either become private or give you no guarantees about safety. Basically, never use `yourbitfield.value`, instead use `uN::from(yourbitfield)` for getting and `Yourbitfield::(try_)from(uN)` for setting the whole bitfield at once!
-You also mustn't depend on `FILLED`.
+After all attribute expansions, our generated bitfield contains a single field, somewhat like:
+```rust
+struct Register { value: u14 }
+```
+This means you _could_ modify the inner value directly, but it breaks type safety guarantees (e.g. unfilled or read-only fields).
+So if you need to modify the whole field, instead use the type-safe conversions `u14::from(register)` and `Register::from(u14)`.
+It is possible that this inner type will be made private.
+
+You also mustn't depend on the generated `const FILLED`.
 
 More `/tests` will follow. Right now the `/examples` directory is used for some testing and as a functionality overview.
 
@@ -136,7 +143,7 @@ The common handwritten implementation pattern for bitfields in rust looks [somew
 - readability suffers
 - offset, cast or masking errors could go unnoticed
 - bit fiddling, shifting and masking is done all over the place, in contrast to bitfields
-- beginners suffer, although I would argue even seniors, since it's more like: "Why do we need to learn and debug bit fiddling if we can get most of it done by using bitfields?"
+- beginners suffer, although I would argue even seniors, since it's more like: "Why do we need to learn and debug bit fiddling if we can get most of it done by using structs?"
 - reimplementing different kinds of _fallible nested-struct enum-tuple array field access_ might not be so fun
 
 ### modular-bitfield
