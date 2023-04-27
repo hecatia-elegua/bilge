@@ -31,7 +31,7 @@ repository = "https://github.com/hecatia-elegua/bilge"
 # nightly = []
 
 [dependencies]
-# clippy workaround, we can't add `path = "../arbitrary-int"` as well
+# cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
 arbitrary-int = { version = "1.2.4", features = ["nightly"] }
 bilge-impl = { version = "=0.1.0", path = "bilge-impl" }
 
@@ -52,4 +52,6 @@ bench = false
 
 [[bench]]
 name = "compared"
+# cargo publish workaround "can't find `compared` bench at ... `benches\compared\main.rs`"
+path = "benches/compared/main.rs"
 harness = false
