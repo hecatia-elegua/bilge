@@ -1,5 +1,5 @@
 #![feature(const_convert, const_trait_impl, const_mut_refs)]
-use bilge::{bitsize, TryFromBits, FromBits, DebugBits, Bitsized, u2, u4, Number};
+use bilge::prelude::*;
 
 #[bitsize(4)]
 #[derive(DebugBits, TryFromBits)]

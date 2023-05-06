@@ -1,4 +1,4 @@
-use bilge::{Bitsized, Number, FromBits, bitsize, u4, u12, u20, u5, u2, DebugBits};
+use bilge::{Bitsized, FromBits, bitsize, DebugBits, arbitrary_int::{Number, u4, u12, u20, u5, u2}};
 
 #[inline(never)]
 pub fn bilge(input: (u32, u32, u64, u16)) {

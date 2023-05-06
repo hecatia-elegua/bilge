@@ -1,6 +1,5 @@
 #![feature(const_convert, const_trait_impl, const_mut_refs)]
-use arbitrary_int::{u2, u6, Number};
-use bilge::{bitsize, FromBits, TryFromBits, DebugBits, Bitsized};
+use bilge::prelude::*;
 
 //it is still a little annoying that rust gives us the helpful message to implement "Debug" instead of "DebugBits"
 #[bitsize(6)]

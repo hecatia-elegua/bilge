@@ -1,6 +1,9 @@
 #![feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write)]
 #![allow(clippy::unusual_byte_groupings)]
-use bilge::{bitsize, FromBits, DebugBits, Bitsized, u2, TryFromBits, u18, u1, u39, Number};
+// you can use the "Expand glob import" command on
+// use bilge::prelude::*;
+// but still need to add Bitsized, Number yourself
+use bilge::prelude::{DebugBits, FromBits, TryFromBits, bitsize, u1, u18, u2, u39, Bitsized, Number};
 
 #[bitsize(32)]
 #[derive(DebugBits, FromBits)]
