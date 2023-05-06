@@ -147,6 +147,20 @@ More `/tests` will follow. Right now the `/examples` directory is used for some 
 ### benchmarks, performance, asm line count
 First of all, [basic benchmarking](https://github.com/hecatia-elegua/bilge/blob/main/benches/compared/main.rs) reveals that all alternatives mentioned here (besides deku) have about the same performance and line count. This includes a handwritten version.
 
+### build-time
+Measuring build time of the crate inself (both with its dependencies and without), yields these numbers on my machine:
+|                       | debug | debug single crate | release   | release single crate |
+|-----------------------|-------|--------------------|-----------|----------------------|
+| bilge 1.67-nightly    | 8     | 1.8                | 6         | 0.8                  |
+| bitbybit 1.69         | 4.5   | 1.3                | 13.5 [^*] | 9.5 [^*]             |
+| modular-bitfield 1.69 | 8     | 2.2                | 7.2       | 1.6                  |
+
+[^*]: This is just a weird rustc regression or my setup or sth, not representative.
+
+This was measured with `cargo clean && cargo build [--release] --quiet --timings`.
+Of course, the actual codegen time on an example project needs to be measured, too.
+
+
 ### handwritten implementation
 The common handwritten implementation pattern for bitfields in rust looks [somewhat like benches/compared/handmade.rs](https://github.com/hecatia-elegua/bilge/blob/main/benches/compared/handmade.rs), sometimes also throwing around a lot of consts for field offsets. The problems with this approach are:
 - readability suffers
