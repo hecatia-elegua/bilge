@@ -1,5 +1,5 @@
 #![feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write)]
-use bilge::{bitsize, FromBits, DebugBits, Bitsized, u20, u4, u2, Number};
+use bilge::prelude::*;
 use volatile::{Volatile, ReadOnly};
 use zerocopy::FromBytes;
 

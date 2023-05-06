@@ -27,8 +27,13 @@ The current version is tested on `nightly-2022-11-03`.
 
 ## Usage
 
+To make your life easier:
+```rust
+use bilge::prelude::*;
+```
+
 ### Infallible (From)
-Just specify your fields like usual, only this time with bitsized types:
+You can just specify bitsized fields like normal fields:
 ```rust
 #[bitsize(14)]
 struct Register {
@@ -57,7 +62,7 @@ Also, `bool` can be used as one bit.
 #[derive(FromBits)]
 enum Code { Success, Error, IoError, GoodExample }
 ```
-Now we can construct `Register` the usual way:
+Now we can construct `Register`:
 ```rust
 let reg1 = Register::new(
     u4::new(0b1010),

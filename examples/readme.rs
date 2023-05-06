@@ -1,6 +1,6 @@
 #![feature(const_trait_impl, const_convert, const_mut_refs)]
 #![allow(clippy::unusual_byte_groupings)]
-use bilge::{Bitsized, Number, bitsize, u2, u3, u4, u7, u14, FromBits, TryFromBits, DebugBits};
+use bilge::prelude::*;
 
 #[bitsize(14)]
 #[derive(FromBits)]
