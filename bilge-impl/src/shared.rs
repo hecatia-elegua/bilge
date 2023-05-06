@@ -160,8 +160,6 @@ pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, 
             fn from(enum_value: #enum_type) -> Self {
                 match enum_value {
                     #( #to_int_match_arms )*
-                    // constness: unreachable!() is not const yet
-                    _ => panic!("unreachable: arbitrary_int already validates that this is unreachable")
                 }
             }
         }
