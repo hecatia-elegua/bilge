@@ -13,6 +13,11 @@ repository.workspace = true
 [lib]
 proc-macro = true
 
+[features]
+default = []
+# Enables constness, see README.md for the specific nightly version
+nightly = []
+
 [dependencies]
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"

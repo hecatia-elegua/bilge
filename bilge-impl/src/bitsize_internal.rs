@@ -58,6 +58,12 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
             generate_field(field, &field_offset, &mut fieldless_next_int)
     }).unzip();
 
+    let const_ = if cfg!(feature = "nightly") {
+        quote!(const)
+    } else {
+        quote!()
+    };
+
     quote! {
         #vis struct #ident {
             /// WARNING: modifying this value directly can break invariants
@@ -66,7 +72,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
         impl #ident {
             // #[inline]
             #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-            pub const fn new(#( #constructor_args )*) -> Self {
+            pub #const_ fn new(#( #constructor_args )*) -> Self {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
                 type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
 
@@ -107,11 +113,17 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
     let getter_value = struct_gen::generate_getter_value(ty, offset);
 
+    let const_ = if cfg!(feature = "nightly") {
+        quote!(const)
+    } else {
+        quote!()
+    };
+
     quote! {
         // #[inline]
         #(#attrs)*
         #[allow(clippy::type_complexity)]
-        #vis const fn #name(&self) -> #ty {
+        #vis #const_ fn #name(&self) -> #ty {
             #getter_value
         }
     }
@@ -123,11 +135,17 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
     let setter_name: Ident = syn::parse_str(&format!("set_{}", name)).unwrap_or_else(unreachable);
 
+    let const_ = if cfg!(feature = "nightly") {
+        quote!(const)
+    } else {
+        quote!()
+    };
+
     quote! {
         // #[inline]
         #(#attrs)*
         #[allow(clippy::type_complexity)]
-        #vis const fn #setter_name(&mut self, value: #ty) {
+        #vis #const_ fn #setter_name(&mut self, value: #ty) {
             #setter_value
         }
     }

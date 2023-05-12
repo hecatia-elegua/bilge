@@ -154,9 +154,9 @@ pub(crate) fn analyze_enum_derive(variants: Iter<Variant>, name: &Ident, interna
     }).unzip()
 }
 
-pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, to_int_match_arms: Vec<TokenStream>) -> TokenStream {
+pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, to_int_match_arms: Vec<TokenStream>, const_: &TokenStream) -> TokenStream {
     quote! {
-        impl const ::core::convert::From<#enum_type> for #arb_int {
+        impl #const_ ::core::convert::From<#enum_type> for #arb_int {
             fn from(enum_value: #enum_type) -> Self {
                 match enum_value {
                     #( #to_int_match_arms )*
