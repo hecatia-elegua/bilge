@@ -34,9 +34,16 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
 fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
-    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms);
+
+    let const_ = if cfg!(feature = "nightly") {
+        quote!(const)
+    } else {
+        quote!()
+    };
+
+    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
     quote! {
-        impl const ::core::convert::TryFrom<#arb_int> for #enum_type {
+        impl #const_ ::core::convert::TryFrom<#arb_int> for #enum_type {
             type Error = #arb_int;
 
             fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
@@ -79,8 +86,14 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
         // TODO: Should it then be From instead of TryFrom?
         .unwrap_or_else(|| quote!(true));
 
+    let const_ = if cfg!(feature = "nightly") {
+        quote!(const)
+    } else {
+        quote!()
+    };
+
     quote! {
-        impl const ::core::convert::TryFrom<#arb_int> for #struct_type {
+        impl #const_ ::core::convert::TryFrom<#arb_int> for #struct_type {
             type Error = #arb_int;
             
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
@@ -101,7 +114,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
             }
         }
 
-        impl const ::core::convert::From<#struct_type> for #arb_int {
+        impl #const_ ::core::convert::From<#struct_type> for #arb_int {
             fn from(struct_value: #struct_type) -> Self {
                 struct_value.value
             }

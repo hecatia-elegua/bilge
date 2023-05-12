@@ -25,14 +25,15 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/hecatia-elegua/bilge"
 
-# skipping this for now
-# [features]
-# default = []
-# nightly = []
+
+[features]
+default = []
+# Enables constness, see README.md for the specific nightly version
+nightly = ["arbitrary-int/nightly", "bilge-impl/nightly"]
 
 [dependencies]
 # cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
-arbitrary-int = { version = "1.2.4", features = ["nightly"] }
+arbitrary-int = { version = "1.2.4" }
 bilge-impl = { version = "=0.1.0", path = "bilge-impl" }
 
 [dev-dependencies]

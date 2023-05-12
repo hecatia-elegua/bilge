@@ -1,4 +1,4 @@
-#![feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write)]
+#![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write))]
 #![allow(clippy::unusual_byte_groupings)]
 // you can use the "Expand glob import" command on
 // use bilge::prelude::*;

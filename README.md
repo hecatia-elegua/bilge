@@ -18,16 +18,17 @@ I wanted a design fitting rust:
     - obvious and readable basic frontend, like normal structs
     - only minimally and gradually introduce advanced concepts
 
+The lib is **no-std** (and fully `const` behind a `"nightly"` feature gate).
+
 ## WARNING
 
 Our current version is still pre 1.0, which means nothing is completely stable.
-The lib is **no-std** and fully `const`, but still nightly-only (needed for several `const` features).
 
 However, constructors, getters, setters and From/TryFrom should stay the same, since their semantics are very clear.
 
 [//]: # (keep this fixed to the version in .github/workflows/ci.yml, rust-toolchain.toml)
 
-The current version is tested on `nightly-2022-11-03`.
+The nightly feature is tested on `nightly-2022-11-03`.
 
 ## Usage
 
