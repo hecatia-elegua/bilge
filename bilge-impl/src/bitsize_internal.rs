@@ -60,6 +60,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
 
     quote! {
         #vis struct #ident {
+            /// WARNING: modifying this value directly can break invariants
             value: #arb_int,
         }
         impl #ident {
