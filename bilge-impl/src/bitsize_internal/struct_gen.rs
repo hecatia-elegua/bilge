@@ -67,9 +67,10 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     array
                 }
             } else {
-                quote! {
+                quote! { {
                     let mut is_filled = true;
                     let mut i = 0;
+                    // TODO: this could be simplified for always-filled values
                     while i < #len_expr {
                         let elem_value = {
                             #array_elem
@@ -78,7 +79,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                         i += 1;
                     }
                     is_filled
-                }
+                } }
             }
         },
         Path(_) => {
