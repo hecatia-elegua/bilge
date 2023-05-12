@@ -1,5 +1,9 @@
 # bilge: the most readable bitfields
 
+[![crates.io](https://img.shields.io/crates/v/bilge.svg)](https://crates.io/crates/bilge)
+[![docs.rs](https://docs.rs/bilge/badge.svg)](https://docs.rs/bilge)
+[![loc](https://tokei.rs/b1/github/hecatia-elegua/bilge?category=code)](https://github.com/Aaronepower/tokei#badges)
+
 _Y e s_, this is yet another bitfield crate, but hear me out:
 
 This is a _**bit**_ better than what we had before.
