@@ -12,13 +12,21 @@ env:
 jobs:
   test-and-lint:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        toolchain:
+          - stable
+          # - beta
+          # - nightly
+          # keep this fixed to the version in rust-toolchain.toml, README.md and below
+          - nightly-2022-11-03 
+          # - 1.31.0  # find out MSRV
     steps:
     - uses: actions/checkout@v3
 
     - name: Update toolchain
-      # keep this fixed to the version in rust-toolchain.toml, README.md
       run: |
-        rustup default nightly-2022-11-03
+        rustup default ${{ matrix.toolchain }}
         rustup component add clippy
 
     - name: Show toolchain info
@@ -27,9 +35,15 @@ jobs:
         rustc --version
         cargo clippy --version
 
-    - name: Lint
+    - name: Lint stable
+      if: ${{ matrix.toolchain == 'stable' }}
       run: |
         cargo clippy --workspace -- -D warnings
+    
+    - name: Lint nightly
+      if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
+      run: |
+        cargo clippy --workspace --features nightly -- -D warnings
 
     - name: Test
       run: |
