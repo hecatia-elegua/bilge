@@ -81,9 +81,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
             }
         })
         .reduce(|acc, next| quote!((#acc && #next)))
-        // this returns true when all fields are arbitrary ints, e.g. u4
-        // (or maybe also if there are no fields)
-        // TODO: Should it then be From instead of TryFrom?
+        // `Struct {}` would be handled like this:
         .unwrap_or_else(|| quote!(true));
 
     let const_ = if cfg!(feature = "nightly") {
