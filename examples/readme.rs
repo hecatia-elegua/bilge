@@ -49,4 +49,5 @@ fn main() {
     let class = Class::try_from(u2::new(2));
     assert_eq!(class, Err(u2::new(2)));
     println!("{:?}", Device::try_from(0b0000_11_00));
+    println!("{:?}", Device::new(Class::Mobile));
 }

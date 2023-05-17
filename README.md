@@ -117,6 +117,7 @@ This shows `TryFrom` being propagated upward. There's also another small help: `
 Again, let's try to print this:
 ```rust
 println!("{:?}", Device::try_from(0b0000_11_00));
+println!("{:?}", Device::new(Class::Mobile));
 ```
 And again, `Device` doesn't implement `Debug`:
 
@@ -125,6 +126,7 @@ And again, `Device` doesn't implement `Debug`:
 For structs, you need to add `#[derive(DebugBits)]` to get an output like this:
 ```rust
 Ok(Device { reserved_i: 0, class: Stationary, reserved_ii: 0 })
+Device { reserved_i: 0, class: Mobile, reserved_ii: 0 }
 ```
 
 ## Back- and Forwards Compatibility
