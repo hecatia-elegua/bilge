@@ -96,6 +96,14 @@ fn generate_field(field: &Field, field_offset: &TokenStream, fieldless_next_int:
         syn::parse_str(&name).unwrap_or_else(unreachable)
     };
 
+    // skip reserved fields in constructors and setters
+    let name_str = name.to_string();
+    if name_str.contains("reserved_") || name_str.contains("padding_") {
+        // needed for `DebugBits`
+        let getter = generate_getter(field, field_offset, &name);
+        return (quote!(#getter), (quote!(), quote!(0)))
+    }
+
     let getter = generate_getter(field, field_offset, &name);
     let setter = generate_setter(field, field_offset, &name);
     let (constructor_arg, constructor_part) = generate_constructor_stuff(ty, &name);
