@@ -20,6 +20,8 @@ I wanted a design fitting rust:
 
 The lib is **no-std** (and fully `const` behind a `"nightly"` feature gate).
 
+For some more explanations on the "why" and "how": [blog post](https://hecatia-elegua.github.io/blog/no-more-bit-fiddling/) and [reddit comments](https://www.reddit.com/r/rust/comments/13ic0mf/no_more_bit_fiddling_and_introducing_bilge/).
+
 ## WARNING
 
 Our current version is still pre 1.0, which means nothing is completely stable.
