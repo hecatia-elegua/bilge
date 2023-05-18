@@ -70,17 +70,17 @@ pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, Tok
     (bitsize, arb_int)
 }
 
-pub fn generate_field_bitsize(ty: &Type) -> TokenStream {
+pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
     use Type::*;
     match ty {
         Tuple(tuple) => {
-            tuple.elems.iter().map(generate_field_bitsize)
+            tuple.elems.iter().map(generate_type_bitsize)
                 .reduce(|acc, next| quote!((#acc + #next)))
                 // `field: (),` will be handled like this:
                 .unwrap_or_else(|| quote!(0))
         },
         Array(array) => {
-            let elem_bitsize = generate_field_bitsize(&array.elem);
+            let elem_bitsize = generate_type_bitsize(&array.elem);
             let len_expr = &array.len;
             quote!((#elem_bitsize * #len_expr))
         },
@@ -170,6 +170,7 @@ pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, 
 /// meaning they are (should be) From<uN>, not TryFrom<uN>
 /// 
 //TODO: We should maybe just rewrite this into something useful or add FILLED into Bitsized impls.
+//otherwise, we could check if there is _not_ a struct or enum here by lower/uppercase first letter
 pub fn is_always_filled(ty: &Type) -> bool {
     let ty = ty.to_token_stream().to_string();
     ty.starts_with('u') || ty == "bool"

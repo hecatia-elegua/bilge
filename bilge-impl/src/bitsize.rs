@@ -244,7 +244,7 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     let declared_bitsize = declared_bitsize as usize;
 
     let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
-        let field_size = shared::generate_field_bitsize(&next.ty);
+        let field_size = shared::generate_type_bitsize(&next.ty);
         quote!(#acc + #field_size)
     });
 

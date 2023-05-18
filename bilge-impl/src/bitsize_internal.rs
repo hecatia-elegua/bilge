@@ -47,13 +47,13 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     let mut previous_field_sizes = vec![];
     let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields.iter()
         .map(|field| {
-            let field_size = shared::generate_field_bitsize(&field.ty);
             // offset is needed for bit-shifting
             // struct Example { field1: u8, field2: u4, field3: u4 }
             // previous_field_sizes = []     -> unwrap_or_else -> field_offset = 0
             // previous_field_sizes = [8]    -> reduce         -> field_offset = 0 + 8     =  8
             // previous_field_sizes = [8, 4] -> reduce         -> field_offset = 0 + 8 + 4 = 12
             let field_offset = previous_field_sizes.iter().cloned().reduce(|acc, next| quote!(#acc + #next)).unwrap_or_else(|| quote!(0));
+            let field_size = shared::generate_type_bitsize(&field.ty);
             previous_field_sizes.push(field_size);
             generate_field(field, &field_offset, &mut fieldless_next_int)
     }).unzip();
