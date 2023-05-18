@@ -2,6 +2,27 @@
 //! For this reason, we also use more locals and types.
 //! These locals, types, casts should be optimized away.
 //! In simple cases they indeed are optimized away, but if some case is not, please report.
+//! 
+//! ## Important
+//! 
+//! We often do thing like:
+//! ```ignore
+//! quote! {
+//!     #value_shifted
+//!     value_shifted
+//! }
+//! ```
+//! By convention, `#value_shifted` has its name because we define a `let value_shifted` inside that `TokenStream`.
+//! So the above code means we're returning the value of `let value_shifted`.
+//! Earlier on, we would have done something like this:
+//! ```ignore
+//! quote! {
+//!     let value_shifted = { #value_shifted };
+//!     value_shifted
+//! }
+//! ```
+//! which aids in reading this here macro code, but doesn't help reading the generated code since it introduces
+//! lots of new scopes (curly brackets). We need the scope since `#value_shifted` expands to multiple lines.
 use super::*;
 
 /// Top-level function which initializes the cursor
@@ -114,6 +135,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 // the cursor starts at this element's offset, now get its value
                 let raw_value = cursor & mask;
                 // after getting the value, we can shift by the element's size
+                // TODO: we could move this into tuple/array (and try_from, below)
                 let size = #size;
                 cursor >>= size;
                 // cast the element value (e.g. u32 -> u8),
@@ -124,13 +146,13 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
 
             if is_getter {
                 // generate the real value from the arbint `elem_value`
-                quote! { {
+                quote! {
                     #elem_value
                     match #ty::try_from(elem_value) {
                         Ok(v) => v,
                         Err(_) => panic!("unreachable"),
                     }
-                } }
+                }
             } else {
                 // generate only the filled check
                 if shared::is_always_filled(ty) {
@@ -161,7 +183,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
 
 /// Top-level function which initializes the offset, masks other values and combines the final value
 pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream) -> TokenStream {
-    let inner = generate_setter_inner(ty);
+    let value_shifted = generate_setter_inner(ty);
     // get the mask, so we can set this field's value
     let mask = generate_ty_mask(ty);
     quote! {
@@ -181,10 +203,10 @@ pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream) -> TokenStr
         let others_values: BaseIntOf<Self> = struct_value & others_mask;
 
         // get the new field value, shifted into place
-        let field_value_shifted: BaseIntOf<Self> = #inner;
+        #value_shifted
 
         // join the values using bit-or
-        let new_struct_value = others_values | field_value_shifted;
+        let new_struct_value = others_values | value_shifted;
         self.value = <ArbIntOf<Self>>::new(new_struct_value);
     }
 }
@@ -198,30 +220,33 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
         Tuple(tuple) => {
             // to index into the tuple value
             let mut tuple_index = syn::Index::from(0);
-            tuple.elems.iter()
+            let value_shifted = tuple.elems.iter()
                 .map(|elem| {
                     let elem_name = quote!(value.#tuple_index);
                     tuple_index.index += 1;
                     // for every tuple element, generate its setter code
-                    let setter = generate_setter_inner(elem);
+                    let value_shifted = generate_setter_inner(elem);
                     // set the value and add a scope around it
                     quote! { {
                         let value = #elem_name;
-                        let setter = #setter;
-                        setter
+                        #value_shifted
+                        value_shifted
                     } }
                 })
                 // join all setter codes with bit-or
                 .reduce(|acc, next| quote!(#acc | #next))
                 // `field: (),` will be handled like this:
-                .unwrap_or_else(|| quote!(0))
+                .unwrap_or_else(|| quote!(0));
+            quote!{
+                let value_shifted = #value_shifted;
+            }
         },
         Array(array) => {
             // [[T; N1]; N2] -> (N1*N2, T)
             let (len_expr, elem_ty) = length_and_type_of_nested_array(array);
             // generate the setter code for one array element
-            let array_elem = generate_setter_inner(&elem_ty);
-            quote! { {
+            let value_shifted = generate_setter_inner(&elem_ty);
+            quote! {
                 // [[T; N1]; N2] -> [T; N1*N2], for example: [[(u2, u2); 3]; 4] -> [(u2, u2); 12]
                 #[allow(clippy::useless_transmute)]
                 let value: [#elem_ty; #len_expr] = unsafe { core::mem::transmute(value) };  
@@ -232,18 +257,18 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
                 while i < #len_expr {
                     let value = value[i];
                     // for every element, shift its value into its place
-                    let elem_value_shifted = #array_elem;
+                    #value_shifted
                     // and bit-or them together
-                    acc |= elem_value_shifted;
+                    acc |= value_shifted;
                     i += 1;
                 }
-                acc
-            } }
+                let value_shifted = acc;
+            }
         },
         Path(_) => {
             // get the size, so we can reach the next element afterwards
             let size = shared::generate_type_bitsize(ty);
-            quote! { {
+            quote! {
                 // the element's value as it's underlying type
                 let value: BaseIntOf<#ty> = <ArbIntOf<#ty>>::from(value).value();
                 // cast the element value (e.g. u8 -> u32),
@@ -252,8 +277,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
                 let value_shifted = value << offset;
                 // increase the offset to allow the next element to be read
                 offset += #size;
-                value_shifted
-            } }
+            }
         },
         _ => unreachable(()),
     }
@@ -263,14 +287,14 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
 /// 
 /// [`super::generate_struct`] contains the initialization of `offset`.
 pub(crate) fn generate_constructor_part(ty: &Type, name: &Ident) -> TokenStream {
-    let setter = generate_setter_inner(ty);
+    let value_shifted = generate_setter_inner(ty);
     // setters look like this: `fn set_field1(&mut self, value: u3)`
     // constructors like this: `fn new(field1: u3, field2: u4) -> Self`
     // so we need to rename `field1` -> `value` and put this in a scope
     quote! { {
         let value = #name;
-        let field = #setter;
-        field
+        #value_shifted
+        value_shifted
     } }
 }
 
