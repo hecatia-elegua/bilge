@@ -69,7 +69,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
         .map(|field| {
             let ty = &field.ty;
             if shared::is_always_filled(ty) {
-                let size = shared::generate_field_bitsize(ty);
+                let size = shared::generate_type_bitsize(ty);
                 quote! { {
                     // we still need to shift by the element's size
                     let size = #size;
