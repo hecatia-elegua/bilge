@@ -1,20 +1,21 @@
 use proc_macro2::{TokenStream, Ident};
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
+use syn::{DeriveInput, Data, Type, Fields};
 
-use crate::shared::{self, BitSize, unreachable};
+use crate::shared::{self, unreachable, analyze_enum_derive, analyze_derive, generate_enum};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
-    let (derive_data, arb_int, name, internal_bitsize) = analyze(&derive_input);
+    let try_from = true;
+    let (derive_data, arb_int, name, internal_bitsize, derive_impl) = analyze_derive(&derive_input, try_from);
     match derive_data {
         Data::Struct(ref data) => {
             codegen_struct(arb_int, name, &data.fields)
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize);
-            codegen_enum(arb_int, name, match_arms)
+            let match_arms = analyze_enum_derive(variants, name, internal_bitsize, &derive_impl);
+            generate_enum(arb_int, name, match_arms, &derive_impl)
         },
         _ => unreachable(()),
     }
@@ -22,41 +23,6 @@ pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
 
 fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
-}
-
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize) {
-    shared::analyze_derive(derive_input, true)
-}
-
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    shared::analyze_enum_derive(variants, name, internal_bitsize, true)
-}
-
-fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
-    let (from_int_match_arms, to_int_match_arms) = match_arms;
-
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
-
-    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
-    quote! {
-        impl #const_ ::core::convert::TryFrom<#arb_int> for #enum_type {
-            type Error = #arb_int;
-
-            fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
-                match number.value() {
-                    #( #from_int_match_arms )*
-                    i => Err(#arb_int::new(i)),
-                }
-            }
-        }
-
-        // this other direction is needed for get/set/new
-        #from_enum_impl
-    }
 }
 
 fn generate_field_check(ty: &Type) -> TokenStream {
