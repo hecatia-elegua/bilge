@@ -290,6 +290,21 @@ fn reserved_variant(data: &Data) -> Option<Variant> {
     }
 }
 
+pub(crate) enum DeriveImpl {
+    From,
+    FromWithReservedVariant(Variant),
+    TryFrom,
+}
+
+impl DeriveImpl {
+    pub fn into_reserved_variant(self) -> Option<Variant> {
+        match self {
+            DeriveImpl::FromWithReservedVariant(reserved) => Some(reserved),
+            _ => None,
+        }
+    }
+}
+
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
     if let Meta::Path(path) = &attr.meta {
         path.is_ident(name)
@@ -304,19 +319,4 @@ fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {
 
 fn is_reserved_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "reserved")
-}
-
-pub(crate) enum DeriveImpl {
-    From,
-    FromWithReservedVariant(Variant),
-    TryFrom,
-}
-
-impl DeriveImpl {
-    pub fn into_reserved_variant(self) -> Option<Variant> {
-        match self {
-            DeriveImpl::FromWithReservedVariant(reserved) => Some(reserved),
-            _ => None,
-        }
-    }
 }
