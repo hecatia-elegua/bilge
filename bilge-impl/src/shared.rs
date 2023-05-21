@@ -37,16 +37,16 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
         }
     }
 
-    let derive_impl = match reserved_variant(data) {
+    let derive_impl = match fallback_variant(data) {
         None if try_from => DeriveImpl::TryFrom,
         Some(_) if try_from => {
             emit_call_site_warning!(
-                "enum defines reserved variant"; 
-                help = "use `#[derive(FromBits)]` instead. a `From` implementation can be genereated from the reserved variant"
+                "enum defines fallback variant"; 
+                help = "use `#[derive(FromBits)]` instead. a `From` implementation can be genereated from the fallback variant"
             );
             DeriveImpl::TryFrom
         }
-        Some(variant) => DeriveImpl::FromWithReservedVariant(variant),
+        Some(variant) => DeriveImpl::FromWithFallbackVariant(variant),
         None => DeriveImpl::From,
     };
 
@@ -159,12 +159,12 @@ fn validate_bitsize(derive_impl: &DeriveImpl, enum_fills_bitsize: bool) {
         DeriveImpl::TryFrom if enum_fills_bitsize => {
             emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
         },
-        DeriveImpl::FromWithReservedVariant(_) if enum_fills_bitsize => {
-            emit_call_site_warning!("enum fills its bitsize but has reserved variant"; help = "you can remove the #[reserved] attribute`");
+        DeriveImpl::FromWithFallbackVariant(_) if enum_fills_bitsize => {
+            emit_call_site_warning!("enum fills its bitsize but has fallback variant"; help = "you can remove the #[fallback] attribute`");
         },
         DeriveImpl::From if !enum_fills_bitsize => {
             // semantically the same as #[non_exhaustive]
-            abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[reserved]")
+            abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
         },
         _ => (),
     }
@@ -215,14 +215,14 @@ fn generate_to_enum_impl(arb_int: &TokenStream, enum_type: &Ident, from_int_matc
                 }
             } 
         },
-        DeriveImpl::FromWithReservedVariant(reserved) => {
-            let reserved_name = &reserved.ident;
+        DeriveImpl::FromWithFallbackVariant(fallback) => {
+            let fallback_name = &fallback.ident;
             quote! {
                 impl #const_ ::core::convert::From<#arb_int> for #enum_type {
                     fn from(number: #arb_int) -> Self {
                         match number.value() {
                             #( #from_int_match_arms )*
-                            _ => Self::#reserved_name
+                            _ => Self::#fallback_name
                         }
                     }
                 }
@@ -261,18 +261,18 @@ pub fn unreachable<T, U>(_: T) -> U {
     unreachable!("should have already been validated")
 }
 
-fn reserved_variant(data: &Data) -> Option<Variant> {
+fn fallback_variant(data: &Data) -> Option<Variant> {
     match data {
         Data::Enum(enum_data) => {
-            let mut variants_with_reserved = enum_data
+            let mut variants_with_fallback = enum_data
                 .variants
                 .iter()
-                .filter(|variant| variant.attrs.iter().any(is_reserved_attribute));
+                .filter(|variant| variant.attrs.iter().any(is_fallback_attribute));
 
-            let variant = variants_with_reserved.next();
+            let variant = variants_with_fallback.next();
 
-            if variants_with_reserved.next().is_some() {
-                abort_call_site!("only one enum variant may be reserved"; help = "remove #[reserved] attributes until you only have one");
+            if variants_with_fallback.next().is_some() {
+                abort_call_site!("only one enum variant may be fallback"; help = "remove #[fallback] attributes until you only have one");
             } else {
                 variant.cloned()
             }
@@ -280,8 +280,8 @@ fn reserved_variant(data: &Data) -> Option<Variant> {
         Data::Struct(struct_data) => {
             let mut field_attrs = struct_data.fields.iter().flat_map(|field| &field.attrs);
             
-            if field_attrs.any(is_reserved_attribute) {
-                abort_call_site!("the attribute `reserved` is only applicable to enums"; help = "remove all `#[reserved]` from this struct")
+            if field_attrs.any(is_fallback_attribute) {
+                abort_call_site!("the attribute `fallback` is only applicable to enums"; help = "remove all `#[fallback]` from this struct")
             } else {
                 None
             }
@@ -292,14 +292,14 @@ fn reserved_variant(data: &Data) -> Option<Variant> {
 
 pub(crate) enum DeriveImpl {
     From,
-    FromWithReservedVariant(Variant),
+    FromWithFallbackVariant(Variant),
     TryFrom,
 }
 
 impl DeriveImpl {
-    pub fn into_reserved_variant(self) -> Option<Variant> {
+    pub fn into_fallback_variant(self) -> Option<Variant> {
         match self {
-            DeriveImpl::FromWithReservedVariant(reserved) => Some(reserved),
+            DeriveImpl::FromWithFallbackVariant(fallback) => Some(fallback),
             _ => None,
         }
     }
@@ -317,6 +317,6 @@ fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "non_exhaustive")
 }
 
-fn is_reserved_attribute(attr: &Attribute) -> bool {
-    is_attribute(attr, "reserved")
+fn is_fallback_attribute(attr: &Attribute) -> bool {
+    is_attribute(attr, "fallback")
 }
