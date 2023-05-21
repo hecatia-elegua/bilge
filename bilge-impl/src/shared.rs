@@ -1,7 +1,7 @@
 use proc_macro2::{TokenStream, Ident};
-use proc_macro_error::{abort_call_site, emit_call_site_warning, abort};
+use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, LitInt, Expr, punctuated::Iter, Variant, Type, Lit, ExprLit, Meta, Data, Attribute};
+use syn::{DeriveInput, LitInt, Expr, Variant, Type, Lit, ExprLit, Meta, Data, Attribute};
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
@@ -15,7 +15,7 @@ pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
 
 // allow since we want `if try_from` blocks to stand out
 #[allow(clippy::collapsible_if)]
-pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, DeriveImpl) {
+pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Variant>) {
     let DeriveInput { 
         attrs,
         ident,
@@ -37,18 +37,10 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
         }
     }
 
-    let derive_impl = match fallback_variant(data) {
-        None if try_from => DeriveImpl::TryFrom,
-        Some(_) if try_from => {
-            emit_call_site_warning!(
-                "enum defines fallback variant"; 
-                help = "use `#[derive(FromBits)]` instead. a `From` implementation can be genereated from the fallback variant"
-            );
-            DeriveImpl::TryFrom
-        }
-        Some(variant) => DeriveImpl::FromWithFallbackVariant(variant),
-        None => DeriveImpl::From,
-    };
+    let fallback = fallback_variant(data);
+    if fallback.is_some() && try_from {
+        abort_call_site!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
+    }
 
     // parsing the #[bitsize_internal(num)] attribute macro
     let args = attrs.iter().find_map(|attr| {
@@ -64,7 +56,7 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
     }).unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
     let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args);
 
-    (data, arb_int, ident, bitsize, derive_impl)
+    (data, arb_int, ident, bitsize, fallback)
 }
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.
@@ -101,93 +93,6 @@ pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
     }
 }
 
-pub(crate) fn analyze_enum_derive(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, derive_impl: &DeriveImpl) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    let variants_count = variants.len();
-    // in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
-    let max_variants_count = 1u128 << internal_bitsize;
-    
-    // Verifying that the value doesn't exceed max_variants_count is done further down.
-    let enum_fills_bitsize = variants_count as u128 == max_variants_count;
-    validate_bitsize(derive_impl, enum_fills_bitsize);  
-
-    let mut next_variant_value = 0;
-    variants.map(|variant| {
-        let variant_name = &variant.ident;
-        let variant_value: u128 = match variant.discriminant.as_ref() {
-            Some(d) => {
-                let discriminant_expr = &d.1;
-                match discriminant_expr {
-                    Expr::Lit(ExprLit { lit: Lit::Int(int), .. }) => int.base10_parse().unwrap_or_else(unreachable),
-                    _ => abort!(
-                        discriminant_expr, "variant `{}` is not a number", variant_name;
-                        help = "only literal integers currently supported"
-                    )
-                }
-            }
-            None => next_variant_value,
-        };
-        next_variant_value = variant_value + 1;
-
-        if variant_value >= max_variants_count {
-            abort_call_site!("Value {} exceeds the given number of bits", variant_name);
-        }
-
-        // might be useful for not generating "1u128 -> Self::Variant"
-        let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
-
-        let from_int_match_arm = if matches!(derive_impl, DeriveImpl::TryFrom) {
-            quote! {
-                #variant_value => Ok(Self::#variant_name),
-            }
-        } else {
-            quote! {
-                #variant_value => Self::#variant_name,
-            }
-        };
-
-        let to_int_match_arm = quote! {
-            #name::#variant_name => Self::new(#variant_value),
-        };
-
-        (from_int_match_arm, to_int_match_arm)
-    }).unzip()
-}
-
-/// Verify if the enum fills its bitsize, depending on which derive impl we are in.
-fn validate_bitsize(derive_impl: &DeriveImpl, enum_fills_bitsize: bool) {
-    match derive_impl {
-        DeriveImpl::TryFrom if enum_fills_bitsize => {
-            emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
-        },
-        DeriveImpl::FromWithFallbackVariant(_) if enum_fills_bitsize => {
-            emit_call_site_warning!("enum fills its bitsize but has fallback variant"; help = "you can remove the #[fallback] attribute`");
-        },
-        DeriveImpl::From if !enum_fills_bitsize => {
-            // semantically the same as #[non_exhaustive]
-            abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
-        },
-        _ => (),
-    }
-}
-
-pub(crate) fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), derive_impl: &DeriveImpl) -> TokenStream {
-    let (from_int_match_arms, to_int_match_arms) = match_arms;
-
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
-
-    let from_enum_impl = generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
-    let to_enum_impl = generate_to_enum_impl(&arb_int, enum_type, from_int_match_arms, &const_, derive_impl);
-
-    quote! {
-        #from_enum_impl
-        #to_enum_impl
-    }
-}
-
 pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, to_int_match_arms: Vec<TokenStream>, const_: &TokenStream) -> TokenStream {
     quote! {
         impl #const_ ::core::convert::From<#enum_type> for #arb_int {
@@ -197,51 +102,6 @@ pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, 
                 }
             }
         }
-    }
-}
-
-fn generate_to_enum_impl(arb_int: &TokenStream, enum_type: &Ident, from_int_match_arms: Vec<TokenStream>, const_: &TokenStream, derive_impl: &DeriveImpl) -> TokenStream {
-    match derive_impl {
-        DeriveImpl::From => {
-            quote! {
-                impl #const_ ::core::convert::From<#arb_int> for #enum_type {
-                    fn from(number: #arb_int) -> Self {
-                        match number.value() {
-                            #( #from_int_match_arms )*
-                            // constness: unreachable!() is not const yet
-                            _ => panic!("unreachable: arbitrary_int already validates that this is unreachable")
-                        }
-                    }
-                }
-            } 
-        },
-        DeriveImpl::FromWithFallbackVariant(fallback) => {
-            let fallback_name = &fallback.ident;
-            quote! {
-                impl #const_ ::core::convert::From<#arb_int> for #enum_type {
-                    fn from(number: #arb_int) -> Self {
-                        match number.value() {
-                            #( #from_int_match_arms )*
-                            _ => Self::#fallback_name
-                        }
-                    }
-                }
-            }
-        },
-        DeriveImpl::TryFrom => {
-            quote! {
-                impl #const_ ::core::convert::TryFrom<#arb_int> for #enum_type {
-                    type Error = #arb_int;
-    
-                    fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
-                        match number.value() {
-                            #( #from_int_match_arms )*
-                            i => Err(#arb_int::new(i)),
-                        }
-                    }
-                }
-            }
-        },
     }
 }
 
@@ -255,6 +115,10 @@ pub fn is_always_filled(ty: &Type) -> bool {
     ty.starts_with('u') || ty == "bool"
 }
 
+pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> bool {
+    let max_variants_count = 1u128 << bitsize;
+    variants_count as u128 == max_variants_count
+}
 
 #[inline]
 pub fn unreachable<T, U>(_: T) -> U {
@@ -290,21 +154,6 @@ fn fallback_variant(data: &Data) -> Option<Variant> {
     }
 }
 
-pub(crate) enum DeriveImpl {
-    From,
-    FromWithFallbackVariant(Variant),
-    TryFrom,
-}
-
-impl DeriveImpl {
-    pub fn into_fallback_variant(self) -> Option<Variant> {
-        match self {
-            DeriveImpl::FromWithFallbackVariant(fallback) => Some(fallback),
-            _ => None,
-        }
-    }
-}
-
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
     if let Meta::Path(path) = &attr.meta {
         path.is_ident(name)
@@ -317,6 +166,48 @@ fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "non_exhaustive")
 }
 
-fn is_fallback_attribute(attr: &Attribute) -> bool {
+pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "fallback")
+}
+
+pub(crate) struct EnumVariantValueAssigner {
+    bitsize: u8,
+    next_expected_assignment: u128,
+}
+
+impl EnumVariantValueAssigner {
+    pub fn new(bitsize: u8) -> EnumVariantValueAssigner {
+        EnumVariantValueAssigner { bitsize, next_expected_assignment: 0 }
+    }
+    
+    fn max_value(&self) -> u128 {
+        2u128.saturating_pow(self.bitsize as u32) - 1
+    }
+
+    fn value_from_discriminant(&self, variant: &Variant) -> Option<u128> {
+        let discriminant = variant.discriminant.as_ref()?;
+        let discriminant_expr = &discriminant.1;
+        let variant_name = &variant.ident;
+
+        let Expr::Lit(ExprLit { lit: Lit::Int(int), .. }) = discriminant_expr else {
+            abort!(
+                discriminant_expr, 
+                "variant `{}` is not a number", variant_name; 
+                help = "only literal integers currently supported"
+            )
+        };
+    
+        let discriminant_value: u128 = int.base10_parse().unwrap_or_else(unreachable);
+        if discriminant_value > self.max_value() {
+            abort_call_site!("Value of variant {} exceeds the given number of bits", variant_name)
+        }
+
+        Some(discriminant_value)
+    }
+
+    pub fn assign(&mut self, variant: &Variant) -> u128 {
+        let value = self.value_from_discriminant(variant).unwrap_or(self.next_expected_assignment);
+        self.next_expected_assignment = value + 1;
+        value
+    }
 }
