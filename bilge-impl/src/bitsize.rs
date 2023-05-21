@@ -1,9 +1,11 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
+use syn::Variant;
+use syn::punctuated::Iter;
 use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
 
-use crate::shared::{self, BitSize, unreachable};
+use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute};
 
 /// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
 const MAX_ENUM_BIT_SIZE: BitSize = 64;
@@ -71,7 +73,7 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
         }
         Item::Enum(item) => {
             let name = item.ident.clone();
-            let filled_check = analyze_enum(declared_bitsize, item.variants.len());
+            let filled_check = analyze_enum(declared_bitsize, item.variants.iter());
             let expanded = generate_enum(&item);
             ItemIr { name, filled_check, expanded }
         }
@@ -230,13 +232,19 @@ fn analyze_struct(fields: &Fields) -> TokenStream {
         .unwrap_or_else(|| quote!(true))
 }
 
-fn analyze_enum(bitsize: BitSize, variants_count: usize) -> TokenStream {
+fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
     if bitsize > MAX_ENUM_BIT_SIZE {
         abort_call_site!("enum bitsize is limited to 64")
     }
-    let max_variants_count = 1u128 << bitsize;
-    let enum_is_filled = variants_count as u128 == max_variants_count;
-    quote!(#enum_is_filled)
+    
+    let has_fallback = variants.clone().flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+    
+    if has_fallback {
+        quote!(true)
+    } else {
+        let enum_is_filled = enum_fills_bitsize(bitsize, variants.count());
+        quote!(#enum_is_filled)    
+    }
 }
 
 fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
