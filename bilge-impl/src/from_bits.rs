@@ -18,7 +18,7 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         },
         _ => unreachable(()),
     };
-    generate_common(expanded, name, &fallback)
+    generate_common(expanded, name)
 }
 
 fn parse(item: TokenStream) -> DeriveInput {
@@ -118,8 +118,7 @@ fn generate_struct(arb_int: TokenStream, struct_type: &Ident) -> TokenStream {
     }
 }
 
-fn generate_common(expanded: TokenStream, type_name: &Ident, _fallback_variant: &Option<Variant>) -> TokenStream {
-    // TODO: if fallback_variant.is_some(), an assert should not be generated
+fn generate_common(expanded: TokenStream, type_name: &Ident) -> TokenStream {
     quote! {
         #expanded
 
