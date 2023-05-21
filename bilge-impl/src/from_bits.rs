@@ -40,11 +40,11 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         abort_call_site!("enum fills its bitsize but has fallback variant"; help = "remove `#[fallback]` from this enum")
     }
 
-    let mut assigner = EnumVariantValueAssigner::new(internal_bitsize);
+    let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
 
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = assigner.assign(variant);
+        let variant_value = value_assigner.assign(variant);
 
         // might be useful for not generating "1u128 -> Self::Variant"
         let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
