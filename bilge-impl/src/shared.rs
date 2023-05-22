@@ -116,8 +116,9 @@ pub fn is_always_filled(ty: &Type) -> bool {
 }
 
 /// in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
+/// therefore the bitshift would not overflow.
 pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> bool {
-    let max_variants_count = 2u128.saturating_pow(bitsize as u32);
+    let max_variants_count = 1u128 << bitsize;
     variants_count as u128 == max_variants_count
 }
 
@@ -182,7 +183,7 @@ impl EnumVariantValueAssigner {
     }
     
     fn max_value(&self) -> u128 {
-        2u128.saturating_pow(self.bitsize as u32) - 1
+        (1u128 << self.bitsize) - 1
     }
 
     fn value_from_discriminant(&self, variant: &Variant) -> Option<u128> {
