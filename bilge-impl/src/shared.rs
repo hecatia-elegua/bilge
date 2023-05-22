@@ -15,7 +15,7 @@ pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
 
 // allow since we want `if try_from` blocks to stand out
 #[allow(clippy::collapsible_if)]
-pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Variant>) {
+pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
     let DeriveInput { 
         attrs,
         ident,
@@ -116,7 +116,7 @@ pub fn is_always_filled(ty: &Type) -> bool {
 }
 
 pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> bool {
-    let max_variants_count = 1u128 << bitsize;
+    let max_variants_count = 2u128.saturating_pow(bitsize as u32);
     variants_count as u128 == max_variants_count
 }
 
@@ -125,7 +125,7 @@ pub fn unreachable<T, U>(_: T) -> U {
     unreachable!("should have already been validated")
 }
 
-fn fallback_variant(data: &Data) -> Option<Variant> {
+fn fallback_variant(data: &Data) -> Option<&Variant> {
     match data {
         Data::Enum(enum_data) => {
             let mut variants_with_fallback = enum_data
@@ -138,7 +138,7 @@ fn fallback_variant(data: &Data) -> Option<Variant> {
             if variants_with_fallback.next().is_some() {
                 abort_call_site!("only one enum variant may be fallback"; help = "remove #[fallback] attributes until you only have one");
             } else {
-                variant.cloned()
+                variant
             }
         }
         Data::Struct(struct_data) => {

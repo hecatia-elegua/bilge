@@ -13,8 +13,8 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, &fallback);
-            generate_enum(arb_int, name, match_arms, &fallback)
+            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback);
+            generate_enum(arb_int, name, match_arms, fallback)
         },
         _ => unreachable(()),
     };
@@ -25,11 +25,11 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Variant>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
     shared::analyze_derive(derive_input, false)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: &Option<Variant>) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>) -> (Vec<TokenStream>, Vec<TokenStream>) {
     // in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
     
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
@@ -61,7 +61,7 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
     }).unzip()
 }
 
-fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: &Option<Variant>) -> TokenStream {
+fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
