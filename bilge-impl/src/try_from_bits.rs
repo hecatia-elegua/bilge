@@ -25,7 +25,7 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Variant>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
     shared::analyze_derive(derive_input, true)
 }
 
@@ -35,11 +35,11 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
     } 
 
-    let mut assigner = EnumVariantValueAssigner::new(internal_bitsize);
+    let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
     
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = assigner.assign(variant);
+        let variant_value = value_assigner.assign(variant);
 
         // might be useful for not generating "1u128 -> Self::Variant"
         let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
