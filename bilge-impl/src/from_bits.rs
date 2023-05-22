@@ -30,8 +30,6 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
 }
 
 fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    // in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
-    
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
     if !enum_is_filled && fallback.is_none() {
         abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")

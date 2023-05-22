@@ -30,7 +30,6 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
 }
 
 fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    // in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
     if enum_fills_bitsize(internal_bitsize, variants.len()) {
         emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
     } 

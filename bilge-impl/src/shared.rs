@@ -115,6 +115,7 @@ pub fn is_always_filled(ty: &Type) -> bool {
     ty.starts_with('u') || ty == "bool"
 }
 
+/// in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
 pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> bool {
     let max_variants_count = 2u128.saturating_pow(bitsize as u32);
     variants_count as u128 == max_variants_count
