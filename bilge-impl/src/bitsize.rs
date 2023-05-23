@@ -309,7 +309,7 @@ fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> 
         #expanded
 
         impl #item_type {
-            const FILLED: bool = #filled_check;
+            pub const FILLED: bool = #filled_check;
         }
     }
 }
