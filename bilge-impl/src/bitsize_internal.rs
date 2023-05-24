@@ -101,7 +101,12 @@ fn generate_field(field: &Field, field_offset: &TokenStream, fieldless_next_int:
     if name_str.contains("reserved_") || name_str.contains("padding_") {
         // needed for `DebugBits`
         let getter = generate_getter(field, field_offset, &name);
-        return (quote!(#getter), (quote!(), quote!(0)))
+        let size = shared::generate_type_bitsize(ty);
+        return (quote!(#getter), (quote!(), quote! { {
+            // we still need to shift by the element's size
+            offset += #size;
+            0
+        } }))
     }
 
     let getter = generate_getter(field, field_offset, &name);
