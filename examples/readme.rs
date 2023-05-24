@@ -35,6 +35,10 @@ struct Device {
     reserved: u4,
 }
 
+#[bitsize(32)]
+#[derive(FromBits)]
+struct InterruptSetEnables([bool; 32]);
+
 fn main() {
     let reg1 = Register::new(
         u4::new(0b1010),
@@ -50,4 +54,9 @@ fn main() {
     assert_eq!(class, Err(u2::new(2)));
     println!("{:?}", Device::try_from(0b0000_11_00));
     println!("{:?}", Device::new(Class::Mobile));
+
+    let mut ise = InterruptSetEnables::from(0b0000_0000_0000_0000_0000_0000_0001_0000);
+    let ise5 = ise.val_0_at(4);
+    ise.set_val_0_at(2, ise5);
+    assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
 }
