@@ -117,6 +117,38 @@ ise.set_val_0_at(2, ise5);
 assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
 ```
 
+Depending on what you're working with, there might be enum-based values with a lot of reserved variants.
+You can define those like this:
+
+```rust
+#[bitsize(32)]
+#[derive(FromBits, Debug, PartialEq)]
+enum Subclass {
+    Mouse,
+    Keyboard,
+    Speakers,
+    #[fallback]
+    Reserved,
+}
+```
+
+which will convert any undeclared bits to `Reserved`:
+
+```rust
+assert_eq!(Subclass::Reserved, Subclass::from(3));
+```
+
+but caution: you won't be able to retrieve the exact number again!
+
+```rust
+let subclass = Subclass::from(42);
+let num = u32::from(subclass);
+assert_ne!(42, num);
+assert_eq!(3, num);
+```
+
+We'll enable that usecase later.
+
 ### Fallible (TryFrom)
 
 In contrast to structs, enums don't have to declare all of their bits:
