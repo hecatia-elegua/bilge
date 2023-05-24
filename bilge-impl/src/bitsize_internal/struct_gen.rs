@@ -25,8 +25,22 @@
 //! lots of new scopes (curly brackets). We need the scope since `#value_shifted` expands to multiple lines.
 use super::*;
 
-/// Top-level function which initializes the cursor
-pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream) -> TokenStream {
+/// Top-level function which initializes the cursor and offsets it to what we want to read
+/// 
+/// `is_array_elem_getter` allows us to generate an array_at getter more easily
+pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream, is_array_elem_getter: bool) -> TokenStream {
+    // if we generate `fn array_at(index)`, we need to offset to the array element
+    let elem_offset = if is_array_elem_getter {
+        let size = shared::generate_type_bitsize(ty);
+        quote! {
+            let size = #size;
+            // cursor now starts at this element
+            cursor >>= size * index;
+        }
+    } else {
+        quote!()
+    };
+
     let inner = generate_getter_inner(ty, true);
     quote! {
         // for ease of reading
@@ -38,6 +52,8 @@ pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream) -> TokenStr
         let field_offset = #offset;
         // cursor now starts at this field
         cursor >>= field_offset;
+        #elem_offset
+
         #inner
     }
 }
@@ -182,7 +198,21 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
 }
 
 /// Top-level function which initializes the offset, masks other values and combines the final value
-pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream) -> TokenStream {
+/// 
+/// `is_array_elem_setter` allows us to generate a set_array_at setter more easily
+pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream, is_array_elem_setter: bool) -> TokenStream {
+    // if we generate `fn set_array_at(index, value)`, we need to offset to the array element
+    let elem_offset = if is_array_elem_setter {
+        let size = shared::generate_type_bitsize(ty);
+        quote! { 
+            let size = #size;
+            // offset now starts at this element
+            offset += size * index;
+        }
+    } else {
+        quote!()
+    };
+
     let value_shifted = generate_setter_inner(ty);
     // get the mask, so we can set this field's value
     let mask = generate_ty_mask(ty);
@@ -192,6 +222,8 @@ pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream) -> TokenStr
 
         // offset now starts at this field
         let mut offset = #offset;
+        #elem_offset
+
         let field_mask = #mask;
         // shift the mask into place
         let field_mask: BaseIntOf<Self> = field_mask << offset;
