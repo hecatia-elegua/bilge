@@ -119,13 +119,32 @@ fn generate_field(field: &Field, field_offset: &TokenStream, fieldless_next_int:
 fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenStream {
     let Field { attrs, vis, ty, .. } = field;
 
-    let getter_value = struct_gen::generate_getter_value(ty, offset);
+    let getter_value = struct_gen::generate_getter_value(ty, offset, false);
 
     let const_ = if cfg!(feature = "nightly") {
         quote!(const)
     } else {
         quote!()
     };
+
+    let array_at = if let Type::Array(array) = ty {
+        let elem_ty = &array.elem;
+        let len_expr = &array.len;
+        let name: Ident = syn::parse_str(&format!("{name}_at")).unwrap_or_else(unreachable);
+        let getter_value = struct_gen::generate_getter_value(elem_ty, offset, true);
+        quote! {
+            // #[inline]
+            #(#attrs)*
+            #[allow(clippy::type_complexity)]
+            #vis #const_ fn #name(&self, index: usize) -> #elem_ty {
+                assert!(index < #len_expr);
+                #getter_value
+            }
+        }
+    } else {
+        quote!()
+    };
+    
 
     quote! {
         // #[inline]
@@ -134,17 +153,37 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         #vis #const_ fn #name(&self) -> #ty {
             #getter_value
         }
+        
+        #array_at
     }
 }
 
 fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenStream {
     let Field { attrs, vis, ty, .. } = field;
-    let setter_value = struct_gen::generate_setter_value(ty, offset);
+    let setter_value = struct_gen::generate_setter_value(ty, offset, false);
 
-    let setter_name: Ident = syn::parse_str(&format!("set_{}", name)).unwrap_or_else(unreachable);
+    let name: Ident = syn::parse_str(&format!("set_{name}")).unwrap_or_else(unreachable);
 
     let const_ = if cfg!(feature = "nightly") {
         quote!(const)
+    } else {
+        quote!()
+    };
+
+    let array_at = if let Type::Array(array) = ty {
+        let elem_ty = &array.elem;
+        let len_expr = &array.len;
+        let name: Ident = syn::parse_str(&format!("{name}_at")).unwrap_or_else(unreachable);
+        let setter_value = struct_gen::generate_setter_value(elem_ty, offset, true);
+        quote! {
+            // #[inline]
+            #(#attrs)*
+            #[allow(clippy::type_complexity)]
+            #vis #const_ fn #name(&mut self, index: usize, value: #elem_ty) {
+                assert!(index < #len_expr);
+                #setter_value
+            }
+        }
     } else {
         quote!()
     };
@@ -153,9 +192,11 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         // #[inline]
         #(#attrs)*
         #[allow(clippy::type_complexity)]
-        #vis #const_ fn #setter_name(&mut self, value: #ty) {
+        #vis #const_ fn #name(&mut self, value: #ty) {
             #setter_value
         }
+
+        #array_at
     }
 }
 
