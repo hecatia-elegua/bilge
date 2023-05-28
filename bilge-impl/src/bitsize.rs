@@ -142,9 +142,14 @@ fn split_attributes(item: &Item) -> SplitAttributes {
                                     has_frombits = true;
                                     before_compression.push(derive)
                                 }
-                                "DebugBits" | "TryFromBits" => before_compression.push(derive),
-                                // It is most probable that basic derive macros work if we put them on after compression
-                                _ => after_compression.push(derive)
+                                path => {
+                                    if path.ends_with("Bits") {
+                                        before_compression.push(derive);
+                                    }else {
+                                        // It is most probable that basic derive macros work if we put them on after compression
+                                        after_compression.push(derive);
+                                    }
+                                }
                             }
                             Ok(())
                         }).unwrap_or_else(unreachable)

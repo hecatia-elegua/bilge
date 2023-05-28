@@ -13,6 +13,7 @@ include = ["src/lib.rs", "LICENSE-*", "README.md"]
 
 [workspace]
 members = ["bilge-impl"]
+exclude = ["tests/custom_bits"]
 
 [workspace.package]
 version = "0.1.4"
@@ -35,6 +36,7 @@ nightly = ["arbitrary-int/nightly", "bilge-impl/nightly"]
 # cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
 arbitrary-int = { version = "1.2.4" }
 bilge-impl = { version = "=0.1.4", path = "bilge-impl" }
+custom_bits = {path="tests/custom_bits"}
 
 [dev-dependencies]
 trybuild = "1.0"
