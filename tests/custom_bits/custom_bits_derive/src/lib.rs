@@ -1,6 +1,5 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use syn;
 
 #[proc_macro_derive(CustomBits)]
 pub fn custom_bits_macro_derive(input: TokenStream) -> TokenStream {
