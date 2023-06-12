@@ -24,7 +24,10 @@ keywords   = ["bilge", "bitfield", "bits", "register"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/hecatia-elegua/bilge"
-
+# tested with `cargo msrv`:
+# 1.64 without let...else
+# 1.34 without cargo workspace-inheritance
+rust-version = "1.65"
 
 [features]
 # at bilge devs: easiest way to test nightly is by adding "nightly" here
