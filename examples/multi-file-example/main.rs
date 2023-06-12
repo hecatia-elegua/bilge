@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
 //! Just a crude compile test to see that using a field across files works.
 use bilge::prelude::*;
 

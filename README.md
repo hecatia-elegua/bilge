@@ -30,7 +30,7 @@ However, constructors, getters, setters and From/TryFrom should stay the same, s
 
 [//]: # (keep this fixed to the version in .github/workflows/ci.yml, rust-toolchain.toml)
 
-The nightly feature is tested on `nightly-2022-11-03`.
+The nightly feature is tested on `nightly-2022-11-03` and [will not work on the newest nightly until const_convert comes back](https://github.com/rust-lang/rust/issues/110395#issuecomment-1524775763).
 
 ## Usage
 
