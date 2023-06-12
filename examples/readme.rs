@@ -1,4 +1,4 @@
-#![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
+#![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write))]
 #![allow(clippy::unusual_byte_groupings)]
 use bilge::prelude::*;
 

@@ -27,13 +27,14 @@ repository = "https://github.com/hecatia-elegua/bilge"
 
 
 [features]
+# at bilge devs: easiest way to test nightly is by adding "nightly" here
 default = []
 # Enables constness, see README.md for the specific nightly version
-nightly = ["arbitrary-int/nightly", "bilge-impl/nightly"]
+nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/nightly"]
 
 [dependencies]
 # cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
-arbitrary-int = { version = "1.2.4" }
+arbitrary-int = { version = "1.2.6" }
 bilge-impl = { version = "=0.1.4", path = "bilge-impl" }
 
 

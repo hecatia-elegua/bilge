@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
 use bilge::prelude::*;
 
 #[bitsize(16)]
