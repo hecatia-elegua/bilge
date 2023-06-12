@@ -153,7 +153,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 // after getting the value, we can shift by the element's size
                 // TODO: we could move this into tuple/array (and try_from, below)
                 let size = #size;
-                cursor >>= size;
+                cursor = cursor.wrapping_shr(size as u32);
                 // cast the element value (e.g. u32 -> u8),
                 let raw_value: BaseIntOf<#ty> = raw_value as BaseIntOf<#ty>;
                 // which allows it to be used here (e.g. u4::new(u8))
