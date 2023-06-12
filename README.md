@@ -17,6 +17,7 @@ I wanted a design fitting rust:
 - **simple to complex**
     - obvious and readable basic frontend, like normal structs
     - only minimally and gradually introduce advanced concepts
+    - provide extension mechanisms
 
 The lib is **no-std** (and fully `const` behind a `"nightly"` feature gate).
 
@@ -201,6 +202,12 @@ For structs, you need to add `#[derive(DebugBits)]` to get an output like this:
 Ok(Device { reserved_i: 0, class: Stationary, reserved_ii: 0 })
 Device { reserved_i: 0, class: Mobile, reserved_ii: 0 }
 ```
+
+### Custom -Bits derives
+
+One of the main advantages of our approach is that we can keep `#[bitsize]` pretty slim, offloading all the other features to derive macros.
+Besides the derive macros shown above, you can extend `bilge` with your own derive crates working on bitfields.
+An example of this is given in [`/tests/custom_derive.rs`](https://github.com/hecatia-elegua/bilge/blob/main/tests/custom_derive.rs), with its implementation in [`tests/custom_bits`](https://github.com/hecatia-elegua/bilge/blob/1dfb6cf7d278d102d3f96ac31a9374e2b27fafc7/tests/custom_bits/custom_bits_derive/src/lib.rs).
 
 ## Back- and Forwards Compatibility
 
