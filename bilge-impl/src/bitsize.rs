@@ -98,6 +98,9 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
 
 /// Split item attributes into those applied before bitfield-compression and those applied after.
 /// Also, abort on any invalid configuration.
+/// 
+/// Any derives with suffix `Bits` will be able to access field information.
+/// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
 fn split_attributes(item: &Item) -> SplitAttributes {
     match item {
         //enums don't need special handling
@@ -145,7 +148,7 @@ fn split_attributes(item: &Item) -> SplitAttributes {
                                 path => {
                                     if path.ends_with("Bits") {
                                         before_compression.push(derive);
-                                    }else {
+                                    } else {
                                         // It is most probable that basic derive macros work if we put them on after compression
                                         after_compression.push(derive);
                                     }
