@@ -40,9 +40,10 @@ nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/night
 arbitrary-int = { version = "1.2.6" }
 bilge-impl = { version = "=0.1.4", path = "bilge-impl" }
 
-
 [dev-dependencies]
+# tests
 trybuild = "1.0"
+custom_bits = { path = "tests/custom_bits" }
 # examples
 volatile = { git = "https://github.com/theseus-os/volatile" }
 zerocopy = "0.5.0"
@@ -51,7 +52,6 @@ criterion = "0.3"
 modular-bitfield = "0.11.2"
 bitbybit = "1.1.4"
 # deku = "0.16"
-custom_bits = { path = "tests/custom_bits" }
 
 # criterion workaround to make `cargo bench -- --verbose` work
 [lib]
