@@ -96,7 +96,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
                 quote! { {
                     // we still need to shift by the element's size
                     let size = #size;
-                    cursor >>= size;
+                    cursor = cursor.wrapping_shr(size as u32);
                     true
                 } }
             } else {

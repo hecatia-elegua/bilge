@@ -176,7 +176,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     quote! {
                         // we still need to shift by the element's size
                         let size = #size;
-                        cursor >>= size;
+                        cursor = cursor.wrapping_shr(size as u32);
                         true
                     }
                 } else {
