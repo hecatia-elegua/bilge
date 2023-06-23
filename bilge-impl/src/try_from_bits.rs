@@ -36,6 +36,8 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
     } 
 
+    shared::validate_enum_variants(variants.clone());
+
     let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
     
     variants.map(|variant| {
