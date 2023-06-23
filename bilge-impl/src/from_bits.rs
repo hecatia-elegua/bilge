@@ -38,6 +38,8 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         abort_call_site!("enum fills its bitsize but has fallback variant"; help = "remove `#[fallback]` from this enum")
     }
 
+    shared::validate_enum_variants(variants.clone());
+
     let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
 
     variants.map(|variant| {

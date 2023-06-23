@@ -1,7 +1,8 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, LitInt, Expr, Variant, Type, Lit, ExprLit, Meta, Data, Attribute};
+use syn::punctuated::Iter;
+use syn::{DeriveInput, LitInt, Expr, Variant, Type, Lit, ExprLit, Meta, Data, Attribute, Fields};
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
@@ -211,5 +212,13 @@ impl EnumVariantValueAssigner {
         let value = self.value_from_discriminant(variant).unwrap_or(self.next_expected_assignment);
         self.next_expected_assignment = value + 1;
         value
+    }
+}
+
+pub fn validate_enum_variants(variants: Iter<Variant>) {
+    for variant in variants {
+        if !matches!(variant.fields, Fields::Unit) {
+            abort!(variant, "currently, only unit variants are allowed in enums"; help = "change this variant to a unit");
+        }
     }
 }
