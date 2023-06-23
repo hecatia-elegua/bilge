@@ -30,6 +30,8 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
 }
 
 fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>) -> (Vec<TokenStream>, Vec<TokenStream>) {
+    shared::validate_enum_variants(variants.clone());
+    
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
     if !enum_is_filled && fallback.is_none() {
         abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
@@ -37,8 +39,6 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
     if enum_is_filled && fallback.is_some() {
         abort_call_site!("enum fills its bitsize but has fallback variant"; help = "remove `#[fallback]` from this enum")
     }
-
-    shared::validate_enum_variants(variants.clone());
 
     let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
 
