@@ -1,5 +1,4 @@
-use super::{BitSize, is_fallback_attribute, unreachable};
-use crate::bitsize::bitsize_from_type_token;
+use super::{BitSize, is_fallback_attribute, unreachable, bitsize_from_type_token};
 use crate::shared::util::{Single, SingleResult};
 use proc_macro2::Ident;
 use proc_macro_error::{abort, abort_call_site};

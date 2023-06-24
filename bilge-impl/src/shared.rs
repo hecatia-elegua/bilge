@@ -5,7 +5,7 @@ pub mod variant_value_assigner;
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, LitInt, Type, Meta, Attribute};
+use syn::{DeriveInput, LitInt, Type, Meta, Attribute, Path};
 use fallback::{Fallback, fallback_variant};
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -146,4 +146,29 @@ fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {
 
 pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "fallback")
+}
+
+/// attempts to extract the bitsize from a type token named `uN` or `bool`.
+/// should return `Result` instead of `Option`, if we decide to add more descriptive error handling.
+/// XXX: this strategy seems fragile.
+pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
+    let last_segment = path.segments.last().expect("validated by syn analysis");
+    let type_name = last_segment.ident.to_string();
+    
+    // there's no need to check that PathArguments is PathArguments::None.
+    // if the type name passes the below checks then, in the current namespace, 
+    // it can't have generic aguments and is definitely not an Fn trait.
+
+    if type_name == "bool" {
+        Some(1)
+    } else if let Some(suffix) = type_name.strip_prefix('u') {
+        // characters which may appear in this suffix are digits, letters and underscores.
+        // parse() will reject letters and underscores, so this should be correct.
+        let bitsize = suffix.parse().ok();
+        
+        // the namespace contains u2 up to u{MAX_STRUCT_BIT_SIZE}. can't make assumptions about larger values
+        bitsize.filter(|&n| n <= MAX_STRUCT_BIT_SIZE)
+    } else {
+        None
+    }
 }
