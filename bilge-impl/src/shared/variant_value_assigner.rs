@@ -1,5 +1,5 @@
 use proc_macro2::Literal;
-use proc_macro_error::{abort, abort_call_site};
+use proc_macro_error::abort;
 use syn::{Variant, Expr, ExprLit, Lit};
 use super::{BitSize, unreachable};
 
@@ -32,7 +32,7 @@ impl EnumVariantValueAssigner {
     
         let discriminant_value: u128 = int.base10_parse().unwrap_or_else(unreachable);
         if discriminant_value > self.max_value() {
-            abort_call_site!("Value of variant {} exceeds the given number of bits", variant_name)
+            abort!(variant, "Value of variant exceeds the given number of bits")
         }
 
         Some(discriminant_value)
