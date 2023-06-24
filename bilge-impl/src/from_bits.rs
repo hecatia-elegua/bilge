@@ -1,8 +1,8 @@
 use proc_macro2::{TokenStream, Ident};
-use proc_macro_error::abort_call_site;
+use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant, Expr};
-use crate::shared::{self, BitSize, unreachable, EnumVariantValueAssigner, enum_fills_bitsize};
+use syn::{Fields, DeriveInput, Data, punctuated::Iter, Variant};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, EnumVariantValueAssigner, enum_fills_bitsize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -13,7 +13,7 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback);
+            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref());
             generate_enum(arb_int, name, match_arms, fallback)
         },
         _ => unreachable(()),
@@ -25,12 +25,12 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, false)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    shared::validate_enum_variants(variants.clone());
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>) -> (Vec<TokenStream>, Vec<TokenStream>) {
+    validate_enum_variants(variants.clone(), fallback);
     
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
     if !enum_is_filled && fallback.is_none() {
@@ -44,24 +44,26 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = value_assigner.assign(variant);
+        let variant_value = value_assigner.assign_unsuffixed(variant);
 
-        // might be useful for not generating "1u128 -> Self::Variant"
-        let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
-
-        let from_int_match_arm = quote! {
-            #variant_value => Self::#variant_name,
+        let from_int_match_arm = if is_ident_of_fallback(fallback, variant_name) {
+            // this value will be handled by the catch-all arm
+            quote!()
+        } else {
+            quote! { #variant_value => Self::#variant_name, }
         };
 
-        let to_int_match_arm = quote! {
-            #name::#variant_name => Self::new(#variant_value),
+        let to_int_match_arm = if is_ident_of_fallback_with_value(fallback, variant_name) {
+            quote! { #name::#variant_name(number) => number, } 
+        } else {
+            quote! { #name::#variant_name => Self::new(#variant_value), }
         };
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
 }
 
-fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>) -> TokenStream {
+fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<Fallback>) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
@@ -72,16 +74,17 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
 
-    let catch_all_arm = if let Some(variant) = fallback {
-        let fallback_name = &variant.ident;
-        quote! {
-            _ => Self::#fallback_name,
-        }
-    } else {
-        quote! {
+    let catch_all_arm = match fallback {
+        Some(Fallback::WithValue(fallback_ident)) => quote! {
+            _ => Self::#fallback_ident(number),
+        },
+        Some(Fallback::Unit(fallback_ident)) => quote! {
+            _ => Self::#fallback_ident,
+        },
+        None => quote! {
             // constness: unreachable!() is not const yet
             _ => panic!("unreachable: arbitrary_int already validates that this is unreachable")
-        }
+        },
     };
 
     quote! {
@@ -123,5 +126,38 @@ fn generate_common(expanded: TokenStream, type_name: &Ident) -> TokenStream {
         #expanded
 
         const _: () = assert!(#type_name::FILLED, "implementing FromBits on bitfields with unfilled bits is forbidden");
+    }
+}
+
+fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) {
+    for variant in variants {
+        // we've already validated the correctness of the fallback variant, and that there's at most one such variant.
+        // this means we can safely skip a fallback variant if we find one.
+        if is_ident_of_fallback(fallback, &variant.ident) {
+            continue;
+        }
+
+        if !matches!(variant.fields, Fields::Unit) {
+            let help_message = if fallback.is_some() {
+                "change this variant to a unit"
+            } else {
+                "add a fallback variant or change this variant to a unit"
+            };
+            abort!(variant, "FromBits only supports unit variants for variants without fallback"; help = help_message);
+        }
+    }
+}
+
+fn is_ident_of_fallback(fallback: Option<&Fallback>, ident: &Ident) -> bool {
+    match fallback {
+        Some(Fallback::Unit(fallback_ident) | Fallback::WithValue(fallback_ident)) => ident == fallback_ident,
+        _ => false,
+    }
+}
+
+fn is_ident_of_fallback_with_value(fallback: Option<&Fallback>, ident: &Ident) -> bool {
+    match fallback {
+        Some(Fallback::WithValue(fallback_ident)) => ident == fallback_ident,
+        _ => false,
     }
 }
