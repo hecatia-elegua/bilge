@@ -1,9 +1,8 @@
 use proc_macro2::{TokenStream, Ident};
-use proc_macro_error::emit_call_site_warning;
+use proc_macro_error::{emit_call_site_warning, abort};
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields, Expr};
-
-use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, EnumVariantValueAssigner};
+use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, enum_fills_bitsize, EnumVariantValueAssigner};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -25,12 +24,12 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, true)
 }
 
 fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    shared::validate_enum_variants(variants.clone());
+    validate_enum_variants(variants.clone());
 
     if enum_fills_bitsize(internal_bitsize, variants.len()) {
         emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
@@ -40,10 +39,7 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
     
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = value_assigner.assign(variant);
-
-        // might be useful for not generating "1u128 -> Self::Variant"
-        let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
+        let variant_value = value_assigner.assign_unsuffixed(variant);
 
         let from_int_match_arm = quote! {
             #variant_value => Ok(Self::#variant_name),
@@ -145,5 +141,13 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
 
         // TODO: this is relevant to non_exhaustive and doesn't need to be forbidden
         // const _: () = assert!(!#struct_type::FILLED, "implementing TryFromBits on bitfields with filled bits is unneccessary"); 
+    }
+}
+
+fn validate_enum_variants(variants: Iter<Variant>) {
+    for variant in variants {
+        if !matches!(variant.fields, Fields::Unit) {
+            abort!(variant, "TryFromBits only supports unit variants in enums"; help = "change this variant to a unit");
+        }
     }
 }
