@@ -182,7 +182,7 @@ impl EnumVariantValueAssigner {
         Some(discriminant_value)
     }
 
-    fn next_assignment(&mut self, variant: &Variant) -> u128 {
+    fn assign(&mut self, variant: &Variant) -> u128 {
         let value = self.value_from_discriminant(variant).unwrap_or(self.next_expected_assignment);
         self.next_expected_assignment = value + 1;
         value
@@ -190,7 +190,7 @@ impl EnumVariantValueAssigner {
 
     /// syn adds a suffix when printing Rust integers. we use an unsuffixed `Literal` for better-looking codegen
     pub fn assign_unsuffixed(&mut self, variant: &Variant) -> Literal {
-        let next = self.next_assignment(variant);
+        let next = self.assign(variant);
         Literal::u128_unsuffixed(next)
     }
 }
