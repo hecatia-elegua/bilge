@@ -52,6 +52,7 @@ criterion = "0.3"
 modular-bitfield = "0.11.2"
 bitbybit = "1.1.4"
 # deku = "0.16"
+assert_matches = "1.5.0"
 
 # criterion workaround to make `cargo bench -- --verbose` work
 [lib]
