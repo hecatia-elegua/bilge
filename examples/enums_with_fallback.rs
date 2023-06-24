@@ -32,11 +32,22 @@ enum HasFallbackWithValue {
     Reserved(u7),
 }
 
+#[bitsize(7)]
+#[derive(FromBits, Debug)]
+enum HasFallbackAndNonDefaultOrdinals {
+    First = 1,
+    Second = 3,
+    Third = 5,
+    #[fallback]
+    Reserved,
+}
+
 fn main() {
     assert_matches!(
         HasFallback::from(u7::new(5)), 
         HasFallback::Reserved
     );
+
     assert_matches!(
         HasFallbackOnNonReserved::from(u7::new(1)), 
         HasFallbackOnNonReserved::Second
@@ -53,6 +64,15 @@ fn main() {
     assert_matches!(
         HasFallbackWithValue::from(u7::new(0b1001)), 
         HasFallbackWithValue::Reserved(n) if n == u7::new(9)
+    );
+
+    assert_matches!(
+        HasFallbackAndNonDefaultOrdinals::from(u7::new(0)), 
+        HasFallbackAndNonDefaultOrdinals::Reserved
+    );
+    assert_matches!(
+        HasFallbackAndNonDefaultOrdinals::from(u7::new(5)), 
+        HasFallbackAndNonDefaultOrdinals::Third
     );
 
     // with unit fallback variants, converting back to a number will discard the fallback value,
