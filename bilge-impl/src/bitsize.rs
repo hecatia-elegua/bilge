@@ -1,11 +1,8 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
-use syn::{Variant, Path};
-use syn::punctuated::Iter;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
-
-use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute, MAX_STRUCT_BIT_SIZE};
+use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute};
 
 /// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
 const MAX_ENUM_BIT_SIZE: BitSize = 64;
@@ -319,30 +316,5 @@ fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> 
         impl #item_type {
             pub const FILLED: bool = #filled_check;
         }
-    }
-}
-
-/// attempts to extract the bitsize from a type token named `uN` or `bool`.
-/// should return `Result` instead of `Option`, if we decide to add more descriptive error handling.
-/// XXX: this strategy seems fragile.
-pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
-    let last_segment = path.segments.last().expect("validated by syn analysis");
-    let type_name = last_segment.ident.to_string();
-    
-    // there's no need to check that PathArguments is PathArguments::None.
-    // if the type name passes the below checks then, in the current namespace, 
-    // it can't have generic aguments and is definitely not an Fn trait.
-
-    if type_name == "bool" {
-        Some(1)
-    } else if let Some(suffix) = type_name.strip_prefix('u') {
-        // characters which may appear in this suffix are digits, letters and underscores.
-        // parse() will reject letters and underscores, so this should be correct.
-        let bitsize = suffix.parse().ok();
-        
-        // the namespace contains u2 up to u{MAX_STRUCT_BIT_SIZE}. can't make assumptions about larger values
-        bitsize.filter(|&n| n <= MAX_STRUCT_BIT_SIZE)
-    } else {
-        None
     }
 }
