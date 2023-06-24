@@ -1,10 +1,11 @@
 pub mod util;
 pub mod fallback;
+pub mod variant_value_assigner;
 
-use proc_macro2::{TokenStream, Ident, Literal};
+use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, LitInt, Expr, Variant, Type, Lit, ExprLit, Meta, Attribute};
+use syn::{DeriveInput, LitInt, Type, Meta, Attribute};
 use fallback::{Fallback, fallback_variant};
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -145,52 +146,4 @@ fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {
 
 pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "fallback")
-}
-
-pub(crate) struct EnumVariantValueAssigner {
-    bitsize: u8,
-    next_expected_assignment: u128,
-}
-
-impl EnumVariantValueAssigner {
-    pub fn new(bitsize: u8) -> EnumVariantValueAssigner {
-        EnumVariantValueAssigner { bitsize, next_expected_assignment: 0 }
-    }
-    
-    fn max_value(&self) -> u128 {
-        (1u128 << self.bitsize) - 1
-    }
-
-    fn value_from_discriminant(&self, variant: &Variant) -> Option<u128> {
-        let discriminant = variant.discriminant.as_ref()?;
-        let discriminant_expr = &discriminant.1;
-        let variant_name = &variant.ident;
-
-        let Expr::Lit(ExprLit { lit: Lit::Int(int), .. }) = discriminant_expr else {
-            abort!(
-                discriminant_expr, 
-                "variant `{}` is not a number", variant_name; 
-                help = "only literal integers currently supported"
-            )
-        };
-    
-        let discriminant_value: u128 = int.base10_parse().unwrap_or_else(unreachable);
-        if discriminant_value > self.max_value() {
-            abort_call_site!("Value of variant {} exceeds the given number of bits", variant_name)
-        }
-
-        Some(discriminant_value)
-    }
-
-    fn assign(&mut self, variant: &Variant) -> u128 {
-        let value = self.value_from_discriminant(variant).unwrap_or(self.next_expected_assignment);
-        self.next_expected_assignment = value + 1;
-        value
-    }
-
-    /// syn adds a suffix when printing Rust integers. we use an unsuffixed `Literal` for better-looking codegen
-    pub fn assign_unsuffixed(&mut self, variant: &Variant) -> Literal {
-        let next = self.assign(variant);
-        Literal::u128_unsuffixed(next)
-    }
 }

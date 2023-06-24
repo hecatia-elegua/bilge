@@ -2,7 +2,7 @@ use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
 use syn::{Fields, DeriveInput, Data, punctuated::Iter, Variant};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, EnumVariantValueAssigner, enum_fills_bitsize};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, variant_value_assigner::EnumVariantValueAssigner, enum_fills_bitsize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
