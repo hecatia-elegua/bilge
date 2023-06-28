@@ -46,17 +46,23 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         let variant_name = &variant.ident;
         let variant_value = value_assigner.assign_unsuffixed(variant);
 
-        let from_int_match_arm = if is_ident_of_fallback(fallback, variant_name) {
-            // this value will be handled by the catch-all arm
-            quote!()
-        } else {
-            quote! { #variant_value => Self::#variant_name, }
+        let from_int_match_arm = match fallback {
+            Some(fallback) if fallback.is_fallback_variant(variant_name) => {
+                // this value will be handled by the catch-all arm
+                quote!()
+            },
+            _ => quote! { 
+                #variant_value => Self::#variant_name, 
+            },
         };
-
-        let to_int_match_arm = if is_ident_of_fallback_with_value(fallback, variant_name) {
-            quote! { #name::#variant_name(number) => number, } 
-        } else {
-            quote! { #name::#variant_name => Self::new(#variant_value), }
+        
+        let to_int_match_arm = match fallback {
+            Some(fallback) if fallback.is_with_value() && fallback.is_fallback_variant(variant_name) => quote! { 
+                #name::#variant_name(number) => number, 
+            },
+            _ =>  quote! { 
+                #name::#variant_name => Self::new(#variant_value), 
+            },
         };
 
         (from_int_match_arm, to_int_match_arm)
@@ -133,8 +139,10 @@ fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) 
     for variant in variants {
         // we've already validated the correctness of the fallback variant, and that there's at most one such variant.
         // this means we can safely skip a fallback variant if we find one.
-        if is_ident_of_fallback(fallback, &variant.ident) {
-            continue;
+        if let Some(fallback) = &fallback {
+            if fallback.is_fallback_variant(&variant.ident) {
+                continue;
+            }
         }
 
         if !matches!(variant.fields, Fields::Unit) {
@@ -145,19 +153,5 @@ fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) 
             };
             abort!(variant, "FromBits only supports unit variants for variants without fallback"; help = help_message);
         }
-    }
-}
-
-fn is_ident_of_fallback(fallback: Option<&Fallback>, ident: &Ident) -> bool {
-    match fallback {
-        Some(Fallback::Unit(fallback_ident) | Fallback::WithValue(fallback_ident)) => ident == fallback_ident,
-        _ => false,
-    }
-}
-
-fn is_ident_of_fallback_with_value(fallback: Option<&Fallback>, ident: &Ident) -> bool {
-    match fallback {
-        Some(Fallback::WithValue(fallback_ident)) => ident == fallback_ident,
-        _ => false,
     }
 }

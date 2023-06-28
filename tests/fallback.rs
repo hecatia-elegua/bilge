@@ -1,7 +1,4 @@
-#![cfg_attr(
-    feature = "nightly",
-    feature(const_convert, const_trait_impl, const_mut_refs)
-)]
+#![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
 
 use assert_matches::assert_matches;
 use bilge::prelude::*;
