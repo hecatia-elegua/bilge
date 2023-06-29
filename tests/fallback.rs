@@ -44,7 +44,25 @@ fn non_default_ordinals() {
 
 #[bitsize(5)]
 #[derive(FromBits, Debug)]
-enum FinlvUnit {
+enum UnitFoo {
+    #[fallback]
+    Foo,
+    Bar,
+    Baz,
+}
+
+#[bitsize(5)]
+#[derive(FromBits, Debug)]
+enum ValueFoo {
+    #[fallback]
+    Foo(u5),
+    Bar,
+    Baz,
+}
+
+#[bitsize(5)]
+#[derive(FromBits, Debug)]
+enum UnitBar {
     Foo,
     #[fallback]
     Bar,
@@ -53,29 +71,88 @@ enum FinlvUnit {
 
 #[bitsize(5)]
 #[derive(FromBits, Debug)]
-enum FinlvValue {
+enum ValueBar {
     Foo,
     #[fallback]
     Bar(u5),
     Baz,
 }
 
+#[bitsize(5)]
+#[derive(FromBits, Debug)]
+enum UnitBaz {
+    Foo,
+    Bar,
+    #[fallback]
+    Baz,
+}
+
+#[bitsize(5)]
+#[derive(FromBits, Debug)]
+enum ValueBaz {
+    Foo,
+    Bar,
+    #[fallback]
+    Baz(u5),
+}
+
 #[test]
-fn when_fallback_is_not_last_variant() {
-    assert_matches!(FinlvUnit::from(u5::new(4)), FinlvUnit::Bar);
-    assert_eq!(u5::from(FinlvUnit::Bar), u5::new(1));
+fn different_fallback_positions_unit() {
+    let val = u5::new(4);
 
-    let seven = u5::new(7);
-    assert_matches!(
-        FinlvValue::from(seven),
-        FinlvValue::Bar(n) if n == seven
-    );
-    assert_eq!(u5::from(FinlvValue::Bar(seven)), seven);
+    assert_matches!(UnitFoo::from(val), UnitFoo::Foo);
+    assert_eq!(u5::from(UnitFoo::Foo), u5::new(0));
+    
+    assert_matches!(UnitBar::from(val), UnitBar::Bar);
+    assert_eq!(u5::from(UnitBar::Bar), u5::new(1));
+    
+    assert_matches!(UnitBaz::from(val), UnitBaz::Baz);
+    assert_eq!(u5::from(UnitBaz::Baz), u5::new(2));
+}
 
-    let one = u5::new(1);
+#[test]
+fn different_fallback_positions_value1() {
+    let val = u5::new(7);
+
     assert_matches!(
-        FinlvValue::from(one),
-        FinlvValue::Bar(n) if n == one
+        ValueFoo::from(val),
+        ValueFoo::Foo(n) if n == val
     );
-    assert_eq!(u5::from(FinlvValue::Bar(one)), one);
+    assert_eq!(u5::from(ValueFoo::Foo(val)), val);
+
+    assert_matches!(
+        ValueBar::from(val),
+        ValueBar::Bar(n) if n == val
+    );
+    assert_eq!(u5::from(ValueBar::Bar(val)), val);
+
+    assert_matches!(
+        ValueBaz::from(val),
+        ValueBaz::Baz(n) if n == val
+    );
+    assert_eq!(u5::from(ValueBaz::Baz(val)), val);
+}
+
+#[test]
+fn different_fallback_positions_value2() {
+    let val = u5::new(0);
+    assert_matches!(
+        ValueFoo::from(val),
+        ValueFoo::Foo(n) if n == val
+    );
+    assert_eq!(u5::from(ValueFoo::Foo(val)), val);
+
+    let val = u5::new(1);
+    assert_matches!(
+        ValueBar::from(val),
+        ValueBar::Bar(n) if n == val
+    );
+    assert_eq!(u5::from(ValueBar::Bar(val)), val);
+
+    let val = u5::new(2);
+    assert_matches!(
+        ValueBaz::from(val),
+        ValueBaz::Baz(n) if n == val
+    );
+    assert_eq!(u5::from(ValueBaz::Baz(val)), val);
 }

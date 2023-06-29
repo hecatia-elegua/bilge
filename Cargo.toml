@@ -44,6 +44,7 @@ bilge-impl = { version = "=0.1.5", path = "bilge-impl" }
 # tests
 trybuild = "1.0"
 custom_bits = { path = "tests/custom_bits" }
+assert_matches = "1.5.0"
 # examples
 volatile = { git = "https://github.com/theseus-os/volatile" }
 zerocopy = "0.5.0"
@@ -52,7 +53,6 @@ criterion = "0.3"
 modular-bitfield = "0.11.2"
 bitbybit = "1.1.4"
 # deku = "0.16"
-assert_matches = "1.5.0"
 
 # criterion workaround to make `cargo bench -- --verbose` work
 [lib]
