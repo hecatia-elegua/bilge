@@ -3,14 +3,14 @@ use proc_macro_error::abort;
 use syn::{Variant, Expr, ExprLit, Lit};
 use super::{BitSize, unreachable};
 
-pub(crate) struct EnumVariantValueAssigner {
+pub(crate) struct DiscriminantAssigner {
     bitsize: BitSize,
     next_expected_assignment: u128,
 }
 
-impl EnumVariantValueAssigner {
-    pub fn new(bitsize: u8) -> EnumVariantValueAssigner {
-        EnumVariantValueAssigner { bitsize, next_expected_assignment: 0 }
+impl DiscriminantAssigner {
+    pub fn new(bitsize: u8) -> DiscriminantAssigner {
+        DiscriminantAssigner { bitsize, next_expected_assignment: 0 }
     }
     
     fn max_value(&self) -> u128 {

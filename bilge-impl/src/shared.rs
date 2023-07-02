@@ -1,5 +1,5 @@
 pub mod fallback;
-pub mod variant_value_assigner;
+pub mod discriminant_assigner;
 
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
