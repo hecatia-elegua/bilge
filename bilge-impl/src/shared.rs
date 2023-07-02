@@ -1,4 +1,3 @@
-pub mod util;
 pub mod fallback;
 pub mod variant_value_assigner;
 
