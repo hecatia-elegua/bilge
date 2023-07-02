@@ -1,5 +1,5 @@
 use super::{BitSize, is_fallback_attribute, unreachable, bitsize_from_type_token};
-use crate::shared::util::{Single, SingleResult};
+use itertools::Itertools;
 use proc_macro2::Ident;
 use proc_macro_error::{abort, abort_call_site};
 use syn::{Type, Variant, Data};
@@ -22,7 +22,7 @@ impl Fallback {
             Unnamed(fields) => {
                 let variant_fields = fields.unnamed.iter();
 
-                let SingleResult::Single(fallback_value) = variant_fields.single() else {
+                let Ok(fallback_value) = variant_fields.exactly_one() else {
                     abort!(variant, "fallback variant must have exactly one field"; help = "use only one field or change to a unit variant")
                 };
 
@@ -74,16 +74,16 @@ pub fn fallback_variant(data: &Data, enum_bitsize: BitSize) -> Option<Fallback> 
                 .iter()
                 .filter(|variant| variant.attrs.iter().any(is_fallback_attribute));
 
-            match variants_with_fallback.single() {
-                SingleResult::Single(variant) => {
+            match variants_with_fallback.at_most_one() {
+                Ok(None) => None,
+                Ok(Some(variant)) => {
                     let fallback = Fallback::from_variant(variant, enum_bitsize);
                     Some(fallback)
-                }
-                SingleResult::MoreThanOne => abort_call_site!(
+                },
+                Err(_) => abort_call_site!(
                     "only one enum variant may be fallback";
                     help = "remove #[fallback] attributes until you only have one"
                 ),
-                SingleResult::Empty => None,
             }
         }
         Data::Struct(struct_data) => {
