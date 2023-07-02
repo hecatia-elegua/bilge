@@ -2,7 +2,7 @@ use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{emit_call_site_warning, abort};
 use quote::quote;
 use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, enum_fills_bitsize, variant_value_assigner::EnumVariantValueAssigner};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, enum_fills_bitsize, discriminant_assigner::DiscriminantAssigner};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -35,11 +35,11 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
     } 
 
-    let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
+    let mut assigner = DiscriminantAssigner::new(internal_bitsize);
     
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = value_assigner.assign_unsuffixed(variant);
+        let variant_value = assigner.assign_unsuffixed(variant);
 
         let from_int_match_arm = quote! {
             #variant_value => Ok(Self::#variant_name),

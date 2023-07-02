@@ -2,7 +2,7 @@ use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
 use syn::{Fields, DeriveInput, Data, punctuated::Iter, Variant};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, variant_value_assigner::EnumVariantValueAssigner, enum_fills_bitsize};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -40,11 +40,11 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         abort_call_site!("enum fills its bitsize but has fallback variant"; help = "remove `#[fallback]` from this enum")
     }
 
-    let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
+    let mut assigner = DiscriminantAssigner::new(internal_bitsize);
 
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = value_assigner.assign_unsuffixed(variant);
+        let variant_value = assigner.assign_unsuffixed(variant);
 
         let from_int_match_arm = match fallback {
             Some(fallback) if fallback.is_fallback_variant(variant_name) => {
