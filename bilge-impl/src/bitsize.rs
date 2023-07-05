@@ -227,10 +227,7 @@ fn modify_special_field_names(fields: &mut Fields) {
 }
 
 fn analyze_struct(fields: &Fields) -> TokenStream {
-    if matches!(fields, Fields::Named(fields) if fields.named.is_empty())
-        || matches!(fields, Fields::Unnamed(fields) if fields.unnamed.is_empty())
-        || matches!(fields, Fields::Unit) 
-    {
+    if fields.is_empty() {
         abort_call_site!("structs without fields are not supported")
     }
 
