@@ -207,21 +207,20 @@ fn modify_special_field_names(fields: &mut Fields) {
     // Also, it might be useful to generate no getters or setters for these fields and skipping some calc.
     let mut reserved_count = 0;
     let mut padding_count = 0;
-    fields.iter_mut().for_each(|f| {
-        if let Some(name) = &mut f.ident {
-            if name == "reserved" || name == "_reserved" {
-                reserved_count += 1;
-                let span = name.span();
-                let name = format!("reserved_{}", "i".repeat(reserved_count));
-                f.ident = Some(Ident::new(&name, span))
-            } else if name == "padding" || name == "_padding" {
-                padding_count += 1;
-                let span = name.span();
-                let name = format!("padding_{}", "i".repeat(padding_count));
-                f.ident = Some(Ident::new(&name, span))
-            }
+    let field_idents_mut = fields.iter_mut().filter_map(|field| field.ident.as_mut());
+    for ident in field_idents_mut {
+        if ident == "reserved" || ident == "_reserved" {
+            reserved_count += 1;
+            let span = ident.span();
+            let name = format!("reserved_{}", "i".repeat(reserved_count));
+            *ident = Ident::new(&name, span)
+        } else if ident == "padding" || ident == "_padding" {
+            padding_count += 1;
+            let span = ident.span();
+            let name = format!("padding_{}", "i".repeat(padding_count));
+            *ident = Ident::new(&name, span)
         }
-    });
+    }
 }
 
 fn analyze_struct(fields: &Fields) -> TokenStream {
