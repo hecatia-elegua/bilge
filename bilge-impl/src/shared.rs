@@ -66,9 +66,11 @@ pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, Tok
         abort!(bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`")
     );
     // without postfix
-    let bitsize = bitsize.base10_parse().unwrap_or_else(|_|
-        abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE)
-    );
+    let bitsize = bitsize
+        .base10_parse()
+        .ok()
+        .filter(|&n| n != 0 && n <= MAX_STRUCT_BIT_SIZE)
+        .unwrap_or_else(|| abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE));
     let arb_int = syn::parse_str(&format!("u{bitsize}")).unwrap_or_else(unreachable);
     (bitsize, arb_int)
 }

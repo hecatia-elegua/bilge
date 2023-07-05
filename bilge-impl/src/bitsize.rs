@@ -90,9 +90,6 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
     }
     
     let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    if declared_bitsize > shared::MAX_STRUCT_BIT_SIZE {
-        abort_call_site!("attribute is not a valid number"; help = "currently, numbers from 1 to {} are allowed", shared::MAX_STRUCT_BIT_SIZE)
-    }
     (item, declared_bitsize)
 }
 
