@@ -225,6 +225,13 @@ fn modify_special_field_names(fields: &mut Fields) {
 }
 
 fn analyze_struct(fields: &Fields) -> TokenStream {
+    if matches!(fields, Fields::Named(fields) if fields.named.is_empty())
+        || matches!(fields, Fields::Unnamed(fields) if fields.unnamed.is_empty())
+        || matches!(fields, Fields::Unit) 
+    {
+        abort_call_site!("structs without fields are not supported")
+    }
+
     // NEVER move this, since we validate all nested field types here as well.
     // If we do want to move this, add a new function just for validation.
     fields.iter()
@@ -235,16 +242,21 @@ fn analyze_struct(fields: &Fields) -> TokenStream {
 }
 
 fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
+    let variant_count = variants.clone().count();
+    if variant_count == 0 {
+        abort_call_site!("empty enums are not supported");
+    }
+
     if bitsize > MAX_ENUM_BIT_SIZE {
-        abort_call_site!("enum bitsize is limited to 64")
+        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
     }
     
-    let has_fallback = variants.clone().flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+    let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
     
     if has_fallback {
         quote!(true)
     } else {
-        let enum_is_filled = enum_fills_bitsize(bitsize, variants.count());
+        let enum_is_filled = enum_fills_bitsize(bitsize, variant_count);
         quote!(#enum_is_filled)    
     }
 }
