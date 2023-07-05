@@ -2,7 +2,6 @@ use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::emit_call_site_warning;
 use quote::quote;
 use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields, Expr};
-
 use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, EnumVariantValueAssigner};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
@@ -14,8 +13,8 @@ pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize);
-            codegen_enum(arb_int, name, match_arms)
+            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int);
+            codegen_enum(arb_int, name, match_arms, internal_bitsize)
         },
         _ => unreachable(()),
     }
@@ -29,7 +28,7 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
     shared::analyze_derive(derive_input, true)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
     shared::validate_enum_variants(variants.clone());
 
     if enum_fills_bitsize(internal_bitsize, variants.len()) {
@@ -50,14 +49,14 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         };
 
         let to_int_match_arm = quote! {
-            #name::#variant_name => Self::new(#variant_value),
+            #name::#variant_name => #arb_int::new(#variant_value),
         };
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
 }
 
-fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
+fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), bitsize: BitSize) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
@@ -65,6 +64,8 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
     } else {
         quote!()
     };
+
+    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms.clone(), bitsize);
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
     quote! {
@@ -81,6 +82,7 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
 
         // this other direction is needed for get/set/new
         #from_enum_impl
+        #fmt_impls
     }
 }
 

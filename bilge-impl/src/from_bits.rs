@@ -13,8 +13,8 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback);
-            generate_enum(arb_int, name, match_arms, fallback)
+            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback, &arb_int);
+            generate_enum(arb_int, name, match_arms, fallback, internal_bitsize)
         },
         _ => unreachable(()),
     };
@@ -29,7 +29,7 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
     shared::analyze_derive(derive_input, false)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
     shared::validate_enum_variants(variants.clone());
     
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
@@ -54,14 +54,14 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         };
 
         let to_int_match_arm = quote! {
-            #name::#variant_name => Self::new(#variant_value),
+            #name::#variant_name => #arb_int::new(#variant_value),
         };
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
 }
 
-fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>) -> TokenStream {
+fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>, bitsize: BitSize) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
@@ -70,7 +70,7 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
         quote!()
     };
 
-    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
+    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms.clone(), &const_);
 
     let catch_all_arm = if let Some(variant) = fallback {
         let fallback_name = &variant.ident;
@@ -84,6 +84,8 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
         }
     };
 
+    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms, bitsize);
+
     quote! {
         impl #const_ ::core::convert::From<#arb_int> for #enum_type {
             fn from(number: #arb_int) -> Self {
@@ -94,6 +96,7 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
             }
         }
         #from_enum_impl
+        #fmt_impls
     }
 }
 

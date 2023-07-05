@@ -1,7 +1,6 @@
-use proc_macro2::{TokenStream, Ident};
-use quote::quote;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field};
-
+use proc_macro2::{TokenStream, Ident, Literal};
+use quote::{quote, format_ident};
+use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field, Fields};
 use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
@@ -64,6 +63,8 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
         quote!()
     };
 
+    let fmt_impls = generate_struct_fmt_impls(&struct_data.ident, &struct_data.fields);
+
     quote! {
         #vis struct #ident {
             /// WARNING: modifying this value directly can break invariants
@@ -83,6 +84,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
             }
             #( #accessors )*
         }
+        #fmt_impls
     }
 }
 
@@ -202,6 +204,65 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         }
 
         #array_at
+    }
+}
+
+fn ty_is_bool(ty: &Type) -> bool {
+    let Type::Path(type_path) = ty else { return false; };
+    let type_name = type_path.path.get_ident().map(Ident::to_string);
+    type_name.as_deref() == Some("bool")
+}
+
+fn write_field((idx, field): (usize, &Field)) -> TokenStream {
+    let accessor = if let Some(name) = &field.ident {
+        format_ident!("{name}")
+    } else {
+        let idx = Literal::usize_unsuffixed(idx);
+        format_ident!("val_{idx}")
+    };
+
+    // orphan rule prevents implementing std::fmt::Binary for bool, so it must be special-cased
+    if ty_is_bool(&field.ty) {
+        quote! {
+            write!(f, "{:01b}", bilge::arbitrary_int::u1::from(self.#accessor()))?;
+        }
+    } else {
+        quote! { 
+            write!(f, "{:b}", self.#accessor())?; 
+        }    
+    }
+}
+
+/// generate std::fmt impls - currently only std::fmt::Binary
+/// 
+/// XXX: field values are printed with the minimal number of digits. 
+/// for example a u3 with a value of 1 will be printed as 1 instead of 001.
+/// we want to print them with a number of digits equal to the field's bitsize, 
+/// but how do get an individual field's bitsize here?
+/// 
+/// XXX: currently doesn't support arrays
+fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
+    if fields.iter().any(|field| matches!(field.ty, Type::Array(..))) {
+        return quote!()
+    }
+    
+    let write_underscore = quote! { write!(f, "_")?; };
+
+    // fields are printed from most significant to least significant, separated by an underscore
+    let writes = fields
+        .iter()
+        .enumerate()
+        .rev()
+        .map(write_field)
+        .intersperse(write_underscore);
+
+    quote! {
+        impl std::fmt::Binary for #struct_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                #( #writes )*
+                Ok(())
+            }
+        }
     }
 }
 
