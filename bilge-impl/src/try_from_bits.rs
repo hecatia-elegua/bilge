@@ -14,7 +14,7 @@ pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int);
-            codegen_enum(arb_int, name, match_arms, internal_bitsize)
+            codegen_enum(arb_int, name, match_arms)
         },
         _ => unreachable(()),
     }
@@ -56,7 +56,7 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
     }).unzip()
 }
 
-fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), bitsize: BitSize) -> TokenStream {
+fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
@@ -65,7 +65,7 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
         quote!()
     };
 
-    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms.clone(), bitsize);
+    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms.clone());
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
     quote! {

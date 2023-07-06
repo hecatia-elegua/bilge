@@ -14,7 +14,7 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, fallback, &arb_int);
-            generate_enum(arb_int, name, match_arms, fallback, internal_bitsize)
+            generate_enum(arb_int, name, match_arms, fallback)
         },
         _ => unreachable(()),
     };
@@ -61,7 +61,7 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
     }).unzip()
 }
 
-fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>, bitsize: BitSize) -> TokenStream {
+fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
@@ -84,7 +84,7 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
         }
     };
 
-    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms, bitsize);
+    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms);
 
     quote! {
         impl #const_ ::core::convert::From<#arb_int> for #enum_type {

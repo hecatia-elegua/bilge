@@ -214,38 +214,37 @@ fn ty_is_bool(ty: &Type) -> bool {
 }
 
 fn write_field((idx, field): (usize, &Field)) -> TokenStream {
-    let accessor = if let Some(name) = &field.ident {
+    let accessor_ident = if let Some(name) = &field.ident {
         format_ident!("{name}")
     } else {
         let idx = Literal::usize_unsuffixed(idx);
         format_ident!("val_{idx}")
     };
 
+    let ty = &field.ty;
+
     // orphan rule prevents implementing std::fmt::Binary for bool, so it must be special-cased
-    if ty_is_bool(&field.ty) {
-        quote! {
-            write!(f, "{:01b}", bilge::arbitrary_int::u1::from(self.#accessor()))?;
-        }
+    let accessor = if ty_is_bool(ty) {
+        quote! { bilge::arbitrary_int::u1::from(self.#accessor_ident()) }
     } else {
-        quote! { 
-            write!(f, "{:b}", self.#accessor())?; 
-        }    
+        quote! { self.#accessor_ident() }
+    };
+
+    quote! {
+        write!(f, "{:0width$b}", #accessor, width = <#ty as Bitsized>::BITS)?;
     }
 }
 
 /// generate std::fmt impls - currently only std::fmt::Binary
-/// 
-/// XXX: field values are printed with the minimal number of digits. 
-/// for example a u3 with a value of 1 will be printed as 1 instead of 001.
-/// we want to print them with a number of digits equal to the field's bitsize, 
-/// but how do get an individual field's bitsize here?
-/// 
 /// XXX: currently doesn't support arrays
 fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
-    if fields.iter().any(|field| matches!(field.ty, Type::Array(..))) {
-        return quote!()
+    if fields
+        .iter()
+        .any(|field| matches!(field.ty, Type::Array(..)))
+    {
+        return quote!();
     }
-    
+
     let write_underscore = quote! { write!(f, "_")?; };
 
     // fields are printed from most significant to least significant, separated by an underscore

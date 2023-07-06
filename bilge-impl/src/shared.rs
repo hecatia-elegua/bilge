@@ -1,4 +1,4 @@
-use proc_macro2::{TokenStream, Ident, Literal};
+use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
 use syn::punctuated::Iter;
@@ -225,17 +225,14 @@ pub fn validate_enum_variants(variants: Iter<Variant>) {
 
 /// generate std::fmt impls - currently only std::fmt::Binary
 /// requires either FromBits or TryFromBits
-pub fn generate_enum_fmt_impls(enum_name: &Ident, to_int_match_arms: Vec<TokenStream>, bitsize: BitSize) -> TokenStream {
-    let bitsize = Literal::u8_unsuffixed(bitsize);
-    let impl_fmt_string = format!("{{:0{bitsize}b}}");
-
+pub fn generate_enum_fmt_impls(enum_name: &Ident, to_int_match_arms: Vec<TokenStream>) -> TokenStream {
     quote! {
         impl std::fmt::Binary for #enum_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let value = match &self {
                     #( #to_int_match_arms )*
                 };
-                write!(f, #impl_fmt_string, value)
+                write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
             }
         }
     }
