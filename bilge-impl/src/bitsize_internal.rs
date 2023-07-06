@@ -236,12 +236,11 @@ fn write_field((idx, field): (usize, &Field)) -> TokenStream {
 }
 
 /// generate std::fmt impls - currently only std::fmt::Binary
-/// XXX: currently doesn't support arrays
 fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
-    if fields
-        .iter()
-        .any(|field| matches!(field.ty, Type::Array(..)))
-    {
+    let has_unsupported_type =
+        |field: &Field| matches!(field.ty, Type::Array(..) | Type::Tuple(..));
+
+    if fields.is_empty() || fields.iter().any(has_unsupported_type) {
         return quote!();
     }
 
@@ -276,8 +275,7 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
 fn generate_enum(enum_data: &ItemEnum, arb_int: &TokenStream, bitsize: BitSize) -> TokenStream {
     let ItemEnum { vis, ident, variants, .. } = enum_data;
 
-    let to_int_match_arms = generate_to_int_match_arms(variants.iter(), &ident, bitsize, arb_int);
-    let fmt_impls = generate_enum_fmt_impls(&ident, to_int_match_arms);
+    let fmt_impls = generate_enum_fmt_impls(variants.iter(), &ident, arb_int, bitsize);
 
     quote! {
         #vis enum #ident {
@@ -304,14 +302,20 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
 }
 
 /// generate std::fmt impls - currently only std::fmt::Binary
-fn generate_enum_fmt_impls(enum_name: &Ident, to_int_match_arms: Vec<TokenStream>) -> TokenStream {
-    quote! {
-        impl core::fmt::Binary for #enum_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let value = match &self {
-                    #( #to_int_match_arms )*
-                };
-                write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
+fn generate_enum_fmt_impls(variants: Iter<Variant>, enum_name: &Ident, arb_int: &TokenStream, bitsize: BitSize) -> TokenStream {
+    let to_int_match_arms = generate_to_int_match_arms(variants, enum_name, bitsize, arb_int);
+    
+    if to_int_match_arms.is_empty() {
+        quote!()
+    } else {
+        quote! {
+            impl core::fmt::Binary for #enum_name {
+                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                    let value = match &self {
+                        #( #to_int_match_arms )*
+                    };
+                    write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
+                }
             }
         }
     }
