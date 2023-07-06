@@ -1,5 +1,5 @@
 use proc_macro2::{TokenStream, Ident, Literal};
-use quote::{quote, format_ident};
+use quote::quote;
 use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field, Fields, Variant, punctuated::Iter};
 use crate::shared::{self, unreachable, BitSize, EnumVariantValueAssigner};
 
@@ -207,34 +207,6 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     }
 }
 
-fn ty_is_bool(ty: &Type) -> bool {
-    let Type::Path(type_path) = ty else { return false; };
-    let type_name = type_path.path.get_ident().map(Ident::to_string);
-    type_name.as_deref() == Some("bool")
-}
-
-fn write_field((idx, field): (usize, &Field)) -> TokenStream {
-    let accessor_ident = if let Some(name) = &field.ident {
-        format_ident!("{name}")
-    } else {
-        let idx = Literal::usize_unsuffixed(idx);
-        format_ident!("val_{idx}")
-    };
-
-    let ty = &field.ty;
-
-    // orphan rule prevents implementing std::fmt::Binary for bool, so it must be special-cased
-    let accessor = if ty_is_bool(ty) {
-        quote! { bilge::arbitrary_int::u1::from(self.#accessor_ident()) }
-    } else {
-        quote! { self.#accessor_ident() }
-    };
-
-    quote! {
-        write!(f, "{:0width$b}", #accessor, width = <#ty as Bitsized>::BITS)?;
-    }
-}
-
 /// generate std::fmt impls - currently only std::fmt::Binary
 fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
     let has_unsupported_type =
@@ -249,14 +221,28 @@ fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStrea
     // fields are printed from most significant to least significant, separated by an underscore
     let writes = fields
         .iter()
-        .enumerate()
         .rev()
-        .map(write_field)
+        .map(|field| {
+            let ty = &field.ty;
+
+            // `extracted` is `field_size` bits of `value`, starting from index `first_bit_pos` (counting from LSB)
+            // `one` is used here to get a bit mask of the same type as the struct's type.
+            quote! {
+                let field_size = <#ty as Bitsized>::BITS;
+                let field_mask = (one << field_size) - one;
+                let first_bit_pos = last_bit_pos - field_size;
+                last_bit_pos -= field_size;
+                let extracted = field_mask & (self.value >> first_bit_pos);
+                write!(f, "{:0width$b}", extracted, width = field_size)?;
+            }
+        })
         .intersperse(write_underscore);
 
     quote! {
         impl core::fmt::Binary for #struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                let mut last_bit_pos = <#struct_name as Bitsized>::BITS;
+                let one = <#struct_name as Bitsized>::ArbitraryInt::new(1);
                 #( #writes )*
                 Ok(())
             }
