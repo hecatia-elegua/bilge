@@ -256,7 +256,7 @@ fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStrea
         .intersperse(write_underscore);
 
     quote! {
-        impl std::fmt::Binary for #struct_name {
+        impl core::fmt::Binary for #struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 #( #writes )*
                 Ok(())
@@ -306,7 +306,7 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
 /// generate std::fmt impls - currently only std::fmt::Binary
 fn generate_enum_fmt_impls(enum_name: &Ident, to_int_match_arms: Vec<TokenStream>) -> TokenStream {
     quote! {
-        impl std::fmt::Binary for #enum_name {
+        impl core::fmt::Binary for #enum_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let value = match &self {
                     #( #to_int_match_arms )*
