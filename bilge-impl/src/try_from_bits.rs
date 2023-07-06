@@ -1,7 +1,7 @@
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{TokenStream, Ident, Literal};
 use proc_macro_error::emit_call_site_warning;
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields, Expr};
+use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
 use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, EnumVariantValueAssigner};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
@@ -41,16 +41,13 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         let variant_name = &variant.ident;
         let variant_value = value_assigner.assign(variant);
 
-        // might be useful for not generating "1u128 -> Self::Variant"
-        let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
+        let variant_value = Literal::u128_unsuffixed(variant_value);
 
         let from_int_match_arm = quote! {
             #variant_value => Ok(Self::#variant_name),
         };
 
-        let to_int_match_arm = quote! {
-            #name::#variant_name => #arb_int::new(#variant_value),
-        };
+        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
@@ -64,8 +61,6 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
     } else {
         quote!()
     };
-
-    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms.clone());
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
     quote! {
@@ -82,7 +77,6 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
 
         // this other direction is needed for get/set/new
         #from_enum_impl
-        #fmt_impls
     }
 }
 

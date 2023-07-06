@@ -1,7 +1,7 @@
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{TokenStream, Ident, Literal};
 use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant, Expr};
+use syn::{DeriveInput, Data, punctuated::Iter, Variant};
 use crate::shared::{self, BitSize, unreachable, EnumVariantValueAssigner, enum_fills_bitsize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
@@ -46,16 +46,13 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         let variant_name = &variant.ident;
         let variant_value = value_assigner.assign(variant);
 
-        // might be useful for not generating "1u128 -> Self::Variant"
-        let variant_value: Expr = syn::parse_str(&variant_value.to_string()).unwrap_or_else(unreachable);
+        let variant_value = Literal::u128_unsuffixed(variant_value);
 
         let from_int_match_arm = quote! {
             #variant_value => Self::#variant_name,
         };
 
-        let to_int_match_arm = quote! {
-            #name::#variant_name => #arb_int::new(#variant_value),
-        };
+        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
@@ -84,8 +81,6 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
         }
     };
 
-    let fmt_impls = shared::generate_enum_fmt_impls(enum_type, to_int_match_arms);
-
     quote! {
         impl #const_ ::core::convert::From<#arb_int> for #enum_type {
             fn from(number: #arb_int) -> Self {
@@ -96,7 +91,6 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
             }
         }
         #from_enum_impl
-        #fmt_impls
     }
 }
 
