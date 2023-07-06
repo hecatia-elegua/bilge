@@ -275,7 +275,7 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
 fn generate_enum(enum_data: &ItemEnum, arb_int: &TokenStream, bitsize: BitSize) -> TokenStream {
     let ItemEnum { vis, ident, variants, .. } = enum_data;
 
-    let fmt_impls = generate_enum_fmt_impls(variants.iter(), &ident, arb_int, bitsize);
+    let fmt_impls = generate_enum_fmt_impls(variants.iter(), ident, arb_int, bitsize);
 
     quote! {
         #vis enum #ident {

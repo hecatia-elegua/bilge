@@ -67,7 +67,7 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
         quote!()
     };
 
-    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms.clone(), &const_);
+    let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
 
     let catch_all_arm = if let Some(variant) = fallback {
         let fallback_name = &variant.ident;
