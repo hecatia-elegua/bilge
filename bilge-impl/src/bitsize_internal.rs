@@ -209,13 +209,6 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
 /// generate std::fmt impls - currently only std::fmt::Binary
 fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
-    let has_unsupported_type =
-        |field: &Field| matches!(field.ty, Type::Array(..) | Type::Tuple(..));
-
-    if fields.is_empty() || fields.iter().any(has_unsupported_type) {
-        return quote!();
-    }
-
     let write_underscore = quote! { write!(f, "_")?; };
 
     // fields are printed from most significant to least significant, separated by an underscore
@@ -223,13 +216,12 @@ fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStrea
         .iter()
         .rev()
         .map(|field| {
-            let ty = &field.ty;
+            let field_size = shared::generate_type_bitsize(&field.ty);
 
             // `extracted` is `field_size` bits of `value`, starting from index `first_bit_pos` (counting from LSB)
-            // `one` is used here to get a bit mask of the same type as the struct's type.
             quote! {
-                let field_size = <#ty as Bitsized>::BITS;
-                let field_mask = (one << field_size) - one;
+                let field_size = #field_size;
+                let field_mask = mask >> (struct_size - field_size);
                 let first_bit_pos = last_bit_pos - field_size;
                 last_bit_pos -= field_size;
                 let extracted = field_mask & (self.value >> first_bit_pos);
@@ -241,8 +233,9 @@ fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStrea
     quote! {
         impl core::fmt::Binary for #struct_name {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let mut last_bit_pos = <#struct_name as Bitsized>::BITS;
-                let one = <#struct_name as Bitsized>::ArbitraryInt::new(1);
+                let struct_size = <#struct_name as Bitsized>::BITS;
+                let mut last_bit_pos = struct_size;
+                let mask = <#struct_name as Bitsized>::MAX;
                 #( #writes )*
                 Ok(())
             }
@@ -291,17 +284,21 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
 fn generate_enum_fmt_impls(variants: Iter<Variant>, enum_name: &Ident, arb_int: &TokenStream, bitsize: BitSize) -> TokenStream {
     let to_int_match_arms = generate_to_int_match_arms(variants, enum_name, bitsize, arb_int);
     
-    if to_int_match_arms.is_empty() {
-        quote!()
+    let body = if to_int_match_arms.is_empty() {
+        quote! { Ok(()) }
     } else {
         quote! {
-            impl core::fmt::Binary for #enum_name {
-                fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                    let value = match &self {
-                        #( #to_int_match_arms )*
-                    };
-                    write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
-                }
+            let value = match &self {
+                #( #to_int_match_arms )*
+            };
+            write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
+        }
+    };
+
+    quote! {
+        impl core::fmt::Binary for #enum_name {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                #body
             }
         }
     }
