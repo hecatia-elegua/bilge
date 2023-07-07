@@ -29,24 +29,9 @@ struct RedistributorControl {
     uwp: bool,
 }
 
-// generating these would be nice to have
-impl core::fmt::Binary for RedistributorControl {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let val = self.value;
-        core::fmt::Binary::fmt(&val, f)
-    }
-}
-
 #[bitsize(32)]
 #[derive(Clone, Copy, DebugBits, FromBits, FromBytes)]
 struct Group([bool; 32]);
-
-impl core::fmt::Binary for Group {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let val = self.value;
-        core::fmt::Binary::fmt(&val, f)
-    }
-}
 
 fn main() {
     // let raw_memory: &[u8] = &[0u8, 1, 2, 3, 255, 255, 254, 255];
