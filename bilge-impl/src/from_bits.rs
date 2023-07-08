@@ -151,7 +151,7 @@ fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) 
             } else {
                 "add a fallback variant or change this variant to a unit"
             };
-            abort!(variant, "FromBits only supports unit variants for variants without fallback"; help = help_message);
+            abort!(variant, "FromBits only supports unit variants for variants without `#[fallback]`"; help = help_message);
         }
     }
 }

@@ -17,7 +17,7 @@ impl Fallback {
 
         match &variant.fields {
             Named(_) => {
-                abort!(variant, "fallback does not support variants with named fields"; help = "use a tuple variant or remove this fallback")
+                abort!(variant, "`#[fallback]` does not support variants with named fields"; help = "use a tuple variant or remove this `#[fallback]`")
             }
             Unnamed(fields) => {
                 let variant_fields = fields.unnamed.iter();
@@ -30,7 +30,7 @@ impl Fallback {
                 }
 
                 let Type::Path(type_path) = &fallback_value.ty else {
-                    abort!(variant.fields, "fallback only supports arbitrary_int or bool types")
+                    abort!(variant.fields, "`#[fallback]` only supports arbitrary_int or bool types")
                 };
 
                 // here we validate that the fallback variant field type matches the bitsize
@@ -42,7 +42,7 @@ impl Fallback {
                         bitsize,
                         enum_bitsize
                     ),
-                    None => abort!(variant.fields, "fallback only supports arbitrary_int or bool types"),
+                    None => abort!(variant.fields, "`#[fallback]` only supports arbitrary_int or bool types"),
                 }
             }
             Unit => Fallback::Unit(ident),
@@ -78,14 +78,14 @@ pub fn fallback_variant(data: &Data, enum_bitsize: BitSize) -> Option<Fallback> 
                     let fallback = Fallback::from_variant(variant, enum_bitsize, is_last_variant);
                     Some(fallback)
                 },
-                Err(_) => abort_call_site!("only one enum variant may be fallback"; help = "remove #[fallback] attributes until you only have one"),
+                Err(_) => abort_call_site!("only one enum variant may be `#[fallback]`"; help = "remove #[fallback] attributes until you only have one"),
             }
         }
         Data::Struct(struct_data) => {
             let mut field_attrs = struct_data.fields.iter().flat_map(|field| &field.attrs);
 
             if field_attrs.any(is_fallback_attribute) {
-                abort_call_site!("the attribute `fallback` is only applicable to enums"; help = "remove all `#[fallback]` from this struct")
+                abort_call_site!("`#[fallback]` is only applicable to enums"; help = "remove all `#[fallback]` from this struct")
             } else {
                 None
             }
