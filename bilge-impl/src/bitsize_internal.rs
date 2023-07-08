@@ -209,6 +209,8 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
 /// generate std::fmt impls - currently only std::fmt::Binary
 fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
+    let write_underscore = quote! { write!(f, "_")?; };
+
     // fields are printed from most significant to least significant, separated by an underscore
     let writes = fields
         .iter()
@@ -225,10 +227,8 @@ fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStrea
                 let extracted = field_mask & (self.value >> first_bit_pos);
                 write!(f, "{:0width$b}", extracted, width = field_size)?;
             }
-        });
-
-    // change this when `iter_intersperse` is stabilized
-    let writes = intersperse_with_underscore_writes(writes);
+        })
+        .reduce(|acc, next| quote!(#acc #write_underscore #next));
 
     quote! {
         impl core::fmt::Binary for #struct_name {
@@ -236,7 +236,7 @@ fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStrea
                 let struct_size = <#struct_name as Bitsized>::BITS;
                 let mut last_bit_pos = struct_size;
                 let mask = <#struct_name as Bitsized>::MAX;
-                #( #writes )*
+                #writes
                 Ok(())
             }
         }
@@ -323,17 +323,4 @@ fn generate_to_int_match_arms(
             shared::to_int_match_arm(enum_name, variant_name, arb_int, variant_value)
         })
         .collect()
-}
-
-fn intersperse_with_underscore_writes(writes: impl Iterator<Item = TokenStream>) -> impl Iterator<Item = TokenStream> {
-    let write_underscore = quote! { write!(f, "_")?; };
-    let mut iter = writes.peekable();
-
-    core::iter::from_fn(move || match iter.next() {
-        Some(write_field) if iter.peek().is_some() => {
-            let interspersed = quote! { #write_field #write_underscore };
-            Some(interspersed)
-        }
-        something_else => something_else,
-    })
 }
