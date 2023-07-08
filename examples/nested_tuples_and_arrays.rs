@@ -36,10 +36,6 @@ enum HaveFun {
 #[derive(Clone, Copy, FromBits, DebugBits, PartialEq)]
 struct InnerTupleStruct(u1, bool);
 
-#[bitsize(2)]
-#[derive(TryFromBits)]
-enum Empty {}
-
 #[bitsize(54)]
 #[derive(FromBits, DebugBits, PartialEq)]
 struct Basic {
