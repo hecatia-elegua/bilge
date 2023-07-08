@@ -149,9 +149,9 @@ pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
 
 /// attempts to extract the bitsize from a type token named `uN` or `bool`.
 /// should return `Result` instead of `Option`, if we decide to add more descriptive error handling.
-/// XXX: this strategy seems fragile.
+/// might consider having this take the type name directly, and fetch the last segment's name at call site
 pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
-    let last_segment = path.segments.last().expect("validated by syn analysis");
+    let last_segment = path.segments.last().unwrap_or_else(|| unreachable(())); //validated by syn analysis
     let type_name = last_segment.ident.to_string();
     
     // there's no need to check that PathArguments is PathArguments::None.
