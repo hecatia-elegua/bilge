@@ -8,6 +8,7 @@ struct Wrapper {
 
 #[bitsize(32)]
 #[derive(TryFromBits, PartialEq, Debug)]
+#[repr(u32)]
 enum FillsU32 {
     Foo = 0xDEADBEEF
 }
