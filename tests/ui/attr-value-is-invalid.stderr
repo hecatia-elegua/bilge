@@ -16,9 +16,9 @@ error: attribute is not a valid number
    = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: enum bitsize is limited to 64
-  --> tests/ui/attr-value-is-invalid.rs:17:1
+  --> tests/ui/attr-value-is-invalid.rs:16:1
    |
-17 | #[bitsize(65)]
+16 | #[bitsize(65)]
    | ^^^^^^^^^^^^^^
    |
    = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)
