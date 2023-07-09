@@ -238,13 +238,13 @@ fn analyze_struct(fields: &Fields) -> TokenStream {
 }
 
 fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
+    if bitsize > MAX_ENUM_BIT_SIZE {
+        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
+    }
+
     let variant_count = variants.clone().count();
     if variant_count == 0 {
         abort_call_site!("empty enums are not supported");
-    }
-
-    if bitsize > MAX_ENUM_BIT_SIZE {
-        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
     }
     
     let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
