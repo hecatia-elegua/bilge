@@ -1,0 +1,24 @@
+error: attribute value is not a valid number
+ --> tests/ui/attr-value-is-invalid.rs:4:11
+  |
+4 | #[bitsize(-1)]
+  |           ^^
+  |
+  = help: currently, numbers from 1 to 128 are allowed
+
+error: attribute is not a valid number
+  --> tests/ui/attr-value-is-invalid.rs:12:1
+   |
+12 | #[bitsize(129)]
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: currently, numbers from 1 to 128 are allowed
+   = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: enum bitsize is limited to 64
+  --> tests/ui/attr-value-is-invalid.rs:17:1
+   |
+17 | #[bitsize(65)]
+   | ^^^^^^^^^^^^^^
+   |
+   = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)
