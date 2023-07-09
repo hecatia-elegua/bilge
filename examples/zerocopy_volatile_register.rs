@@ -12,7 +12,7 @@ struct Redistributor {
 
 #[bitsize(32)]
 // we only want this to be FromBytes if it is also FromBits, FromBytes just acts on the final bitstruct (so, on a u32)
-#[derive(Copy, Clone, DebugBits, FromBits, FromBytes)]
+#[derive(Copy, Clone, DebugBits, FromBits, BinaryBits, FromBytes)]
 struct RedistributorControl {
     // padding is currently handled like reserved
     padding: u2,
@@ -30,7 +30,7 @@ struct RedistributorControl {
 }
 
 #[bitsize(32)]
-#[derive(Clone, Copy, DebugBits, FromBits, FromBytes)]
+#[derive(Clone, Copy, DebugBits, FromBits, BinaryBits, FromBytes)]
 struct Group([bool; 32]);
 
 fn main() {

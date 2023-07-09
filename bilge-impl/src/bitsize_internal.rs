@@ -1,7 +1,8 @@
-use proc_macro2::{TokenStream, Ident, Literal};
+use proc_macro2::{TokenStream, Ident};
 use quote::quote;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field, Fields, Variant, punctuated::Iter};
-use crate::shared::{self, unreachable, BitSize, EnumVariantValueAssigner};
+use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field};
+
+use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
 
@@ -14,7 +15,7 @@ struct ItemIr<'a> {
 }
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, arb_int, bitsize) = parse(item, args);
+    let (item, arb_int) = parse(item, args);
     let ir = match item {
         Item::Struct(ref item) => {
             let expanded = generate_struct(item, &arb_int);
@@ -23,7 +24,7 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStr
             ItemIr { attrs, name, expanded }
         }
         Item::Enum(ref item) => {
-            let expanded = generate_enum(item, &arb_int, bitsize);
+            let expanded = generate_enum(item);
             let attrs = &item.attrs;
             let name = &item.ident;
             ItemIr { attrs, name, expanded }
@@ -33,10 +34,10 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStr
     generate_common(ir, &arb_int)
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream, BitSize) {
+fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
-    let (declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, arb_int, declared_bitsize)
+    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
+    (item, arb_int)
 }
 
 fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
@@ -63,8 +64,6 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
         quote!()
     };
 
-    let fmt_impls = generate_struct_fmt_impls(&struct_data.ident, &struct_data.fields);
-
     quote! {
         #vis struct #ident {
             /// WARNING: modifying this value directly can break invariants
@@ -84,7 +83,6 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
             }
             #( #accessors )*
         }
-        #fmt_impls
     }
 }
 
@@ -207,42 +205,6 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     }
 }
 
-/// generate std::fmt impls - currently only std::fmt::Binary
-fn generate_struct_fmt_impls(struct_name: &Ident, fields: &Fields) -> TokenStream {
-    let write_underscore = quote! { write!(f, "_")?; };
-
-    // fields are printed from most significant to least significant, separated by an underscore
-    let writes = fields
-        .iter()
-        .rev()
-        .map(|field| {
-            let field_size = shared::generate_type_bitsize(&field.ty);
-
-            // `extracted` is `field_size` bits of `value`, starting from index `first_bit_pos` (counting from LSB)
-            quote! {
-                let field_size = #field_size;
-                let field_mask = mask >> (struct_size - field_size);
-                let first_bit_pos = last_bit_pos - field_size;
-                last_bit_pos -= field_size;
-                let extracted = field_mask & (self.value >> first_bit_pos);
-                write!(f, "{:0width$b}", extracted, width = field_size)?;
-            }
-        })
-        .reduce(|acc, next| quote!(#acc #write_underscore #next));
-
-    quote! {
-        impl core::fmt::Binary for #struct_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                let struct_size = <#struct_name as Bitsized>::BITS;
-                let mut last_bit_pos = struct_size;
-                let mask = <#struct_name as Bitsized>::MAX;
-                #writes
-                Ok(())
-            }
-        }
-    }
-}
-
 fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStream) {
     let constructor_arg = quote! {
         #name: #ty,
@@ -251,16 +213,12 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
     (constructor_arg, constructor_part)
 }
 
-fn generate_enum(enum_data: &ItemEnum, arb_int: &TokenStream, bitsize: BitSize) -> TokenStream {
+fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
     let ItemEnum { vis, ident, variants, .. } = enum_data;
-
-    let fmt_impls = generate_enum_fmt_impls(variants.iter(), ident, arb_int, bitsize);
-
     quote! {
         #vis enum #ident {
             #variants
         }
-        #fmt_impls
     }
 }
 
@@ -278,49 +236,4 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
         }
     }
-}
-
-/// generate std::fmt impls - currently only std::fmt::Binary
-fn generate_enum_fmt_impls(variants: Iter<Variant>, enum_name: &Ident, arb_int: &TokenStream, bitsize: BitSize) -> TokenStream {
-    let to_int_match_arms = generate_to_int_match_arms(variants, enum_name, bitsize, arb_int);
-    
-    let body = if to_int_match_arms.is_empty() {
-        quote! { Ok(()) }
-    } else {
-        quote! {
-            let value = match &self {
-                #( #to_int_match_arms )*
-            };
-            write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
-        }
-    };
-
-    quote! {
-        impl core::fmt::Binary for #enum_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                #body
-            }
-        }
-    }
-}
-
-/// generates the arms for an (infallible) conversion from an enum to the enum's underlying arbitrary_int
-fn generate_to_int_match_arms(
-    variants: Iter<Variant>,
-    enum_name: &Ident,
-    bitsize: BitSize,
-    arb_int: &TokenStream,
-) -> Vec<TokenStream> {
-    let mut value_assigner = EnumVariantValueAssigner::new(bitsize);
-
-    variants
-        .map(|variant| {
-            let variant_name = &variant.ident;
-            let variant_value = value_assigner.assign(variant);
-
-            let variant_value = Literal::u128_unsuffixed(variant_value);
-
-            shared::to_int_match_arm(enum_name, variant_name, arb_int, variant_value)
-        })
-        .collect()
 }

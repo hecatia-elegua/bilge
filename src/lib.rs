@@ -3,7 +3,7 @@
 
 #[doc(no_inline)]
 pub use arbitrary_int;
-pub use bilge_impl::{bitsize, bitsize_internal, DebugBits, FromBits, TryFromBits};
+pub use bilge_impl::{bitsize, bitsize_internal, DebugBits, FromBits, TryFromBits, BinaryBits};
 
 /// used for `use bilge::prelude::*;`
 pub mod prelude {
@@ -11,7 +11,7 @@ pub mod prelude {
     pub use super::{
         bitsize, bitsize_internal,
         Bitsized,
-        DebugBits, FromBits, TryFromBits,
+        DebugBits, FromBits, TryFromBits, BinaryBits,
         // we control the version, so this should not be a problem
         arbitrary_int::*,
     };
