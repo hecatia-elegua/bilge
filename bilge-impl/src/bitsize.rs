@@ -298,7 +298,7 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> (TokenStream, Toke
 /// for variants without an explicit discriminant, rustc assigns a discriminant
 /// which is 1 higher than variant below it, and the default assignment is 0.
 /// however we already reject negative discriminants at some point.
-/// so an enum can only have 0 as a discriminant if the first variant has no discriminant,
+/// so an enum can only have 0 as a discriminant if the first variant has no explicit discriminant,
 /// or if any of the variants explicitly assign to 0.
 fn generate_can_enum_be_zero(variants: Iter<Variant>) -> TokenStream {
     let first_variant = variants.clone().next().unwrap_or_else(|| unreachable(())); // we reject empty enums
