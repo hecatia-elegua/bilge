@@ -1,7 +1,7 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
-use quote::{quote, ToTokens};
-use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use quote::quote;
+use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned, Path};
 use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute};
 
 /// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
@@ -90,6 +90,30 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
     (item, declared_bitsize)
 }
 
+/// a crude approximation of the things we currently consider in item attributes
+enum ParsedAttribute<'a> {
+    Derives(Vec<Path>),
+    BitsizeInternal(&'a Meta),
+    SomethingElse(&'a Meta),
+}
+
+impl<'a> ParsedAttribute<'a> {
+    fn parse(attr: &'a Attribute) -> ParsedAttribute<'a> {
+        match &attr.meta {
+            Meta::List(list) if list.path.is_ident("derive") => {
+                let mut derives = Vec::new();
+                list.parse_nested_meta(|meta| {
+                    derives.push(meta.path);
+                    Ok(())
+                }).unwrap_or_else(unreachable);
+                ParsedAttribute::Derives(derives)
+            },
+            Meta::List(list) if list.path.is_ident("bitsize_internal") => ParsedAttribute::BitsizeInternal(&attr.meta),
+            meta => ParsedAttribute::SomethingElse(meta),
+        }
+    }
+}
+
 /// Split item attributes into those applied before bitfield-compression and those applied after.
 /// Also, abort on any invalid configuration.
 /// 
@@ -108,40 +132,35 @@ fn split_attributes(item: &Item) -> (SplitAttributes, bool) {
         }
         Item::Struct(item) => {
             let mut from_bytes = None;
-            let mut has_frombits = false;
+            let mut derives_frombits = false;
             let mut derives_default = false;
             let mut before_compression = vec![];
             let mut after_compression = vec![];
             for attr in &item.attrs {
-                if attr.to_token_stream().to_string().contains("bitsize_internal") {
-                    abort!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
-                }
-                match &attr.meta {
-                    Meta::List(list) => {
-                        if !list.path.is_ident("derive") {
-                            // It is most probable that basic attr macros work if we put them on after compression
-                            after_compression.push(attr.clone());
-                            continue;
-                        }
-                        attr.parse_nested_meta(|meta| {
-                            let derive_path = meta.path;
-                            if derive_path.is_ident("Debug") {
-                                abort!(derive_path, "use DebugBits for structs")
-                            }
-                            let derive = parse_quote!(#[derive(#derive_path)]);
-
-                            let derive_path_str = derive_path.get_ident().unwrap_or_else(|| {
+                match ParsedAttribute::parse(attr) {
+                    ParsedAttribute::BitsizeInternal(_) => abort!(
+                        attr, 
+                        "remove bitsize_internal"; 
+                        help = "attribute bitsize_internal can only be applied internally by the bitsize macros"
+                    ),
+                    ParsedAttribute::Derives(derives) => {
+                        for derive_path in derives {
+                            let Some(derive_path_str) = derive_path.get_ident() else {
                                 // We could just use the last path segment or use `derive_str.contains()` but that sounds breakable.
                                 // Handling this for real might be easy, I just don't know how right now.
                                 abort!(derive_path, "we currently only support simple derives, without paths.");
-                            }).to_string();
-                            match derive_path_str.as_str() {
+                            };
+
+                            let derive = parse_quote!(#[derive(#derive_path)]);
+
+                            match derive_path_str.to_string().as_str() {
+                                "Debug" => abort!(derive_path, "use DebugBits for structs"),
                                 "FromBytes" => {
                                     from_bytes = Some(derive_path);
                                     after_compression.push(derive);
                                 }
                                 "FromBits" => {
-                                    has_frombits = true;
+                                    derives_frombits = true;
                                     before_compression.push(derive)
                                 }
                                 "Default" => {
@@ -149,25 +168,27 @@ fn split_attributes(item: &Item) -> (SplitAttributes, bool) {
                                     derives_default = true;
                                     after_compression.push(derive);
                                 }
-                                path => {
-                                    if path.ends_with("Bits") {
-                                        before_compression.push(derive);
-                                    } else {
-                                        // It is most probable that basic derive macros work if we put them on after compression
-                                        after_compression.push(derive);
-                                    }
+                                path if path.ends_with("Bits") => before_compression.push(derive),
+                                _ => {
+                                    // It is most probable that basic derive macros work if we put them on after compression
+                                    after_compression.push(derive);
                                 }
                             }
-                            Ok(())
-                        }).unwrap_or_else(unreachable)
-                    }
+                        }
+                        
+                    },
+
+                    // If this is a `Meta::List` with some ident as its path, but is not a derive,
+                    // then it is most probable that basic attr macros work if we put them on after compression.
+                    // Otherwise it's some attribute we haven't considered yet and currently assume to be harmless. 
                     // I don't know with which attrs I can hit Path and NameValue,
                     // so let's just put them on after compression.
-                    _ => after_compression.push(attr.clone()),
+                    ParsedAttribute::SomethingElse(_) => after_compression.push(attr.clone()),
                 }
             }
+                
             if let Some(from_bytes) = from_bytes {
-                if !has_frombits {
+                if !derives_frombits {
                     abort!(from_bytes, "a bitfield struct with zerocopy::FromBytes also needs to have FromBits")
                 }
             }
