@@ -59,19 +59,19 @@ struct ItemIr {
 
 pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
     let (item, declared_bitsize) = parse(item, args);
-    let attrs = split_attributes(&item);
+    let (attrs, needs_default_safe_check) = split_attributes(&item);
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);
             let name = item.ident.clone();
             let filled_check = analyze_struct(&item.fields);
-            let expanded = generate_struct(&item, declared_bitsize);
+            let expanded = generate_struct(&item, declared_bitsize, needs_default_safe_check);
             ItemIr { name, filled_check, expanded }
         }
         Item::Enum(item) => {
             let name = item.ident.clone();
-            let filled_check = analyze_enum(declared_bitsize, item.variants.iter());
-            let expanded = generate_enum(&item);
+            let (filled_check, is_default_safe_check) = analyze_enum(declared_bitsize, item.variants.iter());
+            let expanded = generate_enum(&item, is_default_safe_check);
             ItemIr { name, filled_check, expanded }
         }
         _ => unreachable(()),
@@ -95,16 +95,21 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
 /// 
 /// Any derives with suffix `Bits` will be able to access field information.
 /// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
-fn split_attributes(item: &Item) -> SplitAttributes {
+fn split_attributes(item: &Item) -> (SplitAttributes, bool) {
     match item {
         //enums don't need special handling
-        Item::Enum(item) => SplitAttributes { 
-            before_compression: item.attrs.clone(),
-            after_compression: vec![]
-        },
+        Item::Enum(item) => {
+            let split = SplitAttributes { 
+                before_compression: item.attrs.clone(),
+                after_compression: vec![]
+            };
+            let needs_derive_default_check = false;
+            (split, needs_derive_default_check)
+        }
         Item::Struct(item) => {
             let mut from_bytes = None;
             let mut has_frombits = false;
+            let mut derives_default = false;
             let mut before_compression = vec![];
             let mut after_compression = vec![];
             for attr in &item.attrs {
@@ -139,6 +144,11 @@ fn split_attributes(item: &Item) -> SplitAttributes {
                                     has_frombits = true;
                                     before_compression.push(derive)
                                 }
+                                "Default" => {
+                                    // as of right now, we consider this to be safe in combination with emitted is_default_safe
+                                    derives_default = true;
+                                    after_compression.push(derive);
+                                }
                                 path => {
                                     if path.ends_with("Bits") {
                                         before_compression.push(derive);
@@ -161,7 +171,8 @@ fn split_attributes(item: &Item) -> SplitAttributes {
                     abort!(from_bytes, "a bitfield struct with zerocopy::FromBytes also needs to have FromBits")
                 }
             }
-            SplitAttributes { before_compression, after_compression }
+            let split = SplitAttributes { before_compression, after_compression };
+            (split, derives_default)
         },
         _ => abort_call_site!("item is not a struct or enum"; help = "`#[bitsize]` can only be used on structs and enums")
     }
@@ -237,7 +248,7 @@ fn analyze_struct(fields: &Fields) -> TokenStream {
         .unwrap_or_else(|| quote!(true))
 }
 
-fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
+fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> (TokenStream, TokenStream) {
     let variant_count = variants.clone().count();
     if variant_count == 0 {
         abort_call_site!("empty enums are not supported");
@@ -246,18 +257,82 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
     if bitsize > MAX_ENUM_BIT_SIZE {
         abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
     }
-    
+
+    // an enum is `#[derive(Default)]` safe if any of its variants can have a discriminant of 0
+    let is_default_safe_check = generate_can_enum_be_zero(variants.clone()); 
+        
     let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
-    
-    if has_fallback {
+
+    let filled_check = if has_fallback {
         quote!(true)
     } else {
         let enum_is_filled = enum_fills_bitsize(bitsize, variant_count);
-        quote!(#enum_is_filled)    
+        quote!(#enum_is_filled)
+    };
+
+    (filled_check, is_default_safe_check)
+}
+
+
+/// for variants without an explicit discriminant, rustc assigns a discriminant
+/// which is 1 higher than variant below it, and the default assignment is 0.
+/// however we already reject negative discriminants at some point.
+/// so an enum can only have 0 as a discriminant if the first variant has no discriminant,
+/// or if any of the variants explicitly assign to 0.
+fn generate_can_enum_be_zero(variants: Iter<Variant>) -> TokenStream {
+    let first_variant = variants.clone().next().unwrap_or_else(|| unreachable(())); // we reject empty enums
+    
+    if first_variant.discriminant.is_none() {
+        quote!(true)
+    } else {
+        variants
+            .filter_map(|variant| {
+                if let Some(disc) = variant.discriminant.as_ref() {
+                    let disc_expr = &disc.1;
+                    Some(quote!(#disc_expr == 0))
+                } else {
+                    None
+                }
+            })
+            .reduce(|acc, discriminant_equals_zero| quote! { (#acc || #discriminant_equals_zero) })
+            .unwrap_or_else(|| unreachable(()))
     }
 }
 
-fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
+fn generate_default_safety_check(fields: &Fields, struct_name: &Ident) -> TokenStream {
+    fn safety_check(ty: &Type) -> TokenStream {
+        match ty {
+            Type::Path(_) => quote!(#ty::DEFAULT_SAFE),
+            Type::Array(inner) => safety_check(&inner.elem),
+            Type::Tuple(inner) => inner
+                .elems
+                .iter()
+                .map(safety_check)
+                .reduce(|acc, next| quote!((#acc && #next)))
+                .unwrap_or_else(|| quote!(true)),
+            _ => unreachable(()),
+        }
+    }
+
+    let struct_check = fields
+        .iter()
+        .map(|field| safety_check(&field.ty))
+        .reduce(|acc, next| quote!((#acc && #next)))
+        .unwrap_or_else(|| unreachable(()));
+
+    quote! {
+        const _: () = assert!(
+            #struct_check,
+            concat!(
+                "struct ",
+                stringify!(#struct_name),
+                " cannot safely derive Default because one of its fields is an enum that cannot have a value of 0"
+            )
+        );
+    }
+}
+
+fn generate_struct(item: &ItemStruct, declared_bitsize: u8, needs_default_safe_check: bool) -> TokenStream {
     let ItemStruct { vis, ident, fields, .. } = item;
     let declared_bitsize = declared_bitsize as usize;
 
@@ -280,6 +355,12 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
         }
     };
 
+    let default_safety_check = if needs_default_safe_check {
+        generate_default_safety_check(fields, ident)
+    } else {
+        quote!()
+    };
+
     quote! {
         #vis struct #ident #fields_def
 
@@ -291,15 +372,21 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
             " != ",
             stringify!(#declared_bitsize))
         );
+        
+        #default_safety_check
     }
 }
 
 // attributes are handled in `generate_common`
-fn generate_enum(item: &ItemEnum) -> TokenStream {
+fn generate_enum(item: &ItemEnum, is_default_safe_check: TokenStream) -> TokenStream {
     let ItemEnum { vis, ident, variants, .. } = item;
     quote! {
         #vis enum #ident {
             #variants
+        }
+
+        impl #ident {
+            const DEFAULT_SAFE: bool = #is_default_safe_check;
         }
     }
 }
