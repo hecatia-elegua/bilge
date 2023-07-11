@@ -81,7 +81,7 @@ fn generate_to_int_match_arms(variants: Iter<Variant>, enum_name: &Ident, bitsiz
             let variant_name = &variant.ident;
             let variant_value = assigner.assign_unsuffixed(variant);
 
-            shared::to_int_match_arm(enum_name, variant_name, &arb_int, variant_value, None)
+            shared::to_int_match_arm(enum_name, variant_name, &arb_int, variant_value)
         })
         .collect()
 }

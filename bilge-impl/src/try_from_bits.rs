@@ -45,7 +45,7 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
             #variant_value => Ok(Self::#variant_name),
         };
 
-        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value, None);
+        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()

@@ -174,16 +174,6 @@ pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
     }
 }
 
-pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &TokenStream, variant_value: Literal, fallback: Option<&Fallback>) -> TokenStream {
-    let is_value_fallback = if let Some(Fallback::WithValue(name)) = fallback {
-        variant_name == name
-    } else {
-        false
-    };
-
-    if is_value_fallback {
-        quote! { #enum_name::#variant_name(number) => number, }
-    } else {
-        quote! { #enum_name::#variant_name => #arb_int::new(#variant_value), }
-    }
+pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &TokenStream, variant_value: Literal) -> TokenStream {
+    quote! { #enum_name::#variant_name => #arb_int::new(#variant_value), }
 }

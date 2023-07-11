@@ -42,21 +42,34 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
 
+    let is_fallback = |variant_name| if let Some(Fallback::Unit(name)|Fallback::WithValue(name)) = fallback {
+        variant_name == name
+    } else {
+        false
+    };
+
+    let is_value_fallback = |variant_name| if let Some(Fallback::WithValue(name)) = fallback {
+        variant_name == name
+    } else {
+        false
+    };
+
     variants.map(|variant| {
         let variant_name = &variant.ident;
         let variant_value = assigner.assign_unsuffixed(variant);
 
-        let from_int_match_arm = match fallback {
-            Some(fallback) if fallback.is_fallback_variant(variant_name) => {
-                // this value will be handled by the catch-all arm
-                quote!()
-            },
-            _ => quote! { 
-                #variant_value => Self::#variant_name, 
-            },
+        let from_int_match_arm = if is_fallback(variant_name) {
+            // this value will be handled by the catch-all arm
+            quote!()
+        } else {
+            quote! { #variant_value => Self::#variant_name, }
         };
         
-        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value, fallback);
+        let to_int_match_arm = if is_value_fallback(variant_name) {
+            quote! { #name::#variant_name(number) => number, }
+        } else {
+            shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
+        };
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
