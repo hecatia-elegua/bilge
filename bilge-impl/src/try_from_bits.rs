@@ -2,6 +2,7 @@ use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{emit_call_site_warning, abort};
 use quote::quote;
 use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
+use crate::shared::{last_ident_of_path, bitsize_from_type_ident};
 use crate::shared::{fallback::Fallback, self, BitSize, unreachable, enum_fills_bitsize, discriminant_assigner::DiscriminantAssigner};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
@@ -87,8 +88,8 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
     let is_ok: TokenStream = fields.iter()
         .map(|field| {
             let ty = &field.ty;
-            if shared::is_always_filled(ty) {
-                let size = shared::generate_type_bitsize(ty);
+            let size_from_type = last_ident_of_path(ty).and_then(bitsize_from_type_ident);
+            if let Some(size) = size_from_type {
                 quote! { {
                     // we still need to shift by the element's size
                     let size = #size;
@@ -136,9 +137,6 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
                 struct_value.value
             }
         }
-
-        // TODO: this is relevant to non_exhaustive and doesn't need to be forbidden
-        // const _: () = assert!(!#struct_type::FILLED, "implementing TryFromBits on bitfields with filled bits is unneccessary"); 
     }
 }
 

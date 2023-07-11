@@ -14,6 +14,7 @@ pub mod prelude {
         DebugBits, FromBits, TryFromBits, BinaryBits,
         // we control the version, so this should not be a problem
         arbitrary_int::*,
+        Filled, assume_filled
     };
 }
 
@@ -23,6 +24,16 @@ pub trait Bitsized {
     const BITS: usize;
     const MAX: Self::ArbitraryInt;
 }
+
+/// Internally used marker trait. 
+/// # Safety 
+/// 
+/// Avoid implementing this for your types. Implementing this trait could break invariants.
+pub unsafe trait Filled: Bitsized {}
+unsafe impl<T> Filled for T where T: Bitsized + From<<T as Bitsized>::ArbitraryInt> {}
+
+/// This is generated to statically validate that a type implements `FromBits`.
+pub fn assume_filled<T: Filled>() {}
 
 /// Only basing this on Number did not work, as bool and others are not Number.
 /// We could remove the whole macro_rules thing if it worked, though.

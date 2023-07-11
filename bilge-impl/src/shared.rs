@@ -4,13 +4,15 @@ pub mod discriminant_assigner;
 use proc_macro2::{TokenStream, Ident, Literal};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, LitInt, Type, Meta, Attribute, Path};
+use syn::{DeriveInput, LitInt, Type, Meta, Attribute};
 use fallback::{Fallback, fallback_variant};
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
 /// This would also be change-worthy when rust starts supporting LLVM's arbitrary integers.
-pub const MAX_STRUCT_BIT_SIZE: u8 = 128;
+pub const MAX_STRUCT_BIT_SIZE: BitSize = 128;
+/// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
+pub const MAX_ENUM_BIT_SIZE: BitSize = 64;
 pub type BitSize = u8;
 
 pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
@@ -113,12 +115,22 @@ pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, 
 
 /// Filters fields which are always `FILLED`, meaning all bit-patterns are possible,
 /// meaning they are (should be) From<uN>, not TryFrom<uN>
-/// 
-//TODO: We should maybe just rewrite this into something useful or add FILLED into Bitsized impls.
-//otherwise, we could check if there is _not_ a struct or enum here by lower/uppercase first letter
+///
+/// Currently, this is exactly the set of types we can extract a bitsize out of, just by looking at their ident: `uN` and `bool`.
 pub fn is_always_filled(ty: &Type) -> bool {
-    let ty = ty.to_token_stream().to_string();
-    ty.starts_with('u') || ty == "bool"
+    last_ident_of_path(ty)
+        .and_then(bitsize_from_type_ident)
+        .is_some()
+}
+
+pub fn last_ident_of_path(ty: &Type) -> Option<&Ident> {
+    if let Type::Path(type_path) = ty {
+        // the type may have a qualified path, so I don't think we can use `get_ident()` here
+        let last_segment = type_path.path.segments.last()?;
+        Some(&last_segment.ident)
+    } else { 
+        None 
+    }
 }
 
 /// in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
@@ -152,16 +164,10 @@ pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "fallback")
 }
 
-/// attempts to extract the bitsize from a type token named `uN` or `bool`.
+/// attempts to extract the bitsize from an ident equal to `uN` or `bool`.
 /// should return `Result` instead of `Option`, if we decide to add more descriptive error handling.
-/// might consider having this take the type name directly, and fetch the last segment's name at call site
-pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
-    let last_segment = path.segments.last().unwrap_or_else(|| unreachable(())); //validated by syn analysis
-    let type_name = last_segment.ident.to_string();
-    
-    // there's no need to check that PathArguments is PathArguments::None.
-    // if the type name passes the below checks then, in the current namespace, 
-    // it can't have generic aguments and is definitely not an Fn trait.
+pub fn bitsize_from_type_ident(type_name: &Ident) -> Option<BitSize> {
+    let type_name = type_name.to_string();
 
     if type_name == "bool" {
         Some(1)
