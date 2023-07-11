@@ -116,7 +116,7 @@ pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, 
 /// Filters fields which are always `FILLED`, meaning all bit-patterns are possible,
 /// meaning they are (should be) From<uN>, not TryFrom<uN>
 /// 
-//TODO: We should maybe just rewrite this into something useful or add FILLED into Bitsized impls.
+//TODO: We should maybe just rewrite this into something useful.
 //otherwise, we could check if there is _not_ a struct or enum here by lower/uppercase first letter
 pub fn is_always_filled(ty: &Type) -> bool {
     let ty = ty.to_token_stream().to_string();

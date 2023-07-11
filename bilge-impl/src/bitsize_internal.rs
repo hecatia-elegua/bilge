@@ -218,11 +218,19 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
 }
 
 fn generate_filled_check_for(ty: &Type) -> TokenStream {
-    if shared::is_always_filled(ty) {
-        return quote!(true);
-    }
     use Type::*;
     match ty {
+        Path(_) => {
+            // note that this also handles `bool` and any `UInt`
+            quote!(<#ty as Bitsized>::FILLED)
+        },
+        Tuple(tuple) => {
+            tuple.elems.iter().map(generate_filled_check_for)
+                .reduce(|acc, next| quote!((#acc && #next)))
+                // `field: (),` will be handled like this:
+                .unwrap_or_else(|| quote!(true))
+        },
+        Array(array) => generate_filled_check_for(&array.elem),
         // These don't work with structs or aren't useful in bitfields.
         BareFn(_) | Group(_) | ImplTrait(_) | Infer(_) | Macro(_) | Never(_) |
         // We could provide some info on error as to why Ptr/Reference won't work due to safety.
@@ -233,18 +241,7 @@ fn generate_filled_check_for(ty: &Type) -> TokenStream {
         TraitObject(_) |
         // I have no idea where this is used.
         Verbatim(_) | Paren(_) => abort!(ty, "This field type is not supported"),
-        Tuple(tuple) => {
-            tuple.elems.iter().map(generate_filled_check_for)
-                .reduce(|acc, next| quote!((#acc && #next)))
-                // `field: (),` will be handled like this:
-                .unwrap_or_else(|| quote!(true))
-        },
-        Array(array) => {
-            generate_filled_check_for(&array.elem)
-        },
-        Path(_) => {
-            quote!(<#ty as Bitsized>::FILLED)
-        },
+        // Needed because syn::Type is non_exhaustive
         _ => abort!(ty, "This field type is currently not supported"),
     }
 }
