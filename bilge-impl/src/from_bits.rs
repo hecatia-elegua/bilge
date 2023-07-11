@@ -1,24 +1,24 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
-use syn::{Fields, DeriveInput, Data, punctuated::Iter, Variant};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize};
+use syn::{Type, Fields, DeriveInput, Data, punctuated::Iter, Variant};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, util::DedupedVec};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
     let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input);
-    let expanded = match derive_data {
-        Data::Struct(_) => {
-            generate_struct(arb_int, name)
+    let expanded = match &derive_data {
+        Data::Struct(struct_data) => {
+            generate_struct(arb_int, name, &struct_data.fields)
         },
-        Data::Enum(ref enum_data) => {
+        Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref());
             generate_enum(arb_int, name, match_arms, fallback)
         },
         _ => unreachable(()),
     };
-    generate_common(expanded, name)
+    generate_common(expanded)
 }
 
 fn parse(item: TokenStream) -> DeriveInput {
@@ -106,16 +106,43 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
     }
 }
 
-fn generate_struct(arb_int: TokenStream, struct_type: &Ident) -> TokenStream {
+/// a single check per type is enough, so the checks can be deduped
+fn generate_assume_checks_for(ty: &Type, vec: &mut DedupedVec<TokenStream, String>) {
+    use Type::*;
+    match ty {
+        Path(_) => {
+            let assume = quote! { bilge::assume_filled::<#ty>(); };
+            vec.push(assume);
+        },
+        Tuple(tuple) => {
+            for elem in &tuple.elems {
+                generate_assume_checks_for(elem, vec)
+            }
+        },
+        Array(array) => generate_assume_checks_for(&array.elem, vec),
+        _ => unreachable(()),
+    }
+}
+
+fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
     let const_ = if cfg!(feature = "nightly") {
         quote!(const)
     } else {
         quote!()
     };
 
+    let mut assumes = DedupedVec::new(TokenStream::to_string);
+    for field in fields {
+        generate_assume_checks_for(&field.ty, &mut assumes)
+    }
+
+    // easier than figuring out the traits required to make this work with `quote::ToTokens`
+    let assumes = assumes.into_iter();
+
     quote! {
         impl #const_ ::core::convert::From<#arb_int> for #struct_type {
             fn from(value: #arb_int) -> Self {
+                #( #assumes )*
                 Self { value }
             }
         }
@@ -127,11 +154,9 @@ fn generate_struct(arb_int: TokenStream, struct_type: &Ident) -> TokenStream {
     }
 }
 
-fn generate_common(expanded: TokenStream, type_name: &Ident) -> TokenStream {
+fn generate_common(expanded: TokenStream) -> TokenStream {
     quote! {
         #expanded
-
-        const _: () = assert!(#type_name::FILLED, "implementing FromBits on bitfields with unfilled bits is forbidden");
     }
 }
 

@@ -1,8 +1,9 @@
 use proc_macro2::{TokenStream, Ident};
+use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field};
+use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type, Fields, Variant, punctuated::Iter};
+use crate::shared::{self, unreachable, BitSize, MAX_ENUM_BIT_SIZE};
 
-use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
 
@@ -15,16 +16,18 @@ struct ItemIr<'a> {
 }
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, arb_int) = parse(item, args);
+    let (item, arb_int, bitsize) = parse(item, args);
     let ir = match item {
         Item::Struct(ref item) => {
             let expanded = generate_struct(item, &arb_int);
+            validate_struct(&item.fields);
             let attrs = &item.attrs;
             let name = &item.ident;
             ItemIr { attrs, name, expanded }
         }
         Item::Enum(ref item) => {
             let expanded = generate_enum(item);
+            validate_enum(bitsize, item.variants.iter());
             let attrs = &item.attrs;
             let name = &item.ident;
             ItemIr { attrs, name, expanded }
@@ -34,10 +37,10 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStr
     generate_common(ir, &arb_int)
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
+fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream, BitSize) {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
-    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, arb_int)
+    let (declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
+    (item, arb_int, declared_bitsize)
 }
 
 fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
@@ -149,7 +152,6 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     } else {
         quote!()
     };
-    
 
     quote! {
         // #[inline]
@@ -211,6 +213,23 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
     };
     let constructor_part = struct_gen::generate_constructor_part(ty, name);
     (constructor_arg, constructor_part)
+}
+
+fn validate_struct(fields: &Fields) {
+    if fields.is_empty() {
+        abort_call_site!("structs without fields are not supported")
+    }
+}
+
+fn validate_enum(bitsize: BitSize, variants: Iter<Variant>) {
+    let variant_count = variants.clone().count();
+    if variant_count == 0 {
+        abort_call_site!("empty enums are not supported");
+    }
+
+    if bitsize > MAX_ENUM_BIT_SIZE {
+        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
+    }
 }
 
 fn generate_enum(enum_data: &ItemEnum) -> TokenStream {

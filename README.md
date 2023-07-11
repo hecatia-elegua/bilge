@@ -227,8 +227,6 @@ This means you _could_ modify the inner value directly, but it breaks type safet
 So if you need to modify the whole field, instead use the type-safe conversions `u14::from(register)` and `Register::from(u14)`.
 It is possible that this inner type will be made private.
 
-You also mustn't depend on the generated `const FILLED`.
-
 More `/tests` will follow. Right now the `/examples` directory is used for some testing and as a functionality overview.
 
 ## Alternatives
