@@ -1,8 +1,9 @@
 use proc_macro2::{TokenStream, Ident};
+use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field};
+use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type, Fields, Variant, punctuated::Iter};
+use crate::shared::{self, unreachable, BitSize, MAX_ENUM_BIT_SIZE, is_fallback_attribute, enum_fills_bitsize};
 
-use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
 
@@ -10,34 +11,38 @@ pub(crate) mod struct_gen;
 struct ItemIr<'a> {
     attrs: &'a Vec<Attribute>,
     name: &'a Ident,
+    /// needed in from_bits and try_from_bits
+    filled_check: TokenStream,
     /// generated item (and setters, getters, constructor, impl Bitsized)
     expanded: TokenStream,
 }
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, arb_int) = parse(item, args);
+    let (item, arb_int, bitsize) = parse(item, args);
     let ir = match item {
         Item::Struct(ref item) => {
             let expanded = generate_struct(item, &arb_int);
+            let filled_check = generate_struct_filled_check(&item.fields);
             let attrs = &item.attrs;
             let name = &item.ident;
-            ItemIr { attrs, name, expanded }
+            ItemIr { attrs, name, filled_check, expanded }
         }
         Item::Enum(ref item) => {
             let expanded = generate_enum(item);
+            let filled_check = generate_enum_filled_check(bitsize, item.variants.iter());
             let attrs = &item.attrs;
             let name = &item.ident;
-            ItemIr { attrs, name, expanded }
+            ItemIr { attrs, name, filled_check, expanded }
         }
         _ => unreachable(()),
     };
     generate_common(ir, &arb_int)
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
+fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream, BitSize) {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
-    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, arb_int)
+    let (declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
+    (item, arb_int, declared_bitsize)
 }
 
 fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
@@ -149,7 +154,6 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     } else {
         quote!()
     };
-    
 
     quote! {
         // #[inline]
@@ -213,6 +217,72 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
     (constructor_arg, constructor_part)
 }
 
+fn generate_filled_check_for(ty: &Type) -> TokenStream {
+    if shared::is_always_filled(ty) {
+        return quote!(true);
+    }
+    use Type::*;
+    match ty {
+        // These don't work with structs or aren't useful in bitfields.
+        BareFn(_) | Group(_) | ImplTrait(_) | Infer(_) | Macro(_) | Never(_) |
+        // We could provide some info on error as to why Ptr/Reference won't work due to safety.
+        Ptr(_) | Reference(_) |
+        // The bitsize must be known at compile time.
+        Slice(_) |
+        // Something to investigate, but doesn't seem useful/usable here either.
+        TraitObject(_) |
+        // I have no idea where this is used.
+        Verbatim(_) | Paren(_) => abort!(ty, "This field type is not supported"),
+        Tuple(tuple) => {
+            tuple.elems.iter().map(generate_filled_check_for)
+                .reduce(|acc, next| quote!((#acc && #next)))
+                // `field: (),` will be handled like this:
+                .unwrap_or_else(|| quote!(true))
+        },
+        Array(array) => {
+            generate_filled_check_for(&array.elem)
+        },
+        Path(_) => {
+            quote!(<#ty as Bitsized>::FILLED)
+        },
+        _ => abort!(ty, "This field type is currently not supported"),
+    }
+}
+
+fn generate_struct_filled_check(fields: &Fields) -> TokenStream {
+    if fields.is_empty() {
+        abort_call_site!("structs without fields are not supported")
+    }
+
+    // NEVER move this, since we validate all nested field types here as well.
+    // If we do want to move this, add a new function just for validation.
+    fields.iter()
+        .map(|field| generate_filled_check_for(&field.ty))
+        .reduce(|acc, next| quote!(#acc && #next))
+        //when we only have uints or nothing as fields, return true
+        .unwrap_or_else(|| quote!(true))
+}
+
+fn generate_enum_filled_check(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
+    let variant_count = variants.clone().count();
+    if variant_count == 0 {
+        abort_call_site!("empty enums are not supported");
+    }
+
+    if bitsize > MAX_ENUM_BIT_SIZE {
+        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
+    }
+    
+    let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+    
+    if has_fallback {
+        quote!(true)
+    } else {
+        let enum_is_filled = enum_fills_bitsize(bitsize, variant_count);
+        quote!(#enum_is_filled)    
+    }
+}
+
 fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
     let ItemEnum { vis, ident, variants, .. } = enum_data;
     quote! {
@@ -225,7 +295,7 @@ fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
 /// We have _one_ `generate_common` function, which holds everything struct and enum have _in common_.
 /// Everything else has its own `generate_` functions.
 fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
-    let ItemIr { attrs, name, expanded } = ir;
+    let ItemIr { attrs, name, filled_check, expanded } = ir;
 
     quote! {
         #(#attrs)*
@@ -234,6 +304,7 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
             type ArbitraryInt = #arb_int;
             const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
+            const FILLED: bool = #filled_check;
         }
     }
 }

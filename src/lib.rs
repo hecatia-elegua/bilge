@@ -22,6 +22,7 @@ pub trait Bitsized {
     type ArbitraryInt;
     const BITS: usize;
     const MAX: Self::ArbitraryInt;
+    const FILLED: bool;
 }
 
 /// Only basing this on Number did not work, as bool and others are not Number.
@@ -35,6 +36,7 @@ where
     type ArbitraryInt = Self;
     const BITS: usize = BITS;
     const MAX: Self::ArbitraryInt = <Self as arbitrary_int::Number>::MAX;
+    const FILLED: bool = true;
 }
 
 macro_rules! bitsized_impl {
@@ -44,6 +46,7 @@ macro_rules! bitsized_impl {
                 type ArbitraryInt = Self;
                 const BITS: usize = $bits;
                 const MAX: Self::ArbitraryInt = <Self as arbitrary_int::Number>::MAX;
+                const FILLED: bool = true;
             }
         )+
     };
@@ -55,4 +58,5 @@ impl Bitsized for bool {
     type ArbitraryInt = arbitrary_int::u1;
     const BITS: usize = 1;
     const MAX: Self::ArbitraryInt = <arbitrary_int::u1 as arbitrary_int::Number>::MAX;
+    const FILLED: bool = true;
 }

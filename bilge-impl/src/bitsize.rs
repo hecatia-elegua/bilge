@@ -1,11 +1,8 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
-use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
-use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute};
-
-/// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
-const MAX_ENUM_BIT_SIZE: BitSize = 64;
+use syn::{Item, ItemStruct, ItemEnum, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use crate::shared::{self, BitSize, unreachable};
 
 /// Since we want to be maximally interoperable, we need to handle attributes in a special way.
 /// We use `#[bitsize]` as a sort of scope for all attributes below it and
@@ -50,9 +47,6 @@ struct SplitAttributes {
 
 /// Intermediate Representation, just for bundling these together
 struct ItemIr {
-    name: Ident,
-    /// needed in from_bits and try_from_bits
-    filled_check: TokenStream,
     /// generated item (and size check)
     expanded: TokenStream,
 }
@@ -63,16 +57,12 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);
-            let name = item.ident.clone();
-            let filled_check = analyze_struct(&item.fields);
             let expanded = generate_struct(&item, declared_bitsize);
-            ItemIr { name, filled_check, expanded }
+            ItemIr { expanded }
         }
         Item::Enum(item) => {
-            let name = item.ident.clone();
-            let filled_check = analyze_enum(declared_bitsize, item.variants.iter());
             let expanded = generate_enum(&item);
-            ItemIr { name, filled_check, expanded }
+            ItemIr { expanded }
         }
         _ => unreachable(()),
     };
@@ -167,38 +157,6 @@ fn split_attributes(item: &Item) -> SplitAttributes {
     }
 }
 
-fn generate_filled_check_for(ty: &Type) -> TokenStream {
-    if shared::is_always_filled(ty) {
-        return quote!(true);
-    }
-    use Type::*;
-    match ty {
-        // These don't work with structs or aren't useful in bitfields.
-        BareFn(_) | Group(_) | ImplTrait(_) | Infer(_) | Macro(_) | Never(_) |
-        // We could provide some info on error as to why Ptr/Reference won't work due to safety.
-        Ptr(_) | Reference(_) |
-        // The bitsize must be known at compile time.
-        Slice(_) |
-        // Something to investigate, but doesn't seem useful/usable here either.
-        TraitObject(_) |
-        // I have no idea where this is used.
-        Verbatim(_) | Paren(_) => abort!(ty, "This field type is not supported"),
-        Tuple(tuple) => {
-            tuple.elems.iter().map(generate_filled_check_for)
-                .reduce(|acc, next| quote!((#acc && #next)))
-                // `field: (),` will be handled like this:
-                .unwrap_or_else(|| quote!(true))
-        },
-        Array(array) => {
-            generate_filled_check_for(&array.elem)
-        },
-        Path(_) => {
-            quote!(#ty::FILLED)
-        },
-        _ => abort!(ty, "This field type is currently not supported"),
-    }
-}
-
 /// Allows you to give multiple fields the name `reserved` or `padding`
 /// by numbering them for you.
 fn modify_special_field_names(fields: &mut Fields) {
@@ -220,40 +178,6 @@ fn modify_special_field_names(fields: &mut Fields) {
             let name = format!("padding_{}", "i".repeat(padding_count));
             *ident = Ident::new(&name, span)
         }
-    }
-}
-
-fn analyze_struct(fields: &Fields) -> TokenStream {
-    if fields.is_empty() {
-        abort_call_site!("structs without fields are not supported")
-    }
-
-    // NEVER move this, since we validate all nested field types here as well.
-    // If we do want to move this, add a new function just for validation.
-    fields.iter()
-        .map(|field| generate_filled_check_for(&field.ty))
-        .reduce(|acc, next| quote!(#acc && #next))
-        //when we only have uints or nothing as fields, return true
-        .unwrap_or_else(|| quote!(true))
-}
-
-fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
-    let variant_count = variants.clone().count();
-    if variant_count == 0 {
-        abort_call_site!("empty enums are not supported");
-    }
-
-    if bitsize > MAX_ENUM_BIT_SIZE {
-        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
-    }
-    
-    let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
-    
-    if has_fallback {
-        quote!(true)
-    } else {
-        let enum_is_filled = enum_fills_bitsize(bitsize, variant_count);
-        quote!(#enum_is_filled)    
     }
 }
 
@@ -307,7 +231,7 @@ fn generate_enum(item: &ItemEnum) -> TokenStream {
 /// we have _one_ generate_common function, which holds everything that struct and enum have _in common_.
 /// Everything else has its own generate_ functions.
 fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> TokenStream {
-    let ItemIr { name: item_type, filled_check, expanded } = ir;
+    let ItemIr { expanded } = ir;
     let SplitAttributes { before_compression, after_compression } = attrs;
 
     let bitsize_internal_attr =  quote! {#[bilge::bitsize_internal(#declared_bitsize)]};
@@ -317,9 +241,5 @@ fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> 
         #bitsize_internal_attr
         #(#after_compression)*
         #expanded
-
-        impl #item_type {
-            pub const FILLED: bool = #filled_check;
-        }
     }
 }

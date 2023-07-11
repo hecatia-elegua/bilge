@@ -131,7 +131,7 @@ fn generate_common(expanded: TokenStream, type_name: &Ident) -> TokenStream {
     quote! {
         #expanded
 
-        const _: () = assert!(#type_name::FILLED, "implementing FromBits on bitfields with unfilled bits is forbidden");
+        const _: () = assert!(<#type_name as Bitsized>::FILLED, "implementing FromBits on bitfields with unfilled bits is forbidden");
     }
 }
 

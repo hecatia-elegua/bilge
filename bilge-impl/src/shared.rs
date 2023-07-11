@@ -10,7 +10,9 @@ use fallback::{Fallback, fallback_variant};
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
 /// This would also be change-worthy when rust starts supporting LLVM's arbitrary integers.
-pub const MAX_STRUCT_BIT_SIZE: u8 = 128;
+pub const MAX_STRUCT_BIT_SIZE: BitSize = 128;
+/// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
+pub const MAX_ENUM_BIT_SIZE: BitSize = 64;
 pub type BitSize = u8;
 
 pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
