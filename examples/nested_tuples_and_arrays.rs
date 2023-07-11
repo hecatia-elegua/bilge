@@ -3,11 +3,12 @@
 // you can use the "Expand glob import" command on
 // use bilge::prelude::*;
 // but still need to add Bitsized, Number yourself
-use bilge::prelude::{DebugBits, FromBits, TryFromBits, bitsize, u1, u4, u54, u18, u2, u39, Bitsized, Number};
+use bilge::prelude::{DebugBits, FromBits, TryFromBits, bitsize, u1, u18, u2, u39, Bitsized, Number};
 
-#[bitsize(32)]
-#[derive(DebugBits, FromBits)]
-struct TupleStruct(u8, u16, u8);
+
+// This file basically just informs you that yes, combinations of different nestings work.
+// also see `tests/struct.rs`
+
 
 #[bitsize(39)]
 #[derive(FromBits, DebugBits, PartialEq)]
@@ -35,13 +36,6 @@ enum HaveFun {
 #[bitsize(2)]
 #[derive(Clone, Copy, FromBits, DebugBits, PartialEq)]
 struct InnerTupleStruct(u1, bool);
-
-#[bitsize(54)]
-#[derive(FromBits, DebugBits, PartialEq)]
-struct Basic {
-    arr: [u4; 12],
-    tup_arr: [(u2, bool); 2],
-}
 
 fn main() {
     let field1 = (u1::new(0), (u2::new(0b00), 0b1111_1111), u1::new(1));
@@ -121,29 +115,4 @@ fn main() {
     mess.set_array_at(1, elem_0);
     assert_eq!(elem_1, mess.array_at(0));
     assert_eq!(elem_0, mess.array_at(1));
-
-    let mut basic = Basic::from(u54::new(0));
-
-    let sixth = u4::new(0b1111);
-    let eleventh = u4::new(0b1101);
-    basic.set_arr_at(6, sixth);
-    basic.set_arr_at(11, eleventh);
-
-    let z = u4::new(0);
-    assert_eq!(basic.arr(), [z, z, z, z, z, z, sixth, z, z, z, z, eleventh]);
-    assert_eq!(sixth, basic.arr_at(6));
-    assert_eq!(eleventh, basic.arr_at(11));
-
-    let z = (u2::new(0), false);
-    let zeroth = (u2::new(0b11), true);
-    basic.set_tup_arr_at(0, zeroth);
-    assert_eq!(basic.tup_arr(), [zeroth, z]);
-    assert_eq!(zeroth, basic.tup_arr_at(0));
-    assert_eq!(z, basic.tup_arr_at(1));
-
-    let first = (u2::new(0b10), false);
-    basic.set_tup_arr_at(1, first);
-    assert_eq!(basic.tup_arr(), [zeroth, first]);
-    assert_eq!(zeroth, basic.tup_arr_at(0));
-    assert_eq!(first, basic.tup_arr_at(1));
 }

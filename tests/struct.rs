@@ -188,3 +188,208 @@ fn reserved_fields() {
         "MemoryMappedRegisters { reserved_i: 0, status: 3, register1: 32904, reserved_ii: 0, register2: 1008, reserved_iii: 0 }"
     );
 }
+
+#[bitsize(32)]
+#[derive(DebugBits, FromBits)]
+struct TupleStruct(u2, u6, u7, u8, u8, u1);
+
+#[test]
+fn tuple_struct() {
+    let val_0 = u2::new(0);
+    let val_1 = u6::new(1);
+    let val_2 = u7::new(2);
+    let val_3 = u8::new(3);
+    let val_4 = u8::new(4);
+    let val_5 = u1::new(0);
+    let mut a = TupleStruct::new(val_0, val_1, val_2, val_3, val_4, val_5);
+    assert_eq!(a.val_0(), val_0);
+    assert_eq!(a.val_1(), val_1);
+    assert_eq!(a.val_2(), val_2);
+    assert_eq!(a.val_3(), val_3);
+    assert_eq!(a.val_4(), val_4);
+    assert_eq!(a.val_5(), val_5);
+    let val_0 = u2::new(1);
+    a.set_val_0(val_0);
+    assert_eq!(a.val_0(), val_0);
+    assert_eq!(a.val_1(), val_1);
+    assert_eq!(a.val_2(), val_2);
+    assert_eq!(a.val_3(), val_3);
+    assert_eq!(a.val_4(), val_4);
+    assert_eq!(a.val_5(), val_5);
+    let val_3 = u8::MAX;
+    a.set_val_3(val_3);
+    assert_eq!(a.val_0(), val_0);
+    assert_eq!(a.val_1(), val_1);
+    assert_eq!(a.val_2(), val_2);
+    assert_eq!(a.val_3(), val_3);
+    assert_eq!(a.val_4(), val_4);
+    assert_eq!(a.val_5(), val_5);
+}
+
+#[bitsize(57)]
+#[derive(FromBits, DebugBits, PartialEq)]
+struct Basic {
+    arr: [u4; 12],
+    tup: (bool, bool, bool),
+    tup_arr: [(u2, bool); 2],
+}
+
+#[test]
+fn other_field_types() {
+    let mut basic = Basic::from(u57::new(0));
+
+    // arrays can be accessed fully or per element, via index
+    let sixth = u4::new(0b1111);
+    let eleventh = u4::new(0b1101);
+    basic.set_arr_at(6, sixth);
+    basic.set_arr_at(11, eleventh);
+
+    let z = u4::new(0);
+    let mut arr = [z, z, z, z, z, z, sixth, z, z, z, z, eleventh];
+    assert_eq!(basic.arr(), arr);
+    assert_eq!(sixth, basic.arr_at(6));
+    assert_eq!(eleventh, basic.arr_at(11));
+
+    arr.reverse();
+    basic.set_arr(arr);
+    assert_eq!(basic.arr(), arr);
+    assert_eq!(z, basic.arr_at(6));
+    assert_eq!(z, basic.arr_at(11));
+    assert_eq!(sixth, basic.arr_at(5));
+    assert_eq!(eleventh, basic.arr_at(0));
+
+    // tuples can only be accessed fully
+    let z = (false, false, false);
+    let tup = (false, true, true);
+    assert_eq!(basic.tup(), z);
+    basic.set_tup(tup);
+    assert_eq!(basic.tup(), tup);
+
+    // nesting - tuples in array
+    let z = (u2::new(0), false);
+    let zeroth = (u2::new(0b11), true);
+    basic.set_tup_arr_at(0, zeroth);
+    assert_eq!(basic.tup_arr(), [zeroth, z]);
+    assert_eq!(zeroth, basic.tup_arr_at(0));
+    assert_eq!(z, basic.tup_arr_at(1));
+
+    let first = (u2::new(0b10), false);
+    basic.set_tup_arr_at(1, first);
+    assert_eq!(basic.tup_arr(), [zeroth, first]);
+    assert_eq!(zeroth, basic.tup_arr_at(0));
+    assert_eq!(first, basic.tup_arr_at(1));
+}
+
+#[bitsize(39)]
+#[derive(FromBits, DebugBits, PartialEq)]
+struct NestedMess {
+    tu_tuple_ple: (u1, (u2, u8), u1),
+    // this has special handling, transmuting [[]] to [] internally to generate less
+    arr_arr_ay_ay: [[InnerTupleStruct; 2]; 2],
+    bit: u1,
+    arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay: [[([[(InnerTupleStruct, u2); 2]; 1], u1); 2]; 1],
+}
+
+#[bitsize(2)]
+#[derive(Clone, Copy, FromBits, DebugBits, PartialEq)]
+struct InnerTupleStruct(u1, bool);
+
+#[bitsize(18)]
+#[derive(TryFromBits, DebugBits, PartialEq)]
+struct UnfilledEnumMess {
+    big_fumble: [[([[(HaveFun, u2); 2]; 1], u1); 2]; 1],
+}
+
+#[bitsize(2)]
+#[derive(TryFromBits, Debug, PartialEq, Clone, Copy)]
+enum HaveFun { Yes, No, Maybe, }
+
+/// also see `examples/nested_tuples_and_arrays.rs`
+#[test]
+fn that_one_test() {
+    let tu_tuple_ple = (u1::new(0), (u2::new(0b00), 0b1111_1111), u1::new(1));
+    let arr_arr_ay_ay = [
+        [InnerTupleStruct::from(u2::new(3)), InnerTupleStruct::from(u2::new(0b10))],
+        [InnerTupleStruct::from(u2::new(3)), InnerTupleStruct::from(u2::new(0))]
+    ];
+    let bit = u1::new(1);
+    let arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay = [[
+        (
+            [[(InnerTupleStruct::from(u2::new(3)), u2::new(3)), (InnerTupleStruct::from(u2::new(3)), u2::new(3))]],
+            u1::new(0)
+        ),
+        (
+            [[(InnerTupleStruct::from(u2::new(0b10)), u2::new(3)), (InnerTupleStruct::from(u2::new(3)), u2::new(3))]],
+            u1::new(0)
+        )
+    ]];
+    let mut mess = NestedMess::new(tu_tuple_ple, arr_arr_ay_ay, bit, arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay);
+    // dbg!(&mess);
+    assert_eq!(mess, NestedMess::from(u39::new(0b0_1_1111_110_0_1_1111_111__1_0011_1011__1__111_1111_1000)));
+    assert_eq!(tu_tuple_ple, mess.tu_tuple_ple());
+    assert_eq!(arr_arr_ay_ay, mess.arr_arr_ay_ay());
+    assert_eq!(bit, mess.bit());
+    assert_eq!(arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay, mess.arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay());
+    
+    let tu_tuple_ple = (u1::new(0), (u2::new(0b10), 0b1010_0100), u1::new(0));
+    mess.set_tu_tuple_ple(tu_tuple_ple);
+    assert_eq!(tu_tuple_ple, mess.tu_tuple_ple());
+    assert_eq!(arr_arr_ay_ay, mess.arr_arr_ay_ay());
+    assert_eq!(bit, mess.bit());
+    assert_eq!(arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay, mess.arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay());
+
+    let elem_0 = [InnerTupleStruct::from(u2::new(0)), InnerTupleStruct::from(u2::new(0b01))];
+    let elem_1 = [InnerTupleStruct::from(u2::new(0)), InnerTupleStruct::from(u2::new(3))];
+    let arr_arr_ay_ay = [elem_0, elem_1];
+    mess.set_arr_arr_ay_ay(arr_arr_ay_ay);
+    assert_eq!(tu_tuple_ple, mess.tu_tuple_ple());
+    assert_eq!(arr_arr_ay_ay, mess.arr_arr_ay_ay());
+    assert_eq!(bit, mess.bit());
+    assert_eq!(arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay, mess.arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay());
+
+    let arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay = [[
+        (
+            [[(InnerTupleStruct::from(u2::new(0)), u2::new(0)), (InnerTupleStruct::from(u2::new(0b01)), u2::new(0))]],
+            u1::new(0)
+        ),
+        (
+            [[(InnerTupleStruct::from(u2::new(0)), u2::new(1)), (InnerTupleStruct::from(u2::new(3)), u2::new(0))]],
+            u1::new(0)
+        )
+    ]];
+    mess.set_arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay(arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay);
+    assert_eq!(tu_tuple_ple, mess.tu_tuple_ple());
+    assert_eq!(arr_arr_ay_ay, mess.arr_arr_ay_ay());
+    assert_eq!(bit, mess.bit());
+    assert_eq!(arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay, mess.arr_arr_tu_arr_arr_tuple_ay_ay_ple_ay_ay());
+    // dbg!(&mess);
+
+    let uem1 = UnfilledEnumMess::try_from(u18::new(0b1_0101_1110_0_1010_1010)).unwrap();
+    let uem2 = UnfilledEnumMess::new(
+        [[
+            (
+                [[(HaveFun::Maybe, u2::new(2)), (HaveFun::Maybe, u2::new(2))]],
+                u1::new(0)
+            ),
+            (
+                [[(HaveFun::Maybe, u2::new(3)), (HaveFun::No, u2::new(1))]],
+                u1::new(1)
+            )
+        ]]
+    );
+    assert_eq!(uem1.value, uem2.value);
+    assert_eq!(uem1, uem2);
+    let raw = u18::new(0b1_0101_11___11____0_1010_1010);
+    let err = UnfilledEnumMess::try_from(raw);
+    // TODO: `TryFrom` will soon not return `Err(uN)` anymore
+    assert_eq!(err, Err(raw));
+
+    // mess.arr_arr_ay_ay_at(2); //panics, like it should
+
+    assert_eq!(elem_0, mess.arr_arr_ay_ay_at(0));
+    assert_eq!(elem_1, mess.arr_arr_ay_ay_at(1));
+    mess.set_arr_arr_ay_ay_at(0, elem_1);
+    mess.set_arr_arr_ay_ay_at(1, elem_0);
+    assert_eq!(elem_1, mess.arr_arr_ay_ay_at(0));
+    assert_eq!(elem_0, mess.arr_arr_ay_ay_at(1));
+}
