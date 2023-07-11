@@ -1,0 +1,8 @@
+error: value fallback is not the last variant
+ --> tests/ui/fallback/value-fallback-must-be-last.rs:6:5
+  |
+6 | /     #[fallback]
+7 | |     A(u9),
+  | |_________^
+  |
+  = help: a fallback variant with value must be the last variant of the enum

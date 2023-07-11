@@ -1,7 +1,11 @@
+pub mod fallback;
+pub mod discriminant_assigner;
+
 use proc_macro2::{TokenStream, Ident, Literal};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, LitInt, Expr, Variant, Type, Lit, ExprLit, Meta, Data, Attribute, Fields, punctuated::Iter};
+use syn::{DeriveInput, LitInt, Type, Meta, Attribute, Path};
+use fallback::{Fallback, fallback_variant};
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
@@ -15,7 +19,7 @@ pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
 
 // allow since we want `if try_from` blocks to stand out
 #[allow(clippy::collapsible_if)]
-pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
+pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
     let DeriveInput { 
         attrs,
         ident,
@@ -37,11 +41,6 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
         }
     }
 
-    let fallback = fallback_variant(data);
-    if fallback.is_some() && try_from {
-        abort_call_site!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
-    }
-
     // parsing the #[bitsize_internal(num)] attribute macro
     let args = attrs.iter().find_map(|attr| {
         if attr.to_token_stream().to_string().contains("bitsize_internal") {
@@ -56,6 +55,11 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
     }).unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
     let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args);
 
+    let fallback = fallback_variant(data, bitsize);
+    if fallback.is_some() && try_from {
+        abort_call_site!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
+    }
+
     (data, arb_int, ident, bitsize, fallback)
 }
 
@@ -65,9 +69,11 @@ pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, Tok
         abort!(bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`")
     );
     // without postfix
-    let bitsize = bitsize.base10_parse().unwrap_or_else(|_|
-        abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE)
-    );
+    let bitsize = bitsize
+        .base10_parse()
+        .ok()
+        .filter(|&n| n != 0 && n <= MAX_STRUCT_BIT_SIZE)
+        .unwrap_or_else(|| abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE));
     let arb_int = syn::parse_str(&format!("u{bitsize}")).unwrap_or_else(unreachable);
     (bitsize, arb_int)
 }
@@ -127,35 +133,6 @@ pub fn unreachable<T, U>(_: T) -> U {
     unreachable!("should have already been validated")
 }
 
-fn fallback_variant(data: &Data) -> Option<&Variant> {
-    match data {
-        Data::Enum(enum_data) => {
-            let mut variants_with_fallback = enum_data
-                .variants
-                .iter()
-                .filter(|variant| variant.attrs.iter().any(is_fallback_attribute));
-
-            let variant = variants_with_fallback.next();
-
-            if variants_with_fallback.next().is_some() {
-                abort_call_site!("only one enum variant may be fallback"; help = "remove #[fallback] attributes until you only have one");
-            } else {
-                variant
-            }
-        }
-        Data::Struct(struct_data) => {
-            let mut field_attrs = struct_data.fields.iter().flat_map(|field| &field.attrs);
-            
-            if field_attrs.any(is_fallback_attribute) {
-                abort_call_site!("the attribute `fallback` is only applicable to enums"; help = "remove all `#[fallback]` from this struct")
-            } else {
-                None
-            }
-        }
-        _ => unreachable(())
-    }
-}
-
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
     if let Meta::Path(path) = &attr.meta {
         path.is_ident(name)
@@ -172,56 +149,41 @@ pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "fallback")
 }
 
-pub(crate) struct EnumVariantValueAssigner {
-    bitsize: u8,
-    next_expected_assignment: u128,
-}
-
-impl EnumVariantValueAssigner {
-    pub fn new(bitsize: u8) -> EnumVariantValueAssigner {
-        EnumVariantValueAssigner { bitsize, next_expected_assignment: 0 }
-    }
+/// attempts to extract the bitsize from a type token named `uN` or `bool`.
+/// should return `Result` instead of `Option`, if we decide to add more descriptive error handling.
+/// might consider having this take the type name directly, and fetch the last segment's name at call site
+pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
+    let last_segment = path.segments.last().unwrap_or_else(|| unreachable(())); //validated by syn analysis
+    let type_name = last_segment.ident.to_string();
     
-    fn max_value(&self) -> u128 {
-        (1u128 << self.bitsize) - 1
-    }
+    // there's no need to check that PathArguments is PathArguments::None.
+    // if the type name passes the below checks then, in the current namespace, 
+    // it can't have generic aguments and is definitely not an Fn trait.
 
-    fn value_from_discriminant(&self, variant: &Variant) -> Option<u128> {
-        let discriminant = variant.discriminant.as_ref()?;
-        let discriminant_expr = &discriminant.1;
-        let variant_name = &variant.ident;
-
-        let Expr::Lit(ExprLit { lit: Lit::Int(int), .. }) = discriminant_expr else {
-            abort!(
-                discriminant_expr, 
-                "variant `{}` is not a number", variant_name; 
-                help = "only literal integers currently supported"
-            )
-        };
-    
-        let discriminant_value: u128 = int.base10_parse().unwrap_or_else(unreachable);
-        if discriminant_value > self.max_value() {
-            abort_call_site!("Value of variant {} exceeds the given number of bits", variant_name)
-        }
-
-        Some(discriminant_value)
-    }
-
-    pub fn assign(&mut self, variant: &Variant) -> u128 {
-        let value = self.value_from_discriminant(variant).unwrap_or(self.next_expected_assignment);
-        self.next_expected_assignment = value + 1;
-        value
+    if type_name == "bool" {
+        Some(1)
+    } else if let Some(suffix) = type_name.strip_prefix('u') {
+        // characters which may appear in this suffix are digits, letters and underscores.
+        // parse() will reject letters and underscores, so this should be correct.
+        let bitsize = suffix.parse().ok();
+        
+        // the namespace contains u2 up to u{MAX_STRUCT_BIT_SIZE}. can't make assumptions about larger values
+        bitsize.filter(|&n| n <= MAX_STRUCT_BIT_SIZE)
+    } else {
+        None
     }
 }
 
-pub fn validate_enum_variants(variants: Iter<Variant>) {
-    for variant in variants {
-        if !matches!(variant.fields, Fields::Unit) {
-            abort!(variant, "currently, only unit variants are allowed in enums"; help = "change this variant to a unit");
-        }
-    }
-}
+pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &TokenStream, variant_value: Literal, fallback: Option<&Fallback>) -> TokenStream {
+    let is_value_fallback = if let Some(Fallback::WithValue(name)) = fallback {
+        variant_name == name
+    } else {
+        false
+    };
 
-pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &TokenStream, variant_value: Literal) -> TokenStream {
-    quote! { #enum_name::#variant_name => #arb_int::new(#variant_value), }
+    if is_value_fallback {
+        quote! { #enum_name::#variant_name(number) => number, }
+    } else {
+        quote! { #enum_name::#variant_name => #arb_int::new(#variant_value), }
+    }
 }

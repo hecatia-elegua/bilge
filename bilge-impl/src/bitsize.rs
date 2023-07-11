@@ -1,10 +1,7 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
-use syn::Variant;
-use syn::punctuated::Iter;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
-
+use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
 use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute};
 
 /// As `#[repr(u128)]` is unstable and currently no real usecase for higher sizes exists, the maximum is u64.
@@ -90,9 +87,6 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
     }
     
     let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    if declared_bitsize > shared::MAX_STRUCT_BIT_SIZE {
-        abort_call_site!("attribute is not a valid number"; help = "currently, numbers from 1 to {} are allowed", shared::MAX_STRUCT_BIT_SIZE)
-    }
     (item, declared_bitsize)
 }
 
@@ -213,24 +207,27 @@ fn modify_special_field_names(fields: &mut Fields) {
     // Also, it might be useful to generate no getters or setters for these fields and skipping some calc.
     let mut reserved_count = 0;
     let mut padding_count = 0;
-    fields.iter_mut().for_each(|f| {
-        if let Some(name) = &mut f.ident {
-            if name == "reserved" || name == "_reserved" {
-                reserved_count += 1;
-                let span = name.span();
-                let name = format!("reserved_{}", "i".repeat(reserved_count));
-                f.ident = Some(Ident::new(&name, span))
-            } else if name == "padding" || name == "_padding" {
-                padding_count += 1;
-                let span = name.span();
-                let name = format!("padding_{}", "i".repeat(padding_count));
-                f.ident = Some(Ident::new(&name, span))
-            }
+    let field_idents_mut = fields.iter_mut().filter_map(|field| field.ident.as_mut());
+    for ident in field_idents_mut {
+        if ident == "reserved" || ident == "_reserved" {
+            reserved_count += 1;
+            let span = ident.span();
+            let name = format!("reserved_{}", "i".repeat(reserved_count));
+            *ident = Ident::new(&name, span)
+        } else if ident == "padding" || ident == "_padding" {
+            padding_count += 1;
+            let span = ident.span();
+            let name = format!("padding_{}", "i".repeat(padding_count));
+            *ident = Ident::new(&name, span)
         }
-    });
+    }
 }
 
 fn analyze_struct(fields: &Fields) -> TokenStream {
+    if fields.is_empty() {
+        abort_call_site!("structs without fields are not supported")
+    }
+
     // NEVER move this, since we validate all nested field types here as well.
     // If we do want to move this, add a new function just for validation.
     fields.iter()
@@ -241,16 +238,21 @@ fn analyze_struct(fields: &Fields) -> TokenStream {
 }
 
 fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> TokenStream {
+    let variant_count = variants.clone().count();
+    if variant_count == 0 {
+        abort_call_site!("empty enums are not supported");
+    }
+
     if bitsize > MAX_ENUM_BIT_SIZE {
-        abort_call_site!("enum bitsize is limited to 64")
+        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
     }
     
-    let has_fallback = variants.clone().flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+    let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
     
     if has_fallback {
         quote!(true)
     } else {
-        let enum_is_filled = enum_fills_bitsize(bitsize, variants.count());
+        let enum_is_filled = enum_fills_bitsize(bitsize, variant_count);
         quote!(#enum_is_filled)    
     }
 }

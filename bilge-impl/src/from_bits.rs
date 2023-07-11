@@ -1,8 +1,8 @@
-use proc_macro2::{TokenStream, Ident, Literal};
-use proc_macro_error::abort_call_site;
+use proc_macro2::{TokenStream, Ident};
+use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant};
-use crate::shared::{self, BitSize, unreachable, EnumVariantValueAssigner, enum_fills_bitsize};
+use syn::{Fields, DeriveInput, Data, punctuated::Iter, Variant};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -13,7 +13,7 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback, &arb_int);
+            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int);
             generate_enum(arb_int, name, match_arms, fallback)
         },
         _ => unreachable(()),
@@ -25,12 +25,12 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, false)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Variant>, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    shared::validate_enum_variants(variants.clone());
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
+    validate_enum_variants(variants.clone(), fallback);
     
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
     if !enum_is_filled && fallback.is_none() {
@@ -40,25 +40,29 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         abort_call_site!("enum fills its bitsize but has fallback variant"; help = "remove `#[fallback]` from this enum")
     }
 
-    let mut value_assigner = EnumVariantValueAssigner::new(internal_bitsize);
+    let mut assigner = DiscriminantAssigner::new(internal_bitsize);
 
     variants.map(|variant| {
         let variant_name = &variant.ident;
-        let variant_value = value_assigner.assign(variant);
+        let variant_value = assigner.assign_unsuffixed(variant);
 
-        let variant_value = Literal::u128_unsuffixed(variant_value);
-
-        let from_int_match_arm = quote! {
-            #variant_value => Self::#variant_name,
+        let from_int_match_arm = match fallback {
+            Some(fallback) if fallback.is_fallback_variant(variant_name) => {
+                // this value will be handled by the catch-all arm
+                quote!()
+            },
+            _ => quote! { 
+                #variant_value => Self::#variant_name, 
+            },
         };
-
-        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
+        
+        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value, fallback);
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()
 }
 
-fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<&Variant>) -> TokenStream {
+fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<Fallback>) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") {
@@ -69,16 +73,17 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
 
-    let catch_all_arm = if let Some(variant) = fallback {
-        let fallback_name = &variant.ident;
-        quote! {
-            _ => Self::#fallback_name,
-        }
-    } else {
-        quote! {
+    let catch_all_arm = match fallback {
+        Some(Fallback::WithValue(fallback_ident)) => quote! {
+            _ => Self::#fallback_ident(number),
+        },
+        Some(Fallback::Unit(fallback_ident)) => quote! {
+            _ => Self::#fallback_ident,
+        },
+        None => quote! {
             // constness: unreachable!() is not const yet
             _ => panic!("unreachable: arbitrary_int already validates that this is unreachable")
-        }
+        },
     };
 
     quote! {
@@ -120,5 +125,26 @@ fn generate_common(expanded: TokenStream, type_name: &Ident) -> TokenStream {
         #expanded
 
         const _: () = assert!(#type_name::FILLED, "implementing FromBits on bitfields with unfilled bits is forbidden");
+    }
+}
+
+fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) {
+    for variant in variants {
+        // we've already validated the correctness of the fallback variant, and that there's at most one such variant.
+        // this means we can safely skip a fallback variant if we find one.
+        if let Some(fallback) = &fallback {
+            if fallback.is_fallback_variant(&variant.ident) {
+                continue;
+            }
+        }
+
+        if !matches!(variant.fields, Fields::Unit) {
+            let help_message = if fallback.is_some() {
+                "change this variant to a unit"
+            } else {
+                "add a fallback variant or change this variant to a unit"
+            };
+            abort!(variant, "FromBits only supports unit variants for variants without `#[fallback]`"; help = help_message);
+        }
     }
 }

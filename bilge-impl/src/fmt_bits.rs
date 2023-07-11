@@ -1,5 +1,5 @@
-use crate::shared::{self, unreachable, BitSize, EnumVariantValueAssigner};
-use proc_macro2::{Ident, Literal, TokenStream};
+use crate::shared::{self, unreachable, BitSize, discriminant_assigner::DiscriminantAssigner, fallback::Fallback};
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
 
@@ -74,16 +74,14 @@ fn generate_enum_binary_impl(enum_name: &Ident, variants: Iter<Variant>, arb_int
 
 /// generates the arms for an (infallible) conversion from an enum to the enum's underlying arbitrary_int
 fn generate_to_int_match_arms(variants: Iter<Variant>, enum_name: &Ident, bitsize: BitSize, arb_int: TokenStream) -> Vec<TokenStream> {
-    let mut value_assigner = EnumVariantValueAssigner::new(bitsize);
+    let mut assigner = DiscriminantAssigner::new(bitsize);
 
     variants
         .map(|variant| {
             let variant_name = &variant.ident;
-            let variant_value = value_assigner.assign(variant);
+            let variant_value = assigner.assign_unsuffixed(variant);
 
-            let variant_value = Literal::u128_unsuffixed(variant_value);
-
-            shared::to_int_match_arm(enum_name, variant_name, &arb_int, variant_value)
+            shared::to_int_match_arm(enum_name, variant_name, &arb_int, variant_value, None)
         })
         .collect()
 }
@@ -92,6 +90,6 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, BitSize, Option<&Variant>) {
+fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, false)
 }
