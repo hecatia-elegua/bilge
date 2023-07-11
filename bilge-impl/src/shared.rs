@@ -115,16 +115,12 @@ pub(crate) fn generate_from_enum_impl(arb_int: &TokenStream, enum_type: &Ident, 
 
 /// Filters fields which are always `FILLED`, meaning all bit-patterns are possible,
 /// meaning they are (should be) From<uN>, not TryFrom<uN>
-/// 
-//TODO: We should maybe just rewrite this into something useful.
-//otherwise, we could check if there is _not_ a struct or enum here by lower/uppercase first letter
+///
+/// Currently, this is exactly the set of types we can extract a bitsize out of, just by looking at their ident: `uN` and `bool`.
 pub fn is_always_filled(ty: &Type) -> bool {
-    if let Some(ident) = last_ident_of_path(ty) {
-        let ident = ident.to_string();
-        ident.starts_with('u') || ident == "bool"
-    } else { 
-        false 
-    }
+    last_ident_of_path(ty)
+        .and_then(bitsize_from_type_ident)
+        .is_some()
 }
 
 pub fn last_ident_of_path(ty: &Type) -> Option<&Ident> {
