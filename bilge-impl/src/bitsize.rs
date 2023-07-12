@@ -120,34 +120,28 @@ fn split_attributes(item: &Item) -> SplitAttributes {
                         }
                         attr.parse_nested_meta(|meta| {
                             let derive_path = meta.path;
-                            if derive_path.is_ident("Debug") {
-                                abort!(derive_path, "use DebugBits for structs")
-                            }
                             let derive = parse_quote!(#[derive(#derive_path)]);
+                            let path = derive_path.to_token_stream().to_string();
+                            let path = path.as_str();
 
-                            let derive_path_str = derive_path.get_ident().unwrap_or_else(|| {
-                                // We could just use the last path segment or use `derive_str.contains()` but that sounds breakable.
-                                // Handling this for real might be easy, I just don't know how right now.
-                                abort!(derive_path, "we currently only support simple derives, without paths.");
-                            }).to_string();
-                            match derive_path_str.as_str() {
-                                "FromBytes" => {
-                                    from_bytes = Some(derive_path);
-                                    after_compression.push(derive);
+                            // NOTE: we could also handle `::{path}`
+                            match path {
+                                "FromBytes" | "zerocopy :: FromBytes" => from_bytes = Some(derive_path),
+                                "FromBits" => has_frombits = true,
+                                "Debug" | "fmt :: Debug" | "core :: fmt :: Debug" | "std :: fmt :: Debug" => {
+                                    abort!(derive_path, "use derive(DebugBits) for structs")
                                 }
-                                "FromBits" => {
-                                    has_frombits = true;
-                                    before_compression.push(derive)
-                                }
-                                path => {
-                                    if path.ends_with("Bits") {
-                                        before_compression.push(derive);
-                                    } else {
-                                        // It is most probable that basic derive macros work if we put them on after compression
-                                        after_compression.push(derive);
-                                    }
-                                }
+                                _ => {}
                             }
+                            
+                            // this handles the custom derives
+                            if path.ends_with("Bits") {
+                                before_compression.push(derive);
+                            } else {
+                                // It is most probable that basic derive macros work if we put them on after compression
+                                after_compression.push(derive);
+                            }
+                            
                             Ok(())
                         }).unwrap_or_else(unreachable)
                     }
