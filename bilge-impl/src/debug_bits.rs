@@ -13,7 +13,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
         Data::Enum(_) => abort_call_site!("use derive(Debug) for enums"),
-        Data::Union(_) => abort_call_site!("item is not a struct, try derive(Debug)"),
+        Data::Union(_) => unreachable(()),
     };
     
     let fmt_impl = match struct_data.fields {

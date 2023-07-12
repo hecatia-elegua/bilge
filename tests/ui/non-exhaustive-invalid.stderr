@@ -1,0 +1,26 @@
+error: Item can't be FromBits and non_exhaustive
+ --> tests/ui/non-exhaustive-invalid.rs:4:10
+  |
+4 | #[derive(FromBits)]
+  |          ^^^^^^^^
+  |
+  = help: remove #[non_exhaustive] or derive(FromBits) here
+  = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Item can't be FromBits and non_exhaustive
+ --> tests/ui/non-exhaustive-invalid.rs:9:10
+  |
+9 | #[derive(FromBits)]
+  |          ^^^^^^^^
+  |
+  = help: remove #[non_exhaustive] or derive(FromBits) here
+  = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: Using #[non_exhaustive] on structs is currently not supported
+  --> tests/ui/non-exhaustive-invalid.rs:14:10
+   |
+14 | #[derive(TryFromBits)]
+   |          ^^^^^^^^^^^
+   |
+   = help: open an issue on our repository if needed
+   = note: this error originates in the derive macro `TryFromBits` (in Nightly builds, run with -Z macro-backtrace for more info)

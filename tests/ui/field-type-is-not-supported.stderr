@@ -1,0 +1,5 @@
+error: This field type is not supported
+ --> tests/ui/field-type-is-not-supported.rs:8:8
+  |
+8 |     a: fn(),
+  |        ^^^^
