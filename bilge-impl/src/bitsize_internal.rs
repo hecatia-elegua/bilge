@@ -71,7 +71,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
         }
         impl #ident {
             // #[inline]
-            #[allow(clippy::too_many_arguments, clippy::type_complexity)]
+            #[allow(clippy::too_many_arguments, clippy::type_complexity, unused_parens)]
             pub #const_ fn new(#( #constructor_args )*) -> Self {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
                 type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
@@ -140,7 +140,7 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         quote! {
             // #[inline]
             #(#attrs)*
-            #[allow(clippy::type_complexity)]
+            #[allow(clippy::type_complexity, unused_parens)]
             #vis #const_ fn #name(&self, index: usize) -> #elem_ty {
                 assert!(index < #len_expr);
                 #getter_value
@@ -154,7 +154,7 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     quote! {
         // #[inline]
         #(#attrs)*
-        #[allow(clippy::type_complexity)]
+        #[allow(clippy::type_complexity, unused_parens)]
         #vis #const_ fn #name(&self) -> #ty {
             #getter_value
         }
@@ -183,7 +183,7 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         quote! {
             // #[inline]
             #(#attrs)*
-            #[allow(clippy::type_complexity)]
+            #[allow(clippy::type_complexity, unused_parens)]
             #vis #const_ fn #name(&mut self, index: usize, value: #elem_ty) {
                 assert!(index < #len_expr);
                 #setter_value
@@ -196,7 +196,7 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     quote! {
         // #[inline]
         #(#attrs)*
-        #[allow(clippy::type_complexity)]
+        #[allow(clippy::type_complexity, unused_parens)]
         #vis #const_ fn #name(&mut self, value: #ty) {
             #setter_value
         }
