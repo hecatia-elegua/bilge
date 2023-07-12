@@ -17,4 +17,22 @@ enum C {
     PlusPlus = 2,
 }
 
+// I just put this here since I noticed it here
+#[bitsize(1)]
+#[derive(FromBits)]
+enum D {
+    NineNine = 0,
+    Sharp = 1,
+    #[fallback]
+    PlusPlus,
+}
+
+#[bitsize(1)]
+#[derive(FromBits)]
+enum E {
+    NineNine = 0,
+    Sharp = 1,
+    PlusPlus = 2,
+}
+
 fn main() {}
