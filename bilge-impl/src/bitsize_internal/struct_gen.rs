@@ -99,11 +99,10 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 quote! {
                     // constness: iter, array::from_fn, for-loop, range are not const, so we're using while loops
                     // Modified version of the array init example in [`MaybeUninit`]:
-                    use core::mem::MaybeUninit;
                     let array = {
                         // [T; N1*N2]
-                        let mut array: [MaybeUninit<#elem_ty>; #len_expr] = unsafe {
-                            MaybeUninit::uninit().assume_init()
+                        let mut array: [::core::mem::MaybeUninit<#elem_ty>; #len_expr] = unsafe {
+                            ::core::mem::MaybeUninit::uninit().assume_init()
                         };
                         let mut i = 0;
                         while i < #len_expr {
@@ -116,7 +115,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                             i += 1;
                         }
                         // [T; N1*N2] -> [[T; N1]; N2]
-                        unsafe { core::mem::transmute(array) }
+                        unsafe { ::core::mem::transmute(array) }
                     };
                     array
                 }
@@ -281,7 +280,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
             quote! {
                 // [[T; N1]; N2] -> [T; N1*N2], for example: [[(u2, u2); 3]; 4] -> [(u2, u2); 12]
                 #[allow(clippy::useless_transmute)]
-                let value: [#elem_ty; #len_expr] = unsafe { core::mem::transmute(value) };  
+                let value: [#elem_ty; #len_expr] = unsafe { ::core::mem::transmute(value) };  
                 // constness: iter, for-loop, range are not const, so we're using while loops
                 // [u4; 8] -> u32
                 let mut acc = 0;
