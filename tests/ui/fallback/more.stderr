@@ -1,0 +1,38 @@
+error: `#[fallback]` does not support variants with named fields
+  --> tests/ui/fallback/more.rs:9:5
+   |
+9  | /     #[fallback]
+10 | |     Dee { fallback: u15 },
+   | |_________________________^
+   |
+   = help: use a tuple variant or remove this `#[fallback]`
+
+error: fallback variant must have exactly one field
+  --> tests/ui/fallback/more.rs:18:5
+   |
+18 | /     #[fallback]
+19 | |     Tel(u8, u7),
+   | |_______________^
+   |
+   = help: use only one field or change to a unit variant
+
+error: `#[fallback]` only supports arbitrary_int or bool types
+  --> tests/ui/fallback/more.rs:27:9
+   |
+27 |     Four(Option<u8>),
+   |         ^^^^^^^^^^^^
+
+error: bitsize of fallback field (100) does not match bitsize of enum (15)
+  --> tests/ui/fallback/more.rs:35:11
+   |
+35 |     Habits(u100),
+   |           ^^^^^^
+
+error: `#[fallback]` is only applicable to enums
+  --> tests/ui/fallback/more.rs:39:10
+   |
+39 | #[derive(FromBits)]
+   |          ^^^^^^^^
+   |
+   = help: remove all `#[fallback]` from this struct
+   = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)

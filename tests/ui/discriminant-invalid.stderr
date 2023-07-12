@@ -1,0 +1,13 @@
+error: variant `A` is not a number
+ --> tests/ui/discriminant-invalid.rs:9:9
+  |
+9 |     A = EXTERNAL,
+  |         ^^^^^^^^
+  |
+  = help: only literal integers currently supported
+
+error: Value of variant exceeds the given number of bits
+  --> tests/ui/discriminant-invalid.rs:17:5
+   |
+17 |     PlusPlus = 2,
+   |     ^^^^^^^^^^^^
