@@ -393,3 +393,26 @@ fn that_one_test() {
     assert_eq!(elem_1, mess.arr_arr_ay_ay_at(0));
     assert_eq!(elem_0, mess.arr_arr_ay_ay_at(1));
 }
+
+#[bitsize(16)]
+#[derive(DebugBits)]
+struct Array([u4; 4]);
+
+#[test]
+#[should_panic(expected = "assertion failed: index < 4")]
+fn oob() {
+    let zero = u4::new(0);
+    let mut arrrr = Array::new([zero, zero, zero, zero]);
+    let one = u4::new(1);
+    arrrr.set_val_0_at(0, one);
+    arrrr.set_val_0_at(1, one);
+    assert_eq!(format!("{arrrr:?}"), "Array([1, 1, 0, 0])");
+    arrrr.set_val_0_at(2, one);
+    arrrr.set_val_0_at(3, one);
+    assert_eq!(format!("{arrrr:?}"), "Array([1, 1, 1, 1])");
+    // out of bounds
+    arrrr.set_val_0_at(4, one);
+}
+#[test]
+#[should_panic(expected = "assertion failed: index < 4")]
+fn oob2() { Array::new([u4::new(0), u4::new(0), u4::new(0), u4::new(0)]).val_0_at(4); }
