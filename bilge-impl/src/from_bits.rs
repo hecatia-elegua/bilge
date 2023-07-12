@@ -37,7 +37,8 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
         abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
     }
     if enum_is_filled && fallback.is_some() {
-        abort_call_site!("enum fills its bitsize but has fallback variant"; help = "remove `#[fallback]` from this enum")
+        // NOTE: I've shortly tried pointing to `#[fallback]` here but it wasn't easy enough
+        abort_call_site!("enum already has {} variants", variants.len(); help = "remove the `#[fallback]` attribute")
     }
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
