@@ -5,8 +5,8 @@ use bilge::prelude::*;
 enum Test {}
 
 // one below lowest value
-// #[bitsize(0)]
-// enum Test {}
+#[bitsize(0)]
+enum Test {}
 
 // one above highest (struct) value
 #[bitsize(129)]

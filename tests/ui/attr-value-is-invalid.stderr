@@ -7,6 +7,14 @@ error: attribute value is not a valid number
   = help: currently, numbers from 1 to 128 are allowed
 
 error: attribute value is not a valid number
+ --> tests/ui/attr-value-is-invalid.rs:8:11
+  |
+8 | #[bitsize(0)]
+  |           ^
+  |
+  = help: currently, numbers from 1 to 128 are allowed
+
+error: attribute value is not a valid number
   --> tests/ui/attr-value-is-invalid.rs:12:11
    |
 12 | #[bitsize(129)]

@@ -7,13 +7,13 @@ error: enum doesn't fill its bitsize
   = help: you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]
   = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
 
-error: enum fills its bitsize but has fallback variant
+error: enum already has 4 variants
   --> tests/ui/from-tryfrom-bits-is-invalid.rs:10:10
    |
 10 | #[derive(FromBits)]
    |          ^^^^^^^^
    |
-   = help: remove `#[fallback]` from this enum
+   = help: remove the `#[fallback]` attribute
    = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: TryFromBits only supports unit variants in enums
