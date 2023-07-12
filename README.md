@@ -118,8 +118,8 @@ ise.set_val_0_at(2, ise5);
 assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
 ```
 
-Depending on what you're working with, there might be enum-based values with a lot of reserved variants.
-You can define those like this:
+Depending on what you're working with, only a subset of enum values might be clear, or some values might be reserved.
+In that case, you can use a fallback variant, defined like this:
 
 ```rust
 #[bitsize(32)]
@@ -137,18 +137,26 @@ which will convert any undeclared bits to `Reserved`:
 
 ```rust
 assert_eq!(Subclass::Reserved, Subclass::from(3));
+assert_eq!(Subclass::Reserved, Subclass::from(42));
+let num = u32::from(Subclass::from(42));
+assert_eq!(3, num);
+assert_ne!(42, num);
 ```
 
-but caution: you won't be able to retrieve the exact number again!
+or, if you need to keep the exact number saved, use:
 
 ```rust
-let subclass = Subclass::from(42);
-let num = u32::from(subclass);
-assert_ne!(42, num);
-assert_eq!(3, num);
+#[fallback]
+Reserved(u32),
 ```
 
-We'll enable that usecase later.
+```rust
+assert_eq!(Subclass2::Reserved(3), Subclass2::from(3));
+assert_eq!(Subclass2::Reserved(42), Subclass2::from(42));
+let num = u32::from(Subclass2::from(42));
+assert_eq!(42, num);
+assert_ne!(3, num);
+```
 
 ### Fallible (TryFrom)
 
@@ -203,6 +211,8 @@ Ok(Device { reserved_i: 0, class: Stationary, reserved_ii: 0 })
 Device { reserved_i: 0, class: Mobile, reserved_ii: 0 }
 ```
 
+For testing + overview, the full readme example code is in `/examples/readme.rs`.
+
 ### Custom -Bits derives
 
 One of the main advantages of our approach is that we can keep `#[bitsize]` pretty slim, offloading all the other features to derive macros.
@@ -229,7 +239,7 @@ It is possible that this inner type will be made private.
 
 You also mustn't depend on the generated `const FILLED`.
 
-More `/tests` will follow. Right now the `/examples` directory is used for some testing and as a functionality overview.
+For some more examples and an overview of functionality, take a look at `/examples` and `/tests`.
 
 ## Alternatives
 
