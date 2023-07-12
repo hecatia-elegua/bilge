@@ -1,8 +1,9 @@
+use itertools::Itertools;
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
 use syn::{Type, Fields, DeriveInput, Data, punctuated::Iter, Variant};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, util::DedupedVec};
+use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -106,8 +107,7 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
     }
 }
 
-/// a single check per type is enough, so the checks can be deduped
-fn generate_assume_checks_for(ty: &Type, vec: &mut DedupedVec<TokenStream, String>) {
+fn generate_assume_checks_for(ty: &Type, vec: &mut Vec<TokenStream>) {
     use Type::*;
     match ty {
         Path(_) => {
@@ -131,13 +131,13 @@ fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -
         quote!()
     };
 
-    let mut assumes = DedupedVec::new(TokenStream::to_string);
+    let mut assumes = Vec::new();
     for field in fields {
         generate_assume_checks_for(&field.ty, &mut assumes)
     }
 
-    // easier than figuring out the traits required to make this work with `quote::ToTokens`
-    let assumes = assumes.into_iter();
+    // a single check per type is enough, so the checks can be deduped
+    let assumes = assumes.into_iter().unique_by(TokenStream::to_string);
 
     quote! {
         impl #const_ ::core::convert::From<#arb_int> for #struct_type {
