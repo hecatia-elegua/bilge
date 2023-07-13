@@ -1,7 +1,7 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
-use syn::{Item, ItemStruct, ItemEnum, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
 use crate::shared::{self, BitSize, unreachable};
 
 /// Since we want to be maximally interoperable, we need to handle attributes in a special way.
@@ -157,6 +157,27 @@ fn split_attributes(item: &Item) -> SplitAttributes {
     }
 }
 
+fn check_type_is_supported(ty: &Type) {
+    use Type::*;
+    match ty {
+        Tuple(tuple) => tuple.elems.iter().for_each(check_type_is_supported),
+        Array(array) => check_type_is_supported(&array.elem),
+        // Probably okay (compilation would validate that this type is also Bitsized)
+        Path(_) => (),
+        // These don't work with structs or aren't useful in bitfields.
+        BareFn(_) | Group(_) | ImplTrait(_) | Infer(_) | Macro(_) | Never(_) |
+        // We could provide some info on error as to why Ptr/Reference won't work due to safety.
+        Ptr(_) | Reference(_) |
+        // The bitsize must be known at compile time.
+        Slice(_) |
+        // Something to investigate, but doesn't seem useful/usable here either.
+        TraitObject(_) |
+        // I have no idea where this is used.
+        Verbatim(_) | Paren(_) => abort!(ty, "This field type is not supported"),
+        _ => abort!(ty, "This field type is currently not supported"),
+    }
+}
+
 /// Allows you to give multiple fields the name `reserved` or `padding`
 /// by numbering them for you.
 fn modify_special_field_names(fields: &mut Fields) {
@@ -184,6 +205,12 @@ fn modify_special_field_names(fields: &mut Fields) {
 fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     let ItemStruct { vis, ident, fields, .. } = item;
     let declared_bitsize = declared_bitsize as usize;
+
+    // don't move this. we validate all nested field types here as well
+    // and later assume this was checked.
+    for field in fields {
+        check_type_is_supported(&field.ty)
+    }
 
     let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
         let field_size = shared::generate_type_bitsize(&next.ty);
