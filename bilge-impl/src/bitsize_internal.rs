@@ -1,7 +1,6 @@
 use proc_macro2::{TokenStream, Ident};
 use quote::quote;
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Field};
-
+use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type};
 use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
@@ -149,7 +148,6 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     } else {
         quote!()
     };
-    
 
     quote! {
         // #[inline]

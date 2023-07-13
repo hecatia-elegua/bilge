@@ -1,8 +1,8 @@
-use super::{BitSize, is_fallback_attribute, unreachable, bitsize_from_type_token};
+use super::{BitSize, is_fallback_attribute, unreachable, bitsize_from_type_ident, last_ident_of_path};
 use itertools::Itertools;
 use proc_macro2::Ident;
 use proc_macro_error::{abort, abort_call_site};
-use syn::{Type, Variant, Data};
+use syn::{Variant, Data};
 
 pub enum Fallback {
     Unit(Ident),
@@ -29,12 +29,10 @@ impl Fallback {
                     abort!(variant, "value fallback is not the last variant"; help = "a fallback variant with value must be the last variant of the enum")
                 }
 
-                let Type::Path(type_path) = &fallback_value.ty else {
-                    abort!(variant.fields, "`#[fallback]` only supports arbitrary_int or bool types")
-                };
-
                 // here we validate that the fallback variant field type matches the bitsize
-                match bitsize_from_type_token(&type_path.path) {
+                let size_from_type = last_ident_of_path(&fallback_value.ty).and_then(bitsize_from_type_ident);
+
+                match size_from_type {
                     Some(bitsize) if bitsize == enum_bitsize => Fallback::WithValue(ident),
                     Some(bitsize) => abort!(
                         variant.fields,

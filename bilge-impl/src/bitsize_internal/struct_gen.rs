@@ -183,11 +183,8 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     quote! { {
                         #elem_value
                         // so, has try_from impl
-                        if !#ty::FILLED {
-                            #ty::try_from(elem_value).is_ok()
-                        } else {
-                            true
-                        }
+                        // note this is available even if the type is `From`
+                        #ty::try_from(elem_value).is_ok()
                     } }
                 }
             }
