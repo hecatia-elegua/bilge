@@ -1,8 +1,8 @@
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{quote, ToTokens};
-use syn::{Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
-use crate::shared::{self, BitSize, unreachable};
+use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute, MAX_ENUM_BIT_SIZE};
 
 /// Since we want to be maximally interoperable, we need to handle attributes in a special way.
 /// We use `#[bitsize]` as a sort of scope for all attributes below it and
@@ -57,10 +57,12 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);
+            analyze_struct(&item.fields);
             let expanded = generate_struct(&item, declared_bitsize);
             ItemIr { expanded }
         }
         Item::Enum(item) => {
+            analyze_enum(declared_bitsize, item.variants.iter());
             let expanded = generate_enum(&item);
             ItemIr { expanded }
         }
@@ -196,15 +198,39 @@ fn modify_special_field_names(fields: &mut Fields) {
     }
 }
 
-fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
-    let ItemStruct { vis, ident, fields, .. } = item;
-    let declared_bitsize = declared_bitsize as usize;
+fn analyze_struct(fields: &Fields) {
+    if fields.is_empty() {
+        abort_call_site!("structs without fields are not supported")
+    }
 
     // don't move this. we validate all nested field types here as well
     // and later assume this was checked.
     for field in fields {
         check_type_is_supported(&field.ty)
     }
+}
+
+fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
+    if bitsize > MAX_ENUM_BIT_SIZE {
+        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
+    }
+
+    let variant_count = variants.clone().count();
+    if variant_count == 0 {
+        abort_call_site!("empty enums are not supported");
+    }
+
+    let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+
+    if !has_fallback {
+        // this has a side-effect of validating the enum count
+        let _ = enum_fills_bitsize(bitsize, variant_count);
+    }
+}
+
+fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
+    let ItemStruct { vis, ident, fields, .. } = item;
+    let declared_bitsize = declared_bitsize as usize;
 
     let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
         let field_size = shared::generate_type_bitsize(&next.ty);
