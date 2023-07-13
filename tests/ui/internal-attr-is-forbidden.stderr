@@ -1,0 +1,7 @@
+error: remove bitsize_internal
+ --> tests/ui/internal-attr-is-forbidden.rs:8:1
+  |
+8 | #[bitsize_internal]
+  | ^^^^^^^^^^^^^^^^^^^
+  |
+  = help: attribute bitsize_internal can only be applied internally by the bitsize macros

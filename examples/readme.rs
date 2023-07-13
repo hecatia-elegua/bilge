@@ -49,6 +49,16 @@ enum Subclass {
     Reserved,
 }
 
+#[bitsize(32)]
+#[derive(FromBits, Debug, PartialEq)]
+enum Subclass2 {
+    Mouse,
+    Keyboard,
+    Speakers,
+    #[fallback]
+    Reserved(u32),
+}
+
 fn main() {
     let reg1 = Register::new(
         u4::new(0b1010),
@@ -66,10 +76,16 @@ fn main() {
     assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
 
     assert_eq!(Subclass::Reserved, Subclass::from(3));
-    let subclass = Subclass::from(42);
-    let num = u32::from(subclass);
-    assert_ne!(42, num);
+    assert_eq!(Subclass::Reserved, Subclass::from(42));
+    let num = u32::from(Subclass::from(42));
     assert_eq!(3, num);
+    assert_ne!(42, num);
+
+    assert_eq!(Subclass2::Reserved(3), Subclass2::from(3));
+    assert_eq!(Subclass2::Reserved(42), Subclass2::from(42));
+    let num = u32::from(Subclass2::from(42));
+    assert_eq!(42, num);
+    assert_ne!(3, num);
 
     let class = Class::try_from(u2::new(2));
     assert_eq!(class, Err(u2::new(2)));

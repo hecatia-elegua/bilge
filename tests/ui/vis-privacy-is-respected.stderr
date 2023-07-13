@@ -1,0 +1,44 @@
+error[E0624]: associated function `val_0` is private
+  --> tests/ui/vis-privacy-is-respected.rs:29:11
+   |
+5  |     #[bitsize(96)]
+   |     -------------- private associated function defined here
+...
+29 |     diary.val_0();
+   |           ^^^^^ private associated function
+
+error[E0624]: associated function `set_val_0` is private
+  --> tests/ui/vis-privacy-is-respected.rs:31:11
+   |
+5  |     #[bitsize(96)]
+   |     -------------- private associated function defined here
+...
+31 |     diary.set_val_0(rusti);
+   |           ^^^^^^^^^ private associated function
+
+error[E0624]: associated function `val_1_at` is private
+  --> tests/ui/vis-privacy-is-respected.rs:37:7
+   |
+9  |     #[bitsize(8)]
+   |     ------------- private associated function defined here
+...
+37 |     a.val_1_at(1);
+   |       ^^^^^^^^ private associated function
+
+error[E0624]: associated function `set_val_1_at` is private
+  --> tests/ui/vis-privacy-is-respected.rs:38:7
+   |
+9  |     #[bitsize(8)]
+   |     ------------- private associated function defined here
+...
+38 |     a.set_val_1_at(1, u2::new(0));
+   |       ^^^^^^^^^^^^ private associated function
+
+error[E0624]: associated function `reserved_ii` is private
+  --> tests/ui/vis-privacy-is-respected.rs:46:7
+   |
+13 |     #[bitsize(128)]
+   |     --------------- private associated function defined here
+...
+46 |     r.reserved_ii();
+   |       ^^^^^^^^^^^ private associated function
