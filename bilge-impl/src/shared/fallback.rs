@@ -30,9 +30,9 @@ impl Fallback {
                 }
 
                 // here we validate that the fallback variant field type matches the bitsize
-                let bitsize_of_type = last_ident_of_path(&fallback_value.ty).and_then(bitsize_from_type_ident);
+                let size_from_type = last_ident_of_path(&fallback_value.ty).and_then(bitsize_from_type_ident);
 
-                match bitsize_of_type {
+                match size_from_type {
                     Some(bitsize) if bitsize == enum_bitsize => Fallback::WithValue(ident),
                     Some(bitsize) => abort!(
                         variant.fields,
