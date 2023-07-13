@@ -13,7 +13,7 @@ pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize);
+            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int);
             codegen_enum(arb_int, name, match_arms)
         },
         _ => unreachable(()),
@@ -28,7 +28,7 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
     shared::analyze_derive(derive_input, true)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
     validate_enum_variants(variants.clone());
 
     if enum_fills_bitsize(internal_bitsize, variants.len()) {
@@ -45,9 +45,7 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
             #variant_value => Ok(Self::#variant_name),
         };
 
-        let to_int_match_arm = quote! {
-            #name::#variant_name => Self::new(#variant_value),
-        };
+        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
 
         (from_int_match_arm, to_int_match_arm)
     }).unzip()

@@ -1,7 +1,7 @@
 pub mod fallback;
 pub mod discriminant_assigner;
 
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{TokenStream, Ident, Literal};
 use proc_macro_error::{abort_call_site, abort};
 use quote::{ToTokens, quote};
 use syn::{DeriveInput, LitInt, Type, Meta, Attribute, Path};
@@ -175,4 +175,8 @@ pub fn bitsize_from_type_token(path: &Path) -> Option<BitSize> {
     } else {
         None
     }
+}
+
+pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &TokenStream, variant_value: Literal) -> TokenStream {
+    quote! { #enum_name::#variant_name => #arb_int::new(#variant_value), }
 }
