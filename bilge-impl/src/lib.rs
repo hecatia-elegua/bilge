@@ -6,6 +6,7 @@ mod bitsize_internal;
 mod try_from_bits;
 mod from_bits;
 mod debug_bits;
+mod fmt_bits;
 
 mod shared;
 
@@ -57,4 +58,11 @@ pub fn derive_from_bits(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(DebugBits, attributes(bitsize_internal))]
 pub fn debug_bits(item: TokenStream) -> TokenStream {
     debug_bits::debug_bits(item.into()).into()
+}
+
+/// Generate an `impl core::fmt::Binary` for bitfields.
+#[proc_macro_error]
+#[proc_macro_derive(BinaryBits)]
+pub fn derive_binary_bits(item: TokenStream) -> TokenStream {
+    fmt_bits::binary(item.into()).into()
 }

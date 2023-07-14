@@ -13,7 +13,7 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         },
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref());
+            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int);
             generate_enum(arb_int, name, match_arms, fallback)
         },
         _ => unreachable(()),
@@ -29,7 +29,7 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
     shared::analyze_derive(derive_input, false)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
     validate_enum_variants(variants.clone(), fallback);
     
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
@@ -43,27 +43,33 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
 
+    let is_fallback = |variant_name| if let Some(Fallback::Unit(name)|Fallback::WithValue(name)) = fallback {
+        variant_name == name
+    } else {
+        false
+    };
+
+    let is_value_fallback = |variant_name| if let Some(Fallback::WithValue(name)) = fallback {
+        variant_name == name
+    } else {
+        false
+    };
+
     variants.map(|variant| {
         let variant_name = &variant.ident;
         let variant_value = assigner.assign_unsuffixed(variant);
 
-        let from_int_match_arm = match fallback {
-            Some(fallback) if fallback.is_fallback_variant(variant_name) => {
-                // this value will be handled by the catch-all arm
-                quote!()
-            },
-            _ => quote! { 
-                #variant_value => Self::#variant_name, 
-            },
+        let from_int_match_arm = if is_fallback(variant_name) {
+            // this value will be handled by the catch-all arm
+            quote!()
+        } else {
+            quote! { #variant_value => Self::#variant_name, }
         };
         
-        let to_int_match_arm = match fallback {
-            Some(fallback) if fallback.is_with_value() && fallback.is_fallback_variant(variant_name) => quote! { 
-                #name::#variant_name(number) => number, 
-            },
-            _ =>  quote! { 
-                #name::#variant_name => Self::new(#variant_value), 
-            },
+        let to_int_match_arm = if is_value_fallback(variant_name) {
+            quote! { #name::#variant_name(number) => number, }
+        } else {
+            shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
         };
 
         (from_int_match_arm, to_int_match_arm)
