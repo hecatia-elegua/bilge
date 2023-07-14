@@ -52,10 +52,6 @@ impl Fallback {
     pub fn is_fallback_variant(&self, variant_ident: &Ident) -> bool {
         matches!(self, Fallback::Unit(fallback_ident) | Fallback::WithValue(fallback_ident) if variant_ident == fallback_ident)
     }
-
-    pub fn is_with_value(&self) -> bool {
-        matches!(self, Fallback::WithValue(_))
-    }
 }
 
 /// finds a single enum variant with the attribute "fallback".
