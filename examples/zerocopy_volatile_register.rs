@@ -1,13 +1,20 @@
 #![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write))]
 use bilge::prelude::*;
-use volatile::{Volatile, ReadOnly};
+use volatile::{access::ReadOnly, VolatilePtr};
 use zerocopy::FromBytes;
 
+// NOTE: Once upon a time, this was
+// `Volatile<RedistributorControl>,`
+// `ReadOnly<Group>,`
+// and you could just `core::mem::transmute`,
+// but this apparently can't just work.
+// Read more about it in the `volatile` crate and repo.
+
 #[derive(Debug, FromBytes)]
-struct Redistributor {
-    control: Volatile<RedistributorControl>,
+struct Redistributor<'a> {
+    control: VolatilePtr<'a, RedistributorControl>,
     // this is just an example, not how the real GIC is structured
-    group: ReadOnly<Group>,
+    group: VolatilePtr<'a, Group, ReadOnly>,
 }
 
 #[bitsize(32)]
@@ -38,8 +45,42 @@ fn main() {
     // The latest version of zerocopy does this, but in our case we use an older version.
     // let redist = LPIRedistributor::read_from(raw_memory).unwrap();
 
-    let raw_memory = [0u8, 1, 2, 3, 255, 255, 254, 255];
-    let redist: Redistributor = unsafe { core::mem::transmute(raw_memory) };
+    let raw_memory = ([0u8, 1, 2, 3], [255u8, 255, 254, 255]);
+    let mut control: RedistributorControl = unsafe {
+        core::mem::transmute(raw_memory.0)
+    };
+    let mut group: Group = unsafe {
+        core::mem::transmute(raw_memory.1)
+    };
+
+    let redist = Redistributor { 
+        control: unsafe {
+            VolatilePtr::new((&mut control).into())
+        },
+        group: unsafe {
+            VolatilePtr::new_read_only((&mut group).into())
+        },
+    };
+
+    println!("{:032b}", redist.control.read());
+    println!("{:?}", redist.control);
+    println!("{:032b}", redist.group.read());
+    println!("{:?}", redist.group);
+
+    let mut raw_memory: (RedistributorControl, Group) = (
+        0b00000011000000100000000100000000u32.into(),
+        0b11111111111111101111111111111111u32.into(),
+    );
+
+    let redist = Redistributor { 
+        control: unsafe {
+            VolatilePtr::new((&mut raw_memory.0).into())
+        },
+        group: unsafe {
+            VolatilePtr::new_read_only((&mut raw_memory.1).into())
+        },
+    };
+
     println!("{:032b}", redist.control.read());
     println!("{:?}", redist.control);
     println!("{:032b}", redist.group.read());
