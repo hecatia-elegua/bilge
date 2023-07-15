@@ -27,6 +27,7 @@ jobs:
     - name: Update toolchain
       run: |
         rustup default ${{ matrix.toolchain }}
+        rustup override set ${{ matrix.toolchain }}
         rustup component add clippy
 
     - name: Show toolchain info

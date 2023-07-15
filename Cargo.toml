@@ -30,9 +30,11 @@ repository = "https://github.com/hecatia-elegua/bilge"
 rust-version = "1.65"
 
 [features]
-# at bilge devs: easiest way to test nightly is by adding "nightly" here
+# at bilge devs: easiest way to test nightly is by switching the
+# channel in `rust-toolchain.toml` and switching to nightly here:
+# default = ["nightly"]
 default = []
-# Enables constness, see README.md for the specific nightly version
+# Enables constness, see README.md: only usable with nightly-2022-11-03
 nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/nightly"]
 
 [dependencies]
@@ -49,10 +51,12 @@ assert_matches = "1.5.0"
 # volatile = { git = "https://github.com/theseus-os/volatile" }
 volatile = "0.5.1"
 zerocopy = "0.5.0"
-# benches
-criterion = "0.3"
-modular-bitfield = "0.11.2"
-bitbybit = "1.1.4"
+
+# benches - commented out due to build times, also nightly-only
+# criterion = "0.3"
+# modular-bitfield = "0.11.2"
+# bitbybit = "1.1.4"
+# is not const enough:
 # deku = "0.16"
 
 # criterion workaround to make `cargo bench -- --verbose` work
@@ -64,3 +68,5 @@ name = "compared"
 # cargo publish workaround "can't find `compared` bench at ... `benches\compared\main.rs`"
 path = "benches/compared/main.rs"
 harness = false
+# REMOVE this when benchmarking
+bench = false
