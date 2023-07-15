@@ -46,7 +46,8 @@ trybuild = "1.0"
 custom_bits = { path = "tests/custom_bits" }
 assert_matches = "1.5.0"
 # examples
-volatile = { git = "https://github.com/theseus-os/volatile" }
+# volatile = { git = "https://github.com/theseus-os/volatile" }
+volatile = "0.5.1"
 zerocopy = "0.5.0"
 # benches
 criterion = "0.3"
