@@ -1,49 +1,11 @@
+mod split;
+
 use proc_macro2::{TokenStream, Ident};
 use proc_macro_error::{abort_call_site, abort};
-use quote::{quote, ToTokens};
-use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Attribute, Fields, Meta, parse_quote, spanned::Spanned};
+use quote::quote;
+use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Fields, spanned::Spanned};
 use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute, MAX_ENUM_BIT_SIZE};
-
-/// Since we want to be maximally interoperable, we need to handle attributes in a special way.
-/// We use `#[bitsize]` as a sort of scope for all attributes below it and
-/// the whole family of `-Bits` macros only works when used in that scope.
-/// 
-/// Let's visualize why this is the case, starting with some user-code:
-/// ```ignore
-/// #[bitsize(6)]
-/// #[derive(Clone, Copy, PartialEq, DebugBits, FromBits)]
-/// struct Example {
-///     field1: u2,
-///     field2: u4,
-/// }
-/// ```
-/// First, the attributes get sorted, depending on their name.
-/// Every attribute in need of field information gets resolved first,
-/// in this case `DebugBits` and `FromBits`.
-/// 
-/// Now, after resolving all `before_compression` attributes, the halfway-resolved
-/// code looks like this:
-/// ```ignore
-/// #[bilge::bitsize_internal(6)]
-/// #[derive(Clone, Copy, PartialEq)]
-/// struct Example {
-///     field1: u2,
-///     field2: u4,
-/// }
-/// ```
-/// This `#[bitsize_internal]` attribute is the one actually doing the compression and generating
-/// all the getters, setters and a constructor.
-/// 
-/// Finally, the struct ends up like this (excluding the generated impl blocks):
-/// ```ignore
-/// struct Example {
-///     value: u6,
-/// }
-/// ```
-struct SplitAttributes {
-    before_compression: Vec<Attribute>,
-    after_compression: Vec<Attribute>,
-}
+use split::{split_item_attributes, SplitAttributes};
 
 /// Intermediate Representation, just for bundling these together
 struct ItemIr {
@@ -53,7 +15,7 @@ struct ItemIr {
 
 pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
     let (item, declared_bitsize) = parse(item, args);
-    let attrs = split_attributes(&item);
+    let attrs = split_item_attributes(&item);
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);
@@ -80,77 +42,6 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
     
     let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
     (item, declared_bitsize)
-}
-
-/// Split item attributes into those applied before bitfield-compression and those applied after.
-/// Also, abort on any invalid configuration.
-/// 
-/// Any derives with suffix `Bits` will be able to access field information.
-/// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
-fn split_attributes(item: &Item) -> SplitAttributes {
-    match item {
-        //enums don't need special handling
-        Item::Enum(item) => SplitAttributes { 
-            before_compression: item.attrs.clone(),
-            after_compression: vec![]
-        },
-        Item::Struct(item) => {
-            let mut from_bytes = None;
-            let mut has_frombits = false;
-            let mut before_compression = vec![];
-            let mut after_compression = vec![];
-            for attr in &item.attrs {
-                if attr.to_token_stream().to_string().contains("bitsize_internal") {
-                    abort!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
-                }
-                match &attr.meta {
-                    Meta::List(list) => {
-                        if !list.path.is_ident("derive") {
-                            // It is most probable that basic attr macros work if we put them on after compression
-                            after_compression.push(attr.clone());
-                            continue;
-                        }
-                        attr.parse_nested_meta(|meta| {
-                            let derive_path = meta.path;
-                            let derive = parse_quote!(#[derive(#derive_path)]);
-                            let path = derive_path.to_token_stream().to_string();
-                            let path = path.as_str();
-
-                            // NOTE: we could also handle `::{path}`
-                            match path {
-                                "FromBytes" | "zerocopy :: FromBytes" => from_bytes = Some(derive_path),
-                                "FromBits" => has_frombits = true,
-                                "Debug" | "fmt :: Debug" | "core :: fmt :: Debug" | "std :: fmt :: Debug" => {
-                                    abort!(derive_path, "use derive(DebugBits) for structs")
-                                }
-                                _ => {}
-                            }
-                            
-                            // this handles the custom derives
-                            if path.ends_with("Bits") {
-                                before_compression.push(derive);
-                            } else {
-                                // It is most probable that basic derive macros work if we put them on after compression
-                                after_compression.push(derive);
-                            }
-                            
-                            Ok(())
-                        }).unwrap_or_else(unreachable)
-                    }
-                    // I don't know with which attrs I can hit Path and NameValue,
-                    // so let's just put them on after compression.
-                    _ => after_compression.push(attr.clone()),
-                }
-            }
-            if let Some(from_bytes) = from_bytes {
-                if !has_frombits {
-                    abort!(from_bytes, "a bitfield struct with zerocopy::FromBytes also needs to have FromBits")
-                }
-            }
-            SplitAttributes { before_compression, after_compression }
-        },
-        _ => abort_call_site!("item is not a struct or enum"; help = "`#[bitsize]` can only be used on structs and enums")
-    }
 }
 
 fn check_type_is_supported(ty: &Type) {

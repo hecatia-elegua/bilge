@@ -8,4 +8,11 @@ use bilge::prelude::*;
 #[bitsize_internal]
 struct A;
 
+#[bitsize(1)]
+#[bitsize_internal]
+enum R {
+    U,
+    OK
+}
+
 fn main() {}
