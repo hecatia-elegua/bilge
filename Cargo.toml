@@ -44,9 +44,11 @@ bilge-impl = { version = "=0.1.5", path = "bilge-impl" }
 
 [dev-dependencies]
 # tests
+rustversion = "1.0"
 trybuild = "1.0"
 custom_bits = { path = "tests/custom_bits" }
 assert_matches = "1.5.0"
+
 # examples
 # volatile = { git = "https://github.com/theseus-os/volatile" }
 volatile = "0.5.1"
