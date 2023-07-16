@@ -28,7 +28,7 @@ fn conversions() {
     // Of course converting to number is always infallible,
     // since the structure describes the bitpattern anyways.
     // `TryFrom<uN>` and `From<Struct>`
-    for value in 0..3 {
+    for value in 0..4 {
         let value = u2::new(value);
         let date_activity = UnfilledStruct::try_from(value);
         match date_activity {
@@ -40,7 +40,7 @@ fn conversions() {
                 }
                 assert_eq!(u2::from(a), value);
             },
-            Err(e) => assert_eq!(e, u2::new(3)),
+            Err(e) => assert_eq!(format!("{e:?}"), "BitsError"),
         }
     }
 }
@@ -381,8 +381,7 @@ fn that_one_test() {
     assert_eq!(uem1, uem2);
     let raw = u18::new(0b1_0101_11___11____0_1010_1010);
     let err = UnfilledEnumMess::try_from(raw);
-    // TODO: `TryFrom` will soon not return `Err(uN)` anymore
-    assert_eq!(err, Err(raw));
+    assert!(err.is_err());
 
     // mess.arr_arr_ay_ay_at(2); //panics, like it should
 

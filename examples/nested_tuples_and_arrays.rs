@@ -105,7 +105,7 @@ fn main() {
     assert_eq!(uem1.value, uem2.value);
     assert_eq!(uem1, uem2);
     let err = UnfilledEnumMess::try_from(u18::new(0b1_0101_11___11____0_1010_1010));
-    assert_eq!(err, Err(u18::new(0b1_0101_11___11____0_1010_1010)));
+    assert!(err.is_err());
 
     // mess.array_at(2); //panics, like it should
 

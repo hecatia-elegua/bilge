@@ -19,7 +19,7 @@ fn conversions() {
     // Of course converting to number is always infallible,
     // since the discriminants need to fit the bitsize anyways.
     // `TryFrom<uN>` and `From<Enum>`
-    for value in 0..3 {
+    for value in 0..4{
         let value = u2::new(value);
         let date_activity = Activity::try_from(value);
         match date_activity {
@@ -31,7 +31,7 @@ fn conversions() {
                 }
                 assert_eq!(u2::from(a), value);
             },
-            Err(e) => assert_eq!(e, u2::new(3)),
+            Err(e) => assert_eq!(format!("{e:?}"), "BitsError"),
         }
     }
 }

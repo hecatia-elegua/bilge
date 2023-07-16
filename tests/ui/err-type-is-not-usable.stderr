@@ -1,0 +1,11 @@
+error[E0603]: unit struct `BitsError` is private
+  --> tests/ui/err-type-is-not-usable.rs:17:20
+   |
+17 |         Err(bilge::BitsError) => println!("thymine"),
+   |                    ^^^^^^^^^ private unit struct
+   |
+note: the unit struct `BitsError` is defined here
+  --> src/lib.rs
+   |
+   | pub struct BitsError;
+   | ^^^^^^^^^^^^^^^^^^^^

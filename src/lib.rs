@@ -35,6 +35,18 @@ unsafe impl<T> Filled for T where T: Bitsized + From<<T as Bitsized>::ArbitraryI
 /// This is generated to statically validate that a type implements `FromBits`.
 pub fn assume_filled<T: Filled>() {}
 
+#[non_exhaustive]
+#[derive(Debug, PartialEq)]
+pub struct BitsError;
+
+/// Internally used for generating the `Result::Err` type in `TryFrom`.
+/// 
+/// This is needed since we don't want users to be able to create `BitsError` right now.
+/// We'll be able to turn `BitsError` into an enum later, or anything else really.
+pub fn give_me_error() -> BitsError {
+    BitsError
+}
+
 /// Only basing this on Number did not work, as bool and others are not Number.
 /// We could remove the whole macro_rules thing if it worked, though.
 /// Maybe there is some way to do this, I'm not deep into types.

@@ -174,7 +174,7 @@ meaning this will work:
 
 ```rust
 let class = Class::try_from(u2::new(2));
-assert_eq!(class, Err(u2::new(2)));
+assert!(class.is_err());
 ```
 
 except we first need to `#[derive(Debug, PartialEq)]` on `Class`, since `assert_eq!` needs those.
