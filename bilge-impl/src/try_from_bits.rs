@@ -64,12 +64,12 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
     quote! {
         impl #const_ ::core::convert::TryFrom<#arb_int> for #enum_type {
-            type Error = #arb_int;
+            type Error = ::bilge::BitsError;
 
             fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
                 match number.value() {
                     #( #from_int_match_arms )*
-                    i => Err(#arb_int::new(i)),
+                    i => Err(::bilge::give_me_error()),
                 }
             }
         }
@@ -112,7 +112,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
 
     quote! {
         impl #const_ ::core::convert::TryFrom<#arb_int> for #struct_type {
-            type Error = #arb_int;
+            type Error = ::bilge::BitsError;
             
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
             fn try_from(value: #arb_int) -> ::core::result::Result<Self, Self::Error> {
@@ -127,7 +127,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
                 if is_ok {
                     Ok(Self { value })
                 } else {
-                    Err(value)
+                    Err(::bilge::give_me_error())
                 }
             }
         }
