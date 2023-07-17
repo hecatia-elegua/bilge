@@ -67,6 +67,10 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.
 pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, TokenStream) {
+    if bitsize_arg.is_empty() {
+        abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
+    }
+    
     let bitsize: LitInt = syn::parse2(bitsize_arg.clone()).unwrap_or_else(|_|
         abort!(bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`")
     );

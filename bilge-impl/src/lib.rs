@@ -1,5 +1,6 @@
 use proc_macro::TokenStream;
 use proc_macro_error::proc_macro_error;
+use syn::parse_macro_input;
 
 mod bitsize;
 mod bitsize_internal;
@@ -19,7 +20,9 @@ mod shared;
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
-    bitsize::bitsize(args.into(), item.into()).into()
+    let item = parse_macro_input!(item);
+
+    bitsize::bitsize(args.into(), item).into()
 }
 
 /// This is internally used, not to be used by anything besides `bitsize`.
@@ -27,7 +30,9 @@ pub fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
 #[proc_macro_error]
 #[proc_macro_attribute]
 pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
-    bitsize_internal::bitsize_internal(args.into(), item.into()).into()
+    let item = parse_macro_input!(item);
+
+    bitsize_internal::bitsize_internal(args.into(), item).into()
 }
 
 /// Generate an `impl TryFrom<uN>` for unfilled bitfields.
@@ -36,8 +41,10 @@ pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
 /// a struct don't fill their given `bitsize`.
 #[proc_macro_error]
 #[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback))]
-pub fn derive_try_from_bits(item: TokenStream) -> TokenStream {
-    try_from_bits::try_from_bits(item.into()).into()
+pub fn derive_try_from_bits(derive_input: TokenStream) -> TokenStream {
+    let derive_input = parse_macro_input!(derive_input);
+    
+    try_from_bits::try_from_bits(derive_input).into()
 }
 
 /// Generate an `impl From<uN>` for filled bitfields.
@@ -47,8 +54,10 @@ pub fn derive_try_from_bits(item: TokenStream) -> TokenStream {
 /// using enums.
 #[proc_macro_error]
 #[proc_macro_derive(FromBits, attributes(bitsize_internal, fallback))]
-pub fn derive_from_bits(item: TokenStream) -> TokenStream {
-    from_bits::from_bits(item.into()).into()
+pub fn derive_from_bits(derive_input: TokenStream) -> TokenStream {
+    let derive_input = parse_macro_input!(derive_input);
+
+    from_bits::from_bits(derive_input).into()
 }
 
 /// Generate an `impl Debug` for bitfield structs.
@@ -56,13 +65,17 @@ pub fn derive_from_bits(item: TokenStream) -> TokenStream {
 /// Please use normal #[derive(Debug)] for enums.
 #[proc_macro_error]
 #[proc_macro_derive(DebugBits, attributes(bitsize_internal))]
-pub fn debug_bits(item: TokenStream) -> TokenStream {
-    debug_bits::debug_bits(item.into()).into()
+pub fn debug_bits(derive_input: TokenStream) -> TokenStream {
+    let derive_input = parse_macro_input!(derive_input);
+
+    debug_bits::debug_bits(derive_input).into()
 }
 
 /// Generate an `impl core::fmt::Binary` for bitfields.
 #[proc_macro_error]
 #[proc_macro_derive(BinaryBits)]
-pub fn derive_binary_bits(item: TokenStream) -> TokenStream {
-    fmt_bits::binary(item.into()).into()
+pub fn derive_binary_bits(derive_input: TokenStream) -> TokenStream {
+    let derive_input = parse_macro_input!(derive_input);
+    
+    fmt_bits::binary(derive_input).into()
 }

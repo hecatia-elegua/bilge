@@ -5,8 +5,7 @@ use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
 use crate::shared::{last_ident_of_path, bitsize_from_type_ident};
 use crate::shared::{fallback::Fallback, self, BitSize, unreachable, enum_fills_bitsize, discriminant_assigner::DiscriminantAssigner};
 
-pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
-    let derive_input = parse(item);
+pub(super) fn try_from_bits(derive_input: DeriveInput) -> TokenStream {
     let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input);
     match derive_data {
         Data::Struct(ref data) => {
@@ -19,10 +18,6 @@ pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
         },
         _ => unreachable(()),
     }
-}
-
-fn parse(item: TokenStream) -> DeriveInput {
-    shared::parse_derive(item)
 }
 
 fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
