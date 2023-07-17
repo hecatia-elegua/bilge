@@ -5,7 +5,7 @@ use proc_macro_error::{abort_call_site, abort};
 use quote::quote;
 use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Fields, spanned::Spanned};
 use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute, MAX_ENUM_BIT_SIZE};
-use split::{split_item_attributes, SplitAttributes};
+use split::SplitAttributes;
 
 /// Intermediate Representation, just for bundling these together
 struct ItemIr {
@@ -15,7 +15,7 @@ struct ItemIr {
 
 pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
     let (item, declared_bitsize) = parse(item, args);
-    let attrs = split_item_attributes(&item);
+    let attrs = SplitAttributes::from_item(&item);
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);

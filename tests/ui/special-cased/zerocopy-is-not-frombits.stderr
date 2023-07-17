@@ -1,5 +1,11 @@
-error: a bitfield struct with zerocopy::FromBytes also needs to have FromBits
+error: a bitfield with zerocopy::FromBytes also needs to have FromBits
  --> tests/ui/special-cased/zerocopy-is-not-frombits.rs:4:10
   |
 4 | #[derive(zerocopy::FromBytes)]
+  |          ^^^^^^^^^^^^^^^^^^^
+
+error: a bitfield with zerocopy::FromBytes also needs to have FromBits
+ --> tests/ui/special-cased/zerocopy-is-not-frombits.rs:8:10
+  |
+8 | #[derive(zerocopy::FromBytes)]
   |          ^^^^^^^^^^^^^^^^^^^
