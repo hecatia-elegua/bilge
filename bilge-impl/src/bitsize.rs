@@ -13,8 +13,8 @@ struct ItemIr {
     expanded: TokenStream,
 }
 
-pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, declared_bitsize) = parse(item, args);
+pub(super) fn bitsize(args: TokenStream, item: Item) -> TokenStream {
+    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
     let attrs = SplitAttributes::from_item(&item);
     let ir = match item {
         Item::Struct(mut item) => {
@@ -31,17 +31,6 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
         _ => unreachable(()),
     };
     generate_common(ir, attrs, declared_bitsize)
-}
-
-fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
-    let item = syn::parse2(item).unwrap_or_else(unreachable);
-
-    if args.is_empty() {
-        abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
-    }
-    
-    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, declared_bitsize)
 }
 
 fn check_type_is_supported(ty: &Type) {

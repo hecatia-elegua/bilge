@@ -5,8 +5,7 @@ use quote::quote;
 use syn::{Type, Fields, DeriveInput, Data, punctuated::Iter, Variant};
 use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize};
 
-pub(super) fn from_bits(item: TokenStream) -> TokenStream {
-    let derive_input = parse(item);
+pub(super) fn from_bits(derive_input: DeriveInput) -> TokenStream {
     let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input);
     let expanded = match &derive_data {
         Data::Struct(struct_data) => {
@@ -20,10 +19,6 @@ pub(super) fn from_bits(item: TokenStream) -> TokenStream {
         _ => unreachable(()),
     };
     generate_common(expanded)
-}
-
-fn parse(item: TokenStream) -> DeriveInput {
-    shared::parse_derive(item)
 }
 
 fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {

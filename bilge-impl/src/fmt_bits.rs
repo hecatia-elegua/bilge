@@ -3,8 +3,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
 
-pub(crate) fn binary(item: TokenStream) -> TokenStream {
-    let derive_input = parse(item);
+pub(crate) fn binary(derive_input: DeriveInput) -> TokenStream {
     let (derive_data, arb_int, name, bitsize, ..) = analyze(&derive_input);
 
     match derive_data {
@@ -84,10 +83,6 @@ fn generate_to_int_match_arms(variants: Iter<Variant>, enum_name: &Ident, bitsiz
             shared::to_int_match_arm(enum_name, variant_name, &arb_int, variant_value)
         })
         .collect()
-}
-
-fn parse(item: TokenStream) -> DeriveInput {
-    shared::parse_derive(item)
 }
 
 fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
