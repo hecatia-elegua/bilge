@@ -44,81 +44,78 @@ pub struct SplitAttributes {
     pub after_compression: Vec<Attribute>,
 }
 
-/// Split item attributes into those applied before bitfield-compression and those applied after.
-/// Also, abort on any invalid configuration.
-/// 
-/// Any derives with suffix `Bits` will be able to access field information.
-/// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
-pub fn split_item_attributes(item: &Item) -> SplitAttributes {
-    let attrs = match item {
-        Item::Enum(item) => &item.attrs,
-        Item::Struct(item) => &item.attrs,
-        _ => abort_call_site!("item is not a struct or enum"; help = "`#[bitsize]` can only be used on structs and enums"),
-    };
-
-    let parsed = attrs.iter().map(parse_attribute);
-    
-    let is_struct = matches!(item, Item::Struct(..));
-    
-    let mut from_bytes = None;
-    let mut has_frombits = false;
-
-    let mut before_compression = vec![];
-    let mut after_compression = vec![];
-
-    for parsed_attr in parsed {
-        match parsed_attr {
-            ParsedAttribute::DeriveList(derives) => {
-                for derive in derives {
-                    // NOTE: we could also handle `::{path}`
-                    match derive.to_string().as_str() {
-                        "FromBytes" | "zerocopy :: FromBytes" => from_bytes = Some(derive.clone()),
-                        "FromBits" | "bilge :: FromBits" => has_frombits = true,
-                        "Debug" | "fmt :: Debug" | "core :: fmt :: Debug" | "std :: fmt :: Debug" if is_struct => {
-                            abort!(derive.0, "use derive(DebugBits) for structs")
-                        }
-                        _ => {}
-                    };
-
-                
-                    if derive.is_bitfield_derive() {
-                        // this handles the custom derives
-                        before_compression.push(derive.into_attribute());
-                    } else {
-                        // It is most probable that basic derive macros work if we put them on after compression
-                        after_compression.push(derive.into_attribute());
-                    }
-                }
-            },
-
-            ParsedAttribute::BitsizeInternal(attr) => {
-                abort!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
-            },
-
-            ParsedAttribute::Other(attr) => {
-                // I don't know with which attrs I can hit Path and NameValue,
-                // so let's just put them on after compression.
-                after_compression.push(attr.clone())
-            },
+impl SplitAttributes {
+    /// Split item attributes into those applied before bitfield-compression and those applied after.
+    /// Also, abort on any invalid configuration.
+    /// 
+    /// Any derives with suffix `Bits` will be able to access field information.
+    /// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
+    pub fn from_item(item: &Item) -> SplitAttributes {
+        let attrs = match item {
+            Item::Enum(item) => &item.attrs,
+            Item::Struct(item) => &item.attrs,
+            _ => abort_call_site!("item is not a struct or enum"; help = "`#[bitsize]` can only be used on structs and enums"),
         };
-    }
 
-    if let Some(from_bytes) = from_bytes {
-        // TODO: is this error also applicable to enums?
-        if !has_frombits && is_struct {
-            abort!(from_bytes.0, "a bitfield struct with zerocopy::FromBytes also needs to have FromBits")
+        let parsed = attrs.iter().map(parse_attribute);
+        
+        let is_struct = matches!(item, Item::Struct(..));
+        
+        let mut from_bytes = None;
+        let mut has_frombits = false;
+
+        let mut before_compression = vec![];
+        let mut after_compression = vec![];
+
+        for parsed_attr in parsed {
+            match parsed_attr {
+                ParsedAttribute::DeriveList(derives) => {
+                    for derive in derives {
+                        // NOTE: we could also handle `::{path}`
+                        match derive.to_string().as_str() {
+                            "FromBytes" | "zerocopy :: FromBytes" => from_bytes = Some(derive.clone()),
+                            "FromBits" | "bilge :: FromBits" => has_frombits = true,
+                            "Debug" | "fmt :: Debug" | "core :: fmt :: Debug" | "std :: fmt :: Debug" if is_struct => {
+                                abort!(derive.0, "use derive(DebugBits) for structs")
+                            }
+                            _ => {}
+                        };
+
+                    
+                        if derive.is_custom_bitfield_derive() {
+                            before_compression.push(derive.into_attribute());
+                        } else {
+                            // It is most probable that basic derive macros work if we put them on after compression
+                            after_compression.push(derive.into_attribute());
+                        }
+                    }
+                },
+
+                ParsedAttribute::BitsizeInternal(attr) => {
+                    abort!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
+                },
+
+                ParsedAttribute::Other(attr) => {
+                    // I don't know with which attrs I can hit Path and NameValue,
+                    // so let's just put them on after compression.
+                    after_compression.push(attr.to_owned())
+                },
+            };
         }
-    }
 
-    // currently, enums don't need special handling - so just put all attributes before compression
-    //
-    // TODO: this doesn't preserve order, in the sense that an "after compression" attribute will appear
-    // after all "before compression" attributes. is that okay?
-    if !is_struct {
-        before_compression.append(&mut after_compression)
+        if let Some(from_bytes) = from_bytes {
+            if !has_frombits {
+                abort!(from_bytes.0, "a bitfield with zerocopy::FromBytes also needs to have FromBits")
+            }
+        }
+
+        // currently, enums don't need special handling - so just put all attributes before compression
+        if !is_struct {
+            before_compression.append(&mut after_compression)
+        }
+        
+        SplitAttributes { before_compression, after_compression }    
     }
-    
-    SplitAttributes { before_compression, after_compression }    
 }
 
 fn parse_attribute(attribute: &Attribute) -> ParsedAttribute {
@@ -170,9 +167,7 @@ impl Derive {
     /// by `bilge` convention, any derive satisfying this condition is able
     /// to access bitfield structure information pre-compression, 
     /// allowing for user derives
-    /// 
-    /// TODO: this method name is bikeshedable
-    fn is_bitfield_derive(&self) -> bool {
+    fn is_custom_bitfield_derive(&self) -> bool {
         let last_segment = self.0.segments.last().unwrap_or_else(|| unreachable(()));
 
         last_segment.ident.to_string().ends_with("Bits")
