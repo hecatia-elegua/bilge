@@ -1,7 +1,7 @@
 use proc_macro_error::{abort_call_site, abort};
 use quote::ToTokens;
 use syn::{meta::ParseNestedMeta, Path, Item, Attribute, Meta, parse_quote};
-use crate::shared::unreachable;
+use crate::shared::{unreachable, util::PathExt};
 
 /// Since we want to be maximally interoperable, we need to handle attributes in a special way.
 /// We use `#[bitsize]` as a sort of scope for all attributes below it and
@@ -71,16 +71,13 @@ impl SplitAttributes {
             match parsed_attr {
                 ParsedAttribute::DeriveList(derives) => {
                     for derive in derives {
-                        // NOTE: we could also handle `::{path}`
-                        match derive.to_string().as_str() {
-                            "FromBytes" | "zerocopy :: FromBytes" => from_bytes = Some(derive.clone()),
-                            "FromBits" | "bilge :: FromBits" => has_frombits = true,
-                            "Debug" | "fmt :: Debug" | "core :: fmt :: Debug" | "std :: fmt :: Debug" if is_struct => {
-                                abort!(derive.0, "use derive(DebugBits) for structs")
-                            }
-                            _ => {}
-                        };
-
+                        if derive.matches(&["zerocopy", "FromBytes"]) {
+                            from_bytes = Some(derive.clone());
+                        } else if derive.matches(&["bilge", "FromBits"]) {
+                            has_frombits = true;
+                        } else if derive.matches_core_or_std(&["fmt", "Debug"]) && is_struct {
+                            abort!(derive.0, "use derive(DebugBits) for structs")
+                        }
                     
                         if derive.is_custom_bitfield_derive() {
                             before_compression.push(derive.into_attribute());
@@ -151,12 +148,6 @@ enum ParsedAttribute<'attr> {
 #[derive(Clone)]
 struct Derive(Path);
 
-impl ToString for Derive {
-    fn to_string(&self) -> String {
-        self.0.to_token_stream().to_string()
-    }
-}
-
 impl Derive {
     /// a new `#[derive]` attribute containing only this derive
     fn into_attribute(self) -> Attribute {
@@ -171,6 +162,12 @@ impl Derive {
         let last_segment = self.0.segments.last().unwrap_or_else(|| unreachable(()));
 
         last_segment.ident.to_string().ends_with("Bits")
+    }
+}
+
+impl PathExt for Derive {
+    fn matches(&self, str_segments: &[&str]) -> bool {
+        self.0.matches(str_segments)
     }
 }
 
