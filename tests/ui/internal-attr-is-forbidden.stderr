@@ -13,3 +13,9 @@ error: remove bitsize_internal
    | ^^^^^^^^^^^^^^^^^^^
    |
    = help: attribute bitsize_internal can only be applied internally by the bitsize macros
+
+error: expected derive macro, found derive helper attribute `bitsize_internal`
+  --> tests/ui/internal-attr-is-forbidden.rs:19:20
+   |
+19 | #[derive(FromBits, bitsize_internal)]
+   |                    ^^^^^^^^^^^^^^^^ not a derive macro
