@@ -1,11 +1,13 @@
 pub mod fallback;
 pub mod discriminant_assigner;
+pub mod util;
 
 use proc_macro2::{TokenStream, Ident, Literal};
 use proc_macro_error::{abort_call_site, abort};
-use quote::{ToTokens, quote};
+use quote::quote;
 use syn::{DeriveInput, LitInt, Type, Meta, Attribute};
 use fallback::{Fallback, fallback_variant};
+use util::PathExt;
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
@@ -179,8 +181,7 @@ pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &Token
 
 pub(crate) fn bitsize_internal_arg(attr: &Attribute) -> Option<TokenStream> {
     if let Meta::List(list) = &attr.meta {
-        let s = list.path.to_token_stream().to_string();
-        if s == "bilge :: bitsize_internal" || s == "bitsize_internal" {
+        if list.path.matches(&["bilge", "bitsize_internal"]) {
             let arg = list.tokens.to_owned();
             return Some(arg)
         }
