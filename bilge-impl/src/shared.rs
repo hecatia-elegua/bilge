@@ -44,17 +44,7 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
     }
 
     // parsing the #[bitsize_internal(num)] attribute macro
-    let args = attrs.iter().find_map(|attr| {
-        if attr.to_token_stream().to_string().contains("bitsize_internal") {
-            if let Meta::List(list) = &attr.meta {
-                Some(list.tokens.clone())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
-    }).unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
+    let args = attrs.iter().find_map(bitsize_internal_arg).unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
     let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args);
 
     let fallback = fallback_variant(data, bitsize);
@@ -185,4 +175,16 @@ pub fn bitsize_from_type_ident(type_name: &Ident) -> Option<BitSize> {
 
 pub fn to_int_match_arm(enum_name: &Ident, variant_name: &Ident, arb_int: &TokenStream, variant_value: Literal) -> TokenStream {
     quote! { #enum_name::#variant_name => #arb_int::new(#variant_value), }
+}
+
+pub(crate) fn bitsize_internal_arg(attr: &Attribute) -> Option<TokenStream> {
+    if let Meta::List(list) = &attr.meta {
+        let s = list.path.to_token_stream().to_string();
+        if s == "bilge :: bitsize_internal" || s == "bitsize_internal" {
+            let arg = list.tokens.to_owned();
+            return Some(arg)
+        }
+    }
+
+    None
 }

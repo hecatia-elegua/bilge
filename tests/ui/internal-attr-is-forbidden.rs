@@ -15,4 +15,11 @@ enum R {
     OK
 }
 
+#[bitsize(1)]
+#[derive(FromBits, bitsize_internal)]
+enum X {
+    A1,
+    A2,
+}
+
 fn main() {}
