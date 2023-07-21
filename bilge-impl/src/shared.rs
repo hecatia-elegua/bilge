@@ -16,7 +16,7 @@ pub const MAX_ENUM_BIT_SIZE: BitSize = 64;
 pub type BitSize = u8;
 
 pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
-    syn::parse2(item).unwrap_or_else(unreachable)
+    syn::parse2(item).unwrap_or_else(|_| abort_call_site!("item syntax is invalid"))
 }
 
 // allow since we want `if try_from` blocks to stand out

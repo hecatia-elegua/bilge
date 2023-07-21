@@ -1,4 +1,5 @@
 use proc_macro2::{TokenStream, Ident};
+use proc_macro_error::abort_call_site;
 use quote::quote;
 use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type};
 use crate::shared::{self, unreachable};
@@ -34,7 +35,7 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStr
 }
 
 fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
-    let item = syn::parse2(item).unwrap_or_else(unreachable);
+    let item = syn::parse2(item).unwrap_or_else(|_| abort_call_site!("item syntax is invalid"));
     let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
     (item, arb_int)
 }

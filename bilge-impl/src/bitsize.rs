@@ -34,7 +34,7 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
-    let item = syn::parse2(item).unwrap_or_else(unreachable);
+    let item = syn::parse2(item).unwrap_or_else(|_| abort_call_site!("item syntax is invalid"));
 
     if args.is_empty() {
         abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
