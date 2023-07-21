@@ -3,7 +3,7 @@
 use bilge::prelude::*;
 
 #[bitsize(10)]
-#[derive(FromBits, BinaryBits)]
+#[derive(FromBits, BinaryBits, PartialEq, Debug)]
 enum Bangers {
     Italian,
     Bratwurst,
@@ -35,24 +35,27 @@ struct Lunch(Bangers, Mash, Register);
 
 #[test]
 fn binary_formatting() {
-    let register = Register::from(u52::new(0b110010110010101001_1011_1011011001100011_1_1011001100000));
-    let b = Bangers::from(u10::new(0b1100110011));
-    let m = Mash::from(<u2 as Number>::MIN);
-    
-    let lunch = Lunch::new(b, m, register);
+    let b = u10::new(0b1100110011).into();
+    let m = u2::new(0b00).into();
+    let reg = u52::new(0b110010110010101001_1011_1011011001100011_1_1011001100000).into();
+
+    let lunch = Lunch::new(b, m, reg);
 
     // fallback value is used
+    assert_eq!(format!("0b{:b}", lunch.val_0()), "0b1100110011");
+
+    // output matches u16's output
+    let bang_raw: u16 = 0b1100110011;
+    let bang = Bangers::from(u10::new(bang_raw));
+    assert_eq!(bang, lunch.val_0());
     assert_eq!(
         format!("0b{:b}", lunch.val_0()),
-        "0b1100110011"
+        format!("0b{:b}", bang_raw),
     );
 
     // padding is respected
-    assert_eq!(
-        format!("0b{:b}", lunch.val_1()),
-        "0b00"
-    );
-    
+    assert_eq!(format!("0b{:b}", lunch.val_1()), "0b00");
+
     // this one has underscores
     assert_eq!(
         format!("0b{:b}", lunch.val_2()),
