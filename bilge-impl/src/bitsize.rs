@@ -145,14 +145,8 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     quote! {
         #vis struct #ident #fields_def
 
-        // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
-        const _: () = assert!(
-            (#computed_bitsize) == (#declared_bitsize),
-            concat!("struct size and declared bit size differ: ",
-            // stringify!(#computed_bitsize),
-            " != ",
-            stringify!(#declared_bitsize))
-        );
+        // constness: assert_eq!, format! are not const
+        const _: () = ::bilge::AssertEquals::<{#computed_bitsize}, {#declared_bitsize}>::EQUAL;
     }
 }
 

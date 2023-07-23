@@ -47,6 +47,14 @@ pub fn give_me_error() -> BitsError {
     BitsError
 }
 
+/// This is used in `bitsize.rs` gen, for showing a compile error.
+/// Only needed because const contexts can't use `format!` and `COMPUTED_SIZE` is not a plain number.
+/// `evaluation of `bilge::AssertEquals::<19, 18>::EQUAL` failed` will tell you what's wrong.
+pub struct AssertEquals<const COMPUTED_SIZE: usize, const DECLARED_SIZE: usize>;
+impl<const COMPUTED_SIZE: usize, const DECLARED_SIZE: usize> AssertEquals<COMPUTED_SIZE, DECLARED_SIZE> {
+    pub const EQUAL: () = assert!(COMPUTED_SIZE == DECLARED_SIZE, "computed bitsize and declared bitsize differ");
+}
+
 /// Only basing this on Number did not work, as bool and others are not Number.
 /// We could remove the whole macro_rules thing if it worked, though.
 /// Maybe there is some way to do this, I'm not deep into types.
