@@ -50,7 +50,13 @@ fn check_type_is_supported(ty: &Type) {
         Tuple(tuple) => tuple.elems.iter().for_each(check_type_is_supported),
         Array(array) => check_type_is_supported(&array.elem),
         // Probably okay (compilation would validate that this type is also Bitsized)
-        Path(_) => (),
+        Path(type_path) => {
+            for segment in &type_path.path.segments {
+                if !segment.arguments.is_none() {
+                    abort!(ty, "generic arguments are not supported");    
+                }
+            }
+        }
         // These don't work with structs or aren't useful in bitfields.
         BareFn(_) | Group(_) | ImplTrait(_) | Infer(_) | Macro(_) | Never(_) |
         // We could provide some info on error as to why Ptr/Reference won't work due to safety.
