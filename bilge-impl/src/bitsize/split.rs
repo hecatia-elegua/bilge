@@ -77,9 +77,9 @@ impl SplitAttributes {
                             has_frombits = true;
                         } else if derive.matches_core_or_std(&["fmt", "Debug"]) && is_struct {
                             abort!(derive.0, "use derive(DebugBits) for structs")
-                        } else if derive.matches_core_or_std(&["fmt", "Default"]) && is_struct {
+                        } else if derive.matches_core_or_std(&["default", "Default"]) && is_struct {
                             // emit_warning!(derive.0, "use derive(DefaultBits) for structs")
-                            derive.0 = syn::parse2(quote::quote!(::bilge::DefaultBits)).unwrap_or_else(unreachable);
+                            derive.0 = syn::parse_quote!(::bilge::DefaultBits);
                         }
                     
                         if derive.is_custom_bitfield_derive() {
