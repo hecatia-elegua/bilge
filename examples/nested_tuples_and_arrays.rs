@@ -3,7 +3,7 @@
 // you can use the "Expand glob import" command on
 // use bilge::prelude::*;
 // but still need to add Bitsized, Number yourself
-use bilge::prelude::{DebugBits, FromBits, TryFromBits, bitsize, u1, u18, u2, u39, Bitsized, Number};
+use bilge::prelude::{DebugBits, FromBits, TryFromBits, bitsize, u1, u18, u2, u39, Bitsized, Number, DefaultBits};
 
 
 // This file basically just informs you that yes, combinations of different nestings work.
@@ -21,15 +21,18 @@ struct Mess {
 }
 
 #[bitsize(18)]
-#[derive(TryFromBits, DebugBits, PartialEq)]
+#[derive(TryFromBits, DebugBits, PartialEq, DefaultBits)]
 struct UnfilledEnumMess {
     big_fumble: [[([[(HaveFun, u2); 2]; 1], u1); 2]; 1],
 }
 
 #[bitsize(2)]
-#[derive(TryFromBits, Debug, PartialEq, Clone, Copy)]
+#[derive(TryFromBits, Debug, PartialEq, Clone, Copy, Default)]
 enum HaveFun {
-    Yes, No, Maybe,
+    No,
+    #[default]
+    Yes,
+    Maybe,
 }
 
 // Currently array elements need to be Copy (Clone is not const and we don't have From<&T>).
@@ -97,7 +100,7 @@ fn main() {
                 u1::new(0)
             ),
             (
-                [[(HaveFun::Maybe, u2::new(3)), (HaveFun::No, u2::new(1))]],
+                [[(HaveFun::Maybe, u2::new(3)), (HaveFun::Yes, u2::new(1))]],
                 u1::new(1)
             )
         ]]
@@ -115,4 +118,7 @@ fn main() {
     mess.set_array_at(1, elem_0);
     assert_eq!(elem_1, mess.array_at(0));
     assert_eq!(elem_0, mess.array_at(1));
+
+    let default = UnfilledEnumMess::default();
+    println!("{default:?}");
 }

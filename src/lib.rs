@@ -3,7 +3,7 @@
 
 #[doc(no_inline)]
 pub use arbitrary_int;
-pub use bilge_impl::{bitsize, bitsize_internal, DebugBits, FromBits, TryFromBits, BinaryBits};
+pub use bilge_impl::{bitsize, bitsize_internal, DebugBits, FromBits, TryFromBits, BinaryBits, DefaultBits};
 
 /// used for `use bilge::prelude::*;`
 pub mod prelude {
@@ -11,7 +11,7 @@ pub mod prelude {
     pub use super::{
         bitsize, bitsize_internal,
         Bitsized,
-        DebugBits, FromBits, TryFromBits, BinaryBits,
+        DebugBits, FromBits, TryFromBits, BinaryBits, DefaultBits,
         // we control the version, so this should not be a problem
         arbitrary_int::*,
         Filled, assume_filled
@@ -33,7 +33,7 @@ pub unsafe trait Filled: Bitsized {}
 unsafe impl<T> Filled for T where T: Bitsized + From<<T as Bitsized>::ArbitraryInt> {}
 
 /// This is generated to statically validate that a type implements `FromBits`.
-pub fn assume_filled<T: Filled>() {}
+pub const fn assume_filled<T: Filled>() {}
 
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
@@ -43,7 +43,7 @@ pub struct BitsError;
 /// 
 /// This is needed since we don't want users to be able to create `BitsError` right now.
 /// We'll be able to turn `BitsError` into an enum later, or anything else really.
-pub fn give_me_error() -> BitsError {
+pub const fn give_me_error() -> BitsError {
     BitsError
 }
 
