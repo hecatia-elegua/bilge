@@ -417,7 +417,7 @@ fn oob() {
 fn oob2() { Array::new([u4::new(0), u4::new(0), u4::new(0), u4::new(0)]).val_0_at(4); }
 
 #[bitsize(8)]
-#[derive(DefaultBits, PartialEq, DebugBits)]
+#[derive(Default, PartialEq, DebugBits)]
 struct NestedNonZeroDefault {
     field1: u2,
     field2: u4,

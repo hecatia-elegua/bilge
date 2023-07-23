@@ -1,0 +1,19 @@
+error: use derive(Default) for enums
+ --> tests/ui/default-should-be-used.rs:4:10
+  |
+4 | #[derive(DefaultBits)]
+  |          ^^^^^^^^^^^
+  |
+  = note: this error originates in the derive macro `DefaultBits` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error: cannot find attribute `default` in this scope
+ --> tests/ui/default-should-be-used.rs:7:7
+  |
+7 |     #[default]
+  |       ^^^^^^^
+  |
+help: consider adding a derive
+  |
+3 + #[derive(Default)]
+4 + #[bitsize(2)]
+  |

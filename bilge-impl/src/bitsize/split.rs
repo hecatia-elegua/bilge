@@ -70,13 +70,16 @@ impl SplitAttributes {
         for parsed_attr in parsed {
             match parsed_attr {
                 ParsedAttribute::DeriveList(derives) => {
-                    for derive in derives {
+                    for mut derive in derives {
                         if derive.matches(&["zerocopy", "FromBytes"]) {
                             from_bytes = Some(derive.clone());
                         } else if derive.matches(&["bilge", "FromBits"]) {
                             has_frombits = true;
                         } else if derive.matches_core_or_std(&["fmt", "Debug"]) && is_struct {
                             abort!(derive.0, "use derive(DebugBits) for structs")
+                        } else if derive.matches_core_or_std(&["fmt", "Default"]) && is_struct {
+                            // emit_warning!(derive.0, "use derive(DefaultBits) for structs")
+                            derive.0 = syn::parse2(quote::quote!(::bilge::DefaultBits)).unwrap_or_else(unreachable);
                         }
                     
                         if derive.is_custom_bitfield_derive() {
