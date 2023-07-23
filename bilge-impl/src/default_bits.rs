@@ -38,6 +38,7 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
     use Type::*;
     match ty {
         // TODO?: we could optimize nested arrays here like in `struct_gen.rs`
+        // NOTE: in std, Default is only derived for arrays with up to 32 elements, but we allow more
         Array(array) => {
             let len_expr = &array.len;
             let elem_ty = &*array.elem;
@@ -61,7 +62,7 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
             let field_size = shared::generate_type_bitsize(ty);
             // u2::from(HaveFun::default()).value() as u32;
             quote! {{
-                let as_int = <#path as Bitsized>::ArbitraryInt::from(#path::default()).value();
+                let as_int = <#path as Bitsized>::ArbitraryInt::from(<#path as ::core::default::Default>::default()).value();
                 let as_base_int = as_int as <<Self as Bitsized>::ArbitraryInt as Number>::UnderlyingType;
                 let shifted = as_base_int << offset;
                 offset += #field_size;
