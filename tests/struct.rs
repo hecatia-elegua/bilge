@@ -415,3 +415,37 @@ fn oob() {
 #[test]
 #[should_panic(expected = "assertion failed: index < 4")]
 fn oob2() { Array::new([u4::new(0), u4::new(0), u4::new(0), u4::new(0)]).val_0_at(4); }
+
+#[bitsize(8)]
+#[derive(DefaultBits, PartialEq, DebugBits)]
+struct NestedNonZeroDefault {
+    field1: u2,
+    field2: u4,
+    field3: Cool,
+}
+
+#[bitsize(2)]
+#[derive(Default, FromBits, PartialEq, Debug, Clone, Copy)]
+enum Cool {
+    Coool,
+    Cooool,
+    #[default]
+    CooooolDefault,
+    Cooooool,
+}
+
+#[bitsize(34)]
+#[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
+struct ArrayTupleDefault {
+    field1: [[((u2, Cool, bool), (bool, bool, Cool)); 2]; 1],
+    field2: ([Cool; 2], [(u2, Cool); 3]),
+}
+
+#[test]
+fn default_bits() {
+    let default = NestedNonZeroDefault::default();
+    assert_eq!(default, NestedNonZeroDefault::new(u2::new(0), u4::new(0), Cool::CooooolDefault));
+
+    let default = ArrayTupleDefault::default();
+    assert_eq!(default, ArrayTupleDefault::from(u34::new(0b1000_1000_1000_10_10_1000_01000_1000_01000)));
+}

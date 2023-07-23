@@ -7,6 +7,7 @@ mod try_from_bits;
 mod from_bits;
 mod debug_bits;
 mod fmt_bits;
+mod default_bits;
 
 mod shared;
 
@@ -51,7 +52,7 @@ pub fn derive_from_bits(item: TokenStream) -> TokenStream {
     from_bits::from_bits(item.into()).into()
 }
 
-/// Generate an `impl Debug` for bitfield structs.
+/// Generate an `impl core::fmt::Debug` for bitfield structs.
 /// 
 /// Please use normal #[derive(Debug)] for enums.
 #[proc_macro_error]
@@ -65,4 +66,11 @@ pub fn debug_bits(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(BinaryBits)]
 pub fn derive_binary_bits(item: TokenStream) -> TokenStream {
     fmt_bits::binary(item.into()).into()
+}
+
+/// Generate an `impl core::default::Default` for bitfield structs.
+#[proc_macro_error]
+#[proc_macro_derive(DefaultBits)]
+pub fn derive_default_bits(item: TokenStream) -> TokenStream {
+    default_bits::default_bits(item.into()).into()
 }
