@@ -1,4 +1,4 @@
-use bilge::prelude::*;
+#![feature(const_trait_impl)] use bilge::prelude::*;
 
 // TODO?: validating `bitsize_internal` is not used alone, like:
 // #[bitsize_internal] struct A;

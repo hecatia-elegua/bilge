@@ -40,12 +40,18 @@ jobs:
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
         cargo clippy --workspace -- -D warnings
-    
+
     - name: Lint nightly
       if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
       run: |
         cargo clippy --workspace --features nightly -- -D warnings
 
-    - name: Test
+    - name: Test stable
+      if: ${{ matrix.toolchain == 'stable' }}
       run: |
         cargo test --workspace
+
+    - name: Test nightly
+      if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
+      run: |
+        cargo test --workspace --features nightly
