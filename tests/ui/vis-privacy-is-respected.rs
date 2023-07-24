@@ -1,4 +1,4 @@
-use bilge::prelude::*;
+#![feature(const_trait_impl)] use bilge::prelude::*;
 
 mod hidden {
     use super::*;
