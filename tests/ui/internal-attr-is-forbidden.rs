@@ -1,4 +1,6 @@
-#![feature(const_trait_impl)] use bilge::prelude::*;
+#![feature(const_trait_impl)]
+use bilge::bitsize_internal;
+use bilge::prelude::*;
 
 // TODO?: validating `bitsize_internal` is not used alone, like:
 // #[bitsize_internal] struct A;
@@ -12,7 +14,7 @@ struct A;
 #[bitsize_internal]
 enum R {
     U,
-    OK
+    OK,
 }
 
 #[bitsize(1)]
