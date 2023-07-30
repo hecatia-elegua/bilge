@@ -1,11 +1,12 @@
 mod split;
 
-use proc_macro2::{TokenStream, Ident};
-use proc_macro_error::{abort_call_site, abort};
+use proc_macro2::{Ident, TokenStream};
+use proc_macro_error::{abort, abort_call_site};
 use quote::quote;
-use syn::{punctuated::Iter, Variant, Item, ItemStruct, ItemEnum, Type, Fields, spanned::Spanned};
-use crate::shared::{self, BitSize, unreachable, enum_fills_bitsize, is_fallback_attribute, MAX_ENUM_BIT_SIZE};
 use split::SplitAttributes;
+use syn::{punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant};
+
+use crate::shared::{self, enum_fills_bitsize, is_fallback_attribute, unreachable, BitSize, MAX_ENUM_BIT_SIZE};
 
 /// Intermediate Representation, just for bundling these together
 struct ItemIr {
@@ -39,7 +40,7 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
     if args.is_empty() {
         abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
     }
-    
+
     let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
     (item, declared_bitsize)
 }
@@ -170,9 +171,12 @@ fn generate_enum(item: &ItemEnum) -> TokenStream {
 /// Everything else has its own generate_ functions.
 fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> TokenStream {
     let ItemIr { expanded } = ir;
-    let SplitAttributes { before_compression, after_compression } = attrs;
+    let SplitAttributes {
+        before_compression,
+        after_compression,
+    } = attrs;
 
-    let bitsize_internal_attr =  quote! {#[bilge::bitsize_internal(#declared_bitsize)]};
+    let bitsize_internal_attr = quote! {#[::bilge::bitsize_internal(#declared_bitsize)]};
 
     quote! {
         #(#before_compression)*

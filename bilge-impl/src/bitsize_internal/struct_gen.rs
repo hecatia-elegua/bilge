@@ -2,9 +2,9 @@
 //! For this reason, we also use more locals and types.
 //! These locals, types, casts should be optimized away.
 //! In simple cases they indeed are optimized away, but if some case is not, please report.
-//! 
+//!
 //! ## Important
-//! 
+//!
 //! We often do thing like:
 //! ```ignore
 //! quote! {
@@ -26,7 +26,7 @@
 use super::*;
 
 /// Top-level function which initializes the cursor and offsets it to what we want to read
-/// 
+///
 /// `is_array_elem_getter` allows us to generate an array_at getter more easily
 pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream, is_array_elem_getter: bool) -> TokenStream {
     // if we generate `fn array_at(index)`, we need to offset to the array element
@@ -61,13 +61,15 @@ pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream, is_array_el
 /// We heavily rely on the fact that transmuting into a nested array [[T; N1]; N2] can
 /// be done in the same way as transmuting into an array [T; N1*N2].
 /// Otherwise, nested arrays would generate even more code.
-/// 
+///
 /// `is_getter` allows us to generate a try_from impl more easily
 pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
     use Type::*;
     match ty {
         Tuple(tuple) => {
-            let unbraced = tuple.elems.iter()
+            let unbraced = tuple
+                .elems
+                .iter()
                 .map(|elem| {
                     // for every tuple element, generate its getter code
                     let getter = generate_getter_inner(elem, is_getter);
@@ -88,7 +90,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 .unwrap_or_else(|| quote!());
             // add tuple braces, to produce (val_1, val_2, ...)
             quote! { (#unbraced) }
-        },
+        }
         Array(array) => {
             // [[T; N1]; N2] -> (N1*N2, T)
             let (len_expr, elem_ty) = length_and_type_of_nested_array(array);
@@ -136,13 +138,13 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     is_filled
                 } }
             }
-        },
+        }
         Path(_) => {
             // get the size, so we can shift to the next element's offset
             let size = shared::generate_type_bitsize(ty);
             // get the mask, so we can get this element's value
             let mask = generate_ty_mask(ty);
-            
+
             // do all steps until conversion
             let elem_value = quote! {
                 // the element's mask
@@ -188,19 +190,19 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     } }
                 }
             }
-        },
+        }
         _ => unreachable(()),
     }
 }
 
 /// Top-level function which initializes the offset, masks other values and combines the final value
-/// 
+///
 /// `is_array_elem_setter` allows us to generate a set_array_at setter more easily
 pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream, is_array_elem_setter: bool) -> TokenStream {
     // if we generate `fn set_array_at(index, value)`, we need to offset to the array element
     let elem_offset = if is_array_elem_setter {
         let size = shared::generate_type_bitsize(ty);
-        quote! { 
+        quote! {
             let size = #size;
             // offset now starts at this element
             offset += size * index;
@@ -248,7 +250,9 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
         Tuple(tuple) => {
             // to index into the tuple value
             let mut tuple_index = syn::Index::from(0);
-            let value_shifted = tuple.elems.iter()
+            let value_shifted = tuple
+                .elems
+                .iter()
                 .map(|elem| {
                     let elem_name = quote!(value.#tuple_index);
                     tuple_index.index += 1;
@@ -265,10 +269,10 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
                 .reduce(|acc, next| quote!(#acc | #next))
                 // `field: (),` will be handled like this:
                 .unwrap_or_else(|| quote!(0));
-            quote!{
+            quote! {
                 let value_shifted = #value_shifted;
             }
-        },
+        }
         Array(array) => {
             // [[T; N1]; N2] -> (N1*N2, T)
             let (len_expr, elem_ty) = length_and_type_of_nested_array(array);
@@ -277,7 +281,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
             quote! {
                 // [[T; N1]; N2] -> [T; N1*N2], for example: [[(u2, u2); 3]; 4] -> [(u2, u2); 12]
                 #[allow(clippy::useless_transmute)]
-                let value: [#elem_ty; #len_expr] = unsafe { ::core::mem::transmute(value) };  
+                let value: [#elem_ty; #len_expr] = unsafe { ::core::mem::transmute(value) };
                 // constness: iter, for-loop, range are not const, so we're using while loops
                 // [u4; 8] -> u32
                 let mut acc = 0;
@@ -292,7 +296,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
                 }
                 let value_shifted = acc;
             }
-        },
+        }
         Path(_) => {
             // get the size, so we can reach the next element afterwards
             let size = shared::generate_type_bitsize(ty);
@@ -306,13 +310,13 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
                 // increase the offset to allow the next element to be read
                 offset += #size;
             }
-        },
+        }
         _ => unreachable(()),
     }
 }
 
 /// The constructor code just needs every field setter.
-/// 
+///
 /// [`super::generate_struct`] contains the initialization of `offset`.
 pub(crate) fn generate_constructor_part(ty: &Type, name: &Ident) -> TokenStream {
     let value_shifted = generate_setter_inner(ty);
@@ -333,7 +337,9 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
     match ty {
         Tuple(tuple) => {
             let mut previous_elem_sizes = vec![];
-            tuple.elems.iter()
+            tuple
+                .elems
+                .iter()
                 .map(|elem| {
                     // for every element, generate a mask
                     let mask = generate_ty_mask(elem);
@@ -353,7 +359,7 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
                 .reduce(|acc, next| quote!(#acc | #next))
                 // `field: (),` will be handled like this:
                 .unwrap_or_else(|| quote!(0))
-        },
+        }
         Array(array) => {
             let elem_ty = &array.elem;
             let len_expr = &array.len;
@@ -373,7 +379,7 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
                 }
                 field_mask
             } }
-        },
+        }
         Path(_) => quote! {
             // Casting this is needed in some places, but it might not be needed in some others.
             // (u2, u12) -> u8 << 0 | u16 << 2 -> u8 | u16 not possible

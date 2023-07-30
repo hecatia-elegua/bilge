@@ -1,7 +1,7 @@
 #![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
 
-use bilge::prelude::*;
 use assert_matches::assert_matches;
+use bilge::prelude::*;
 
 #[bitsize(7)]
 #[derive(FromBits, Debug)]
@@ -35,7 +35,7 @@ fn main() {
     let original = u7::new(3);
     let converted = FallbackWithValue::from(original);
     assert_eq!(u7::from(converted), original);
-    
+
     let original = u7::new(9);
     let converted = FallbackWithValue::from(original);
     assert_eq!(u7::from(converted), original);

@@ -9,7 +9,9 @@ struct CanBeChanged(Unfilled);
 #[bitsize(4)]
 #[derive(TryFromBits)]
 enum Unfilled {
-    A, B, C,
+    A,
+    B,
+    C,
 }
 
 fn main() {

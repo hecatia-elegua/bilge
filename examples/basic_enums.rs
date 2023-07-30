@@ -6,13 +6,18 @@ use bilge::prelude::*;
 // #[derive(FromBits)]
 #[non_exhaustive] //gets handled when FromBits
 enum IncompleteEnum {
-    A = 0, B = 1, C = 2, //D = 3
+    A = 0,
+    B = 1,
+    C = 2, //D = 3
 }
 
 #[bitsize(2)]
 #[derive(FromBits)]
 enum CompleteEnum {
-    A, B, C, D
+    A,
+    B,
+    C,
+    D,
 }
 
 fn main() {
@@ -21,10 +26,10 @@ fn main() {
 
     #[allow(unreachable_patterns)]
     match a {
-        IncompleteEnum::A => {},
-        IncompleteEnum::B => {},
-        IncompleteEnum::C => {},
-        _ => {},
+        IncompleteEnum::A => {}
+        IncompleteEnum::B => {}
+        IncompleteEnum::C => {}
+        _ => {}
     }
     #[allow(clippy::redundant_clone)] //actually triggering a clippy bug
     let _: u2 = u2::new(b.clone() as u8);

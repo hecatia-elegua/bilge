@@ -19,12 +19,19 @@ struct Footer {
 
 #[bitsize(2)]
 #[derive(FromBits)]
-enum Code { Success, Error, IoError, GoodExample }
+enum Code {
+    Success,
+    Error,
+    IoError,
+    GoodExample,
+}
 
 #[bitsize(2)]
 #[derive(TryFromBits, Debug, PartialEq)]
 enum Class {
-    Mobile, Semimobile, Stationary = 0x3
+    Mobile,
+    Semimobile,
+    Stationary = 0x3,
 }
 
 #[bitsize(8)]
@@ -60,11 +67,7 @@ enum Subclass2 {
 }
 
 fn main() {
-    let reg1 = Register::new(
-        u4::new(0b1010),
-        u7::new(0b010_1010),
-        Footer::new(true, Code::GoodExample)
-    );
+    let reg1 = Register::new(u4::new(0b1010), u7::new(0b010_1010), Footer::new(true, Code::GoodExample));
     let mut reg2 = Register::from(u14::new(0b11_1_0101010_1010));
     assert_eq!(reg1.value, reg2.value);
     let _header = reg2.header();

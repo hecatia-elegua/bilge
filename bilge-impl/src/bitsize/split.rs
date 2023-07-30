@@ -1,12 +1,13 @@
-use proc_macro_error::{abort_call_site, abort};
+use proc_macro_error::{abort, abort_call_site};
 use quote::ToTokens;
-use syn::{meta::ParseNestedMeta, Path, Item, Attribute, Meta, parse_quote};
+use syn::{meta::ParseNestedMeta, parse_quote, Attribute, Item, Meta, Path};
+
 use crate::shared::{unreachable, util::PathExt};
 
 /// Since we want to be maximally interoperable, we need to handle attributes in a special way.
 /// We use `#[bitsize]` as a sort of scope for all attributes below it and
 /// the whole family of `-Bits` macros only works when used in that scope.
-/// 
+///
 /// Let's visualize why this is the case, starting with some user-code:
 /// ```ignore
 /// #[bitsize(6)]
@@ -19,11 +20,11 @@ use crate::shared::{unreachable, util::PathExt};
 /// First, the attributes get sorted, depending on their name.
 /// Every attribute in need of field information gets resolved first,
 /// in this case `DebugBits` and `FromBits`.
-/// 
+///
 /// Now, after resolving all `before_compression` attributes, the halfway-resolved
 /// code looks like this:
 /// ```ignore
-/// #[bilge::bitsize_internal(6)]
+/// #[::bilge::bitsize_internal(6)]
 /// #[derive(Clone, Copy, PartialEq)]
 /// struct Example {
 ///     field1: u2,
@@ -32,7 +33,7 @@ use crate::shared::{unreachable, util::PathExt};
 /// ```
 /// This `#[bitsize_internal]` attribute is the one actually doing the compression and generating
 /// all the getters, setters and a constructor.
-/// 
+///
 /// Finally, the struct ends up like this (excluding the generated impl blocks):
 /// ```ignore
 /// struct Example {
@@ -47,7 +48,7 @@ pub struct SplitAttributes {
 impl SplitAttributes {
     /// Split item attributes into those applied before bitfield-compression and those applied after.
     /// Also, abort on any invalid configuration.
-    /// 
+    ///
     /// Any derives with suffix `Bits` will be able to access field information.
     /// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
     pub fn from_item(item: &Item) -> SplitAttributes {
@@ -58,9 +59,9 @@ impl SplitAttributes {
         };
 
         let parsed = attrs.iter().map(parse_attribute);
-        
+
         let is_struct = matches!(item, Item::Struct(..));
-        
+
         let mut from_bytes = None;
         let mut has_frombits = false;
 
@@ -81,7 +82,7 @@ impl SplitAttributes {
                             // emit_warning!(derive.0, "use derive(DefaultBits) for structs")
                             derive.0 = syn::parse_quote!(::bilge::DefaultBits);
                         }
-                    
+
                         if derive.is_custom_bitfield_derive() {
                             before_compression.push(derive.into_attribute());
                         } else {
@@ -89,17 +90,17 @@ impl SplitAttributes {
                             after_compression.push(derive.into_attribute());
                         }
                     }
-                },
+                }
 
                 ParsedAttribute::BitsizeInternal(attr) => {
                     abort!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
-                },
+                }
 
                 ParsedAttribute::Other(attr) => {
                     // I don't know with which attrs I can hit Path and NameValue,
                     // so let's just put them on after compression.
                     after_compression.push(attr.to_owned())
-                },
+                }
             };
         }
 
@@ -113,8 +114,11 @@ impl SplitAttributes {
         if !is_struct {
             before_compression.append(&mut after_compression)
         }
-        
-        SplitAttributes { before_compression, after_compression }    
+
+        SplitAttributes {
+            before_compression,
+            after_compression,
+        }
     }
 }
 
@@ -129,7 +133,8 @@ fn parse_attribute(attribute: &Attribute) -> ParsedAttribute {
                 Ok(())
             };
 
-            list.parse_nested_meta(add_derive).unwrap_or_else(|e| abort!(list.tokens, "failed to parse derive: {}", e));
+            list.parse_nested_meta(add_derive)
+                .unwrap_or_else(|e| abort!(list.tokens, "failed to parse derive: {}", e));
 
             ParsedAttribute::DeriveList(derives)
         }
@@ -159,7 +164,7 @@ impl Derive {
     }
 
     /// by `bilge` convention, any derive satisfying this condition is able
-    /// to access bitfield structure information pre-compression, 
+    /// to access bitfield structure information pre-compression,
     /// allowing for user derives
     fn is_custom_bitfield_derive(&self) -> bool {
         let last_segment = self.0.segments.last().unwrap_or_else(|| unreachable(()));

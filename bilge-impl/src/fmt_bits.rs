@@ -1,7 +1,8 @@
-use crate::shared::{self, unreachable, BitSize, discriminant_assigner::DiscriminantAssigner, fallback::Fallback};
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
+use syn::{punctuated::Iter, Data, DeriveInput, Fields, Variant};
+
+use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, unreachable, BitSize};
 
 pub(crate) fn binary(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -49,7 +50,9 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStr
     }
 }
 
-fn generate_enum_binary_impl(enum_name: &Ident, variants: Iter<Variant>, arb_int: TokenStream, bitsize: BitSize, fallback: Option<Fallback>) -> TokenStream {
+fn generate_enum_binary_impl(
+    enum_name: &Ident, variants: Iter<Variant>, arb_int: TokenStream, bitsize: BitSize, fallback: Option<Fallback>,
+) -> TokenStream {
     let to_int_match_arms = generate_to_int_match_arms(variants, enum_name, bitsize, arb_int, fallback);
 
     let body = if to_int_match_arms.is_empty() {
@@ -73,11 +76,15 @@ fn generate_enum_binary_impl(enum_name: &Ident, variants: Iter<Variant>, arb_int
 }
 
 /// generates the arms for an (infallible) conversion from an enum to the enum's underlying arbitrary_int
-fn generate_to_int_match_arms(variants: Iter<Variant>, enum_name: &Ident, bitsize: BitSize, arb_int: TokenStream, fallback: Option<Fallback>) -> Vec<TokenStream> {
-    let is_value_fallback = |variant_name| if let Some(Fallback::WithValue(name)) = &fallback {
-        variant_name == name
-    } else {
-        false
+fn generate_to_int_match_arms(
+    variants: Iter<Variant>, enum_name: &Ident, bitsize: BitSize, arb_int: TokenStream, fallback: Option<Fallback>,
+) -> Vec<TokenStream> {
+    let is_value_fallback = |variant_name| {
+        if let Some(Fallback::WithValue(name)) = &fallback {
+            variant_name == name
+        } else {
+            false
+        }
     };
 
     let mut assigner = DiscriminantAssigner::new(bitsize);

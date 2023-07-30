@@ -10,7 +10,10 @@ struct IncompleteStruct {
 #[bitsize(2)]
 #[derive(Debug, FromBits)]
 enum CompleteEnum {
-    A = 0, B = 1, C = 0b0000_0010, D = 3
+    A = 0,
+    B = 1,
+    C = 0b0000_0010,
+    D = 3,
 }
 
 fn main() {

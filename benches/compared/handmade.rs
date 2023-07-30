@@ -11,7 +11,7 @@ pub(crate) fn handmade(input: (u32, u32, u64, u16)) {
     assert_eq!(lpi.control.0, input.0);
     assert_eq!(lpi.implementer_identification.0, input.1);
     assert_eq!(lpi.redistributor_type.0, input.2);
-    
+
     assert!(lpi.control.clear_enable_supported());
     assert_eq!(lpi.implementer_identification.implementer_jep106(), 2054);
     lpi.implementer_identification.set_implementer_jep106(input.3);
@@ -28,6 +28,7 @@ pub struct GicRedistributorLpi {
 
 #[derive(Debug)]
 struct RedistributorControl(u32);
+#[rustfmt::skip]
 impl RedistributorControl {
     //ro
     const fn upstream_write_pending(&self) -> bool {

@@ -46,20 +46,12 @@ fn main() {
     // let redist = LPIRedistributor::read_from(raw_memory).unwrap();
 
     let raw_memory = ([0u8, 1, 2, 3], [255u8, 255, 254, 255]);
-    let mut control: RedistributorControl = unsafe {
-        core::mem::transmute(raw_memory.0)
-    };
-    let mut group: Group = unsafe {
-        core::mem::transmute(raw_memory.1)
-    };
+    let mut control: RedistributorControl = unsafe { core::mem::transmute(raw_memory.0) };
+    let mut group: Group = unsafe { core::mem::transmute(raw_memory.1) };
 
-    let redist = Redistributor { 
-        control: unsafe {
-            VolatilePtr::new((&mut control).into())
-        },
-        group: unsafe {
-            VolatilePtr::new_read_only((&mut group).into())
-        },
+    let redist = Redistributor {
+        control: unsafe { VolatilePtr::new((&mut control).into()) },
+        group: unsafe { VolatilePtr::new_read_only((&mut group).into()) },
     };
 
     println!("{:032b}", redist.control.read());
@@ -67,18 +59,11 @@ fn main() {
     println!("{:032b}", redist.group.read());
     println!("{:?}", redist.group);
 
-    let mut raw_memory: (RedistributorControl, Group) = (
-        0b00000011000000100000000100000000u32.into(),
-        0b11111111111111101111111111111111u32.into(),
-    );
+    let mut raw_memory: (RedistributorControl, Group) = (0b00000011000000100000000100000000u32.into(), 0b11111111111111101111111111111111u32.into());
 
-    let redist = Redistributor { 
-        control: unsafe {
-            VolatilePtr::new((&mut raw_memory.0).into())
-        },
-        group: unsafe {
-            VolatilePtr::new_read_only((&mut raw_memory.1).into())
-        },
+    let redist = Redistributor {
+        control: unsafe { VolatilePtr::new((&mut raw_memory.0).into()) },
+        group: unsafe { VolatilePtr::new_read_only((&mut raw_memory.1).into()) },
     };
 
     println!("{:032b}", redist.control.read());

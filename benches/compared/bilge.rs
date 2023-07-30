@@ -1,4 +1,7 @@
-use bilge::{Bitsized, FromBits, bitsize, DebugBits, arbitrary_int::{Number, u4, u12, u20, u5, u2}};
+use bilge::{
+    arbitrary_int::{u12, u2, u20, u4, u5, Number},
+    bitsize, Bitsized, DebugBits, FromBits,
+};
 
 #[inline(never)]
 pub fn bilge(input: (u32, u32, u64, u16)) {
@@ -10,7 +13,7 @@ pub fn bilge(input: (u32, u32, u64, u16)) {
     assert_eq!(lpi.control.value, input.0);
     assert_eq!(lpi.implementer_identification.value, input.1);
     assert_eq!(lpi.redistributor_type.value, input.2);
-    
+
     assert!(lpi.control.clear_enable_supported());
     assert_eq!(lpi.implementer_identification.implementer_jep106(), u12::new(2054));
     lpi.implementer_identification.set_implementer_jep106(u12::new(input.3));
@@ -27,6 +30,7 @@ pub struct GicRedistributorLpi {
 
 #[bitsize(32)]
 #[derive(DebugBits, FromBits)]
+#[rustfmt::skip]
 struct RedistributorControl {
     //ro
     upstream_write_pending: bool,

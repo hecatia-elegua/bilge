@@ -4,14 +4,14 @@ use bilge::prelude::*;
 #[bitsize(32)]
 #[derive(TryFromBits, PartialEq, DebugBits)]
 struct Wrapper {
-    foo: FillsU32
+    foo: FillsU32,
 }
 
 #[bitsize(32)]
 #[derive(TryFromBits, PartialEq, Debug)]
 #[repr(u32)]
 enum FillsU32 {
-    Foo = 0xDEADBEEF
+    Foo = 0xDEADBEEF,
 }
 
 #[test]
