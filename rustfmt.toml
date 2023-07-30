@@ -1,0 +1,29 @@
+# hint: use cargo +nightly fmt
+
+# this basically means "turn it off"
+max_width = 150
+# actually, I never want this formatted as it depends on the circumstances, but that's not an option
+# chain_width = 100
+# fn_call_width = 150
+
+group_imports = "StdExternalCrate"
+#imports_layout
+#imports_granularity = "Crate"
+
+# btw. this is not needed when your editor can wrap lines
+# fn_args_layout = "Compressed"
+fn_params_layout = "Compressed"
+
+# TODO: see if that changes less things: changes ~10
+# match_block_trailing_comma = true
+# TODO
+# overflow_delimited_expr = true
+
+#newline_style ?
+
+#required_version: Require a specific version of rustfmt - if you want to make sure that the specific version of rustfmt is used in your CI
+unstable_features = true
+# use_small_heuristics = "Max"
+
+# how do I say "hey please enum Unfilled { A, B, C }"
+# -> ah yes, only with #[rustfmt::skip]
