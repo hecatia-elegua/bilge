@@ -1,5 +1,5 @@
+use arbitrary_int::{u12, u2, u20, u4, u5};
 use bitbybit::bitfield;
-use arbitrary_int::{u4, u12, u20, u5, u2};
 
 #[inline(never)]
 pub(crate) fn bitbybit(input: (u32, u32, u64, u16)) {
@@ -11,7 +11,7 @@ pub(crate) fn bitbybit(input: (u32, u32, u64, u16)) {
     assert_eq!(lpi.control.raw_value, input.0);
     assert_eq!(lpi.implementer_identification.raw_value, input.1);
     assert_eq!(lpi.redistributor_type.raw_value, input.2);
-    
+
     assert!(lpi.control.clear_enable_supported());
     assert_eq!(lpi.implementer_identification.implementer_jep106(), u12::new(2054));
     lpi.implementer_identification = lpi.implementer_identification.with_implementer_jep106(u12::new(input.3));
@@ -28,6 +28,7 @@ pub struct GicRedistributorLpi {
 
 #[bitfield(u32)]
 #[derive(Debug)]
+#[rustfmt::skip]
 struct RedistributorControl {
     //ro
     #[bit(0, rw)]

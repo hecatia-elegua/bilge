@@ -1,8 +1,9 @@
-use super::{BitSize, is_fallback_attribute, unreachable, bitsize_from_type_ident, last_ident_of_path};
 use itertools::Itertools;
 use proc_macro2::Ident;
 use proc_macro_error::{abort, abort_call_site};
-use syn::{Variant, Data};
+use syn::{Data, Variant};
+
+use super::{bitsize_from_type_ident, is_fallback_attribute, last_ident_of_path, unreachable, BitSize};
 
 pub enum Fallback {
     Unit(Ident),
@@ -24,7 +25,7 @@ impl Fallback {
                 let Ok(fallback_value) = variant_fields.exactly_one() else {
                     abort!(variant, "fallback variant must have exactly one field"; help = "use only one field or change to a unit variant")
                 };
-                
+
                 if !is_last_variant {
                     abort!(variant, "value fallback is not the last variant"; help = "a fallback variant with value must be the last variant of the enum")
                 }
@@ -55,7 +56,7 @@ impl Fallback {
 /// finds a single enum variant with the attribute "fallback".
 /// a "fallback variant" may come in one of two forms:
 /// 1. `#[fallback] Foo`, which we map to `Fallback::Unit`
-/// 2. `#[fallback] Foo(uN)`, where `N` is the enum's bitsize and `Foo` is the enum's last variant, 
+/// 2. `#[fallback] Foo(uN)`, where `N` is the enum's bitsize and `Foo` is the enum's last variant,
 /// which we map to `Fallback::WithValue`
 pub fn fallback_variant(data: &Data, enum_bitsize: BitSize) -> Option<Fallback> {
     match data {
@@ -71,8 +72,10 @@ pub fn fallback_variant(data: &Data, enum_bitsize: BitSize) -> Option<Fallback> 
                     let is_last_variant = variant.ident == enum_data.variants.last().unwrap().ident;
                     let fallback = Fallback::from_variant(variant, enum_bitsize, is_last_variant);
                     Some(fallback)
-                },
-                Err(_) => abort_call_site!("only one enum variant may be `#[fallback]`"; help = "remove #[fallback] attributes until you only have one"),
+                }
+                Err(_) => {
+                    abort_call_site!("only one enum variant may be `#[fallback]`"; help = "remove #[fallback] attributes until you only have one")
+                }
             }
         }
         Data::Struct(struct_data) => {

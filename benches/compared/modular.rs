@@ -1,7 +1,11 @@
 // we need to put this on the whole module since bitfield doesn't pass it through
 // (into_bytes, new is never used)
 #![allow(dead_code)]
-use modular_bitfield::{bitfield, specifiers::{B20, B4, B12, B5, B2}, Specifier};
+use modular_bitfield::{
+    bitfield,
+    specifiers::{B12, B2, B20, B4, B5},
+    Specifier,
+};
 
 #[inline(never)]
 pub(crate) fn modular(input: (u32, u32, u64, u16)) {
@@ -18,7 +22,7 @@ pub(crate) fn modular(input: (u32, u32, u64, u16)) {
     assert_eq!(u32::from_le_bytes(lpi.control.bytes), input.0);
     assert_eq!(u32::from_le_bytes(lpi.implementer_identification.bytes), input.1);
     assert_eq!(u64::from_le_bytes(lpi.redistributor_type.bytes), input.2);
-    
+
     assert!(lpi.control.clear_enable_supported());
     assert_eq!(lpi.implementer_identification.implementer_jep106(), 2054); //B12?
     lpi.implementer_identification.set_implementer_jep106(B12::from_bytes(input.3).unwrap()); //`from_bytes` does not always get bytes..
@@ -35,6 +39,7 @@ pub struct GicRedistributorLpi {
 
 #[bitfield(bits = 32)]
 #[derive(Debug)]
+#[rustfmt::skip]
 struct RedistributorControl {
     //ro
     upstream_write_pending: bool,

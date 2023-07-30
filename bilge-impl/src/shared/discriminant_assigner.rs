@@ -1,7 +1,8 @@
 use proc_macro2::Literal;
 use proc_macro_error::abort;
-use syn::{Variant, Expr, ExprLit, Lit};
-use super::{BitSize, unreachable};
+use syn::{Expr, ExprLit, Lit, Variant};
+
+use super::{unreachable, BitSize};
 
 pub(crate) struct DiscriminantAssigner {
     bitsize: BitSize,
@@ -10,9 +11,12 @@ pub(crate) struct DiscriminantAssigner {
 
 impl DiscriminantAssigner {
     pub fn new(bitsize: u8) -> DiscriminantAssigner {
-        DiscriminantAssigner { bitsize, next_expected_assignment: 0 }
+        DiscriminantAssigner {
+            bitsize,
+            next_expected_assignment: 0,
+        }
     }
-    
+
     fn max_value(&self) -> u128 {
         (1u128 << self.bitsize) - 1
     }
@@ -24,12 +28,12 @@ impl DiscriminantAssigner {
 
         let Expr::Lit(ExprLit { lit: Lit::Int(int), .. }) = discriminant_expr else {
             abort!(
-                discriminant_expr, 
-                "variant `{}` is not a number", variant_name; 
+                discriminant_expr,
+                "variant `{}` is not a number", variant_name;
                 help = "only literal integers currently supported"
             )
         };
-    
+
         let discriminant_value: u128 = int.base10_parse().unwrap_or_else(unreachable);
         if discriminant_value > self.max_value() {
             abort!(variant, "Value of variant exceeds the given number of bits")

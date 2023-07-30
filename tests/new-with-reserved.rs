@@ -4,17 +4,17 @@ use bilge::prelude::*;
 #[bitsize(16)]
 #[derive(FromBits, DebugBits)]
 struct EthercatHeader1 {
-	len: u11,
-	some: u1,
-	ty: u4,
+    len: u11,
+    some: u1,
+    ty: u4,
 }
 
 #[bitsize(16)]
 #[derive(FromBits, DebugBits)]
 struct EthercatHeader2 {
-	len: u11,
-	reserved: u1,
-	ty: u4,
+    len: u11,
+    reserved: u1,
+    ty: u4,
 }
 
 #[test]

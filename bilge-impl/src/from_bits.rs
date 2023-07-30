@@ -1,22 +1,21 @@
 use itertools::Itertools;
-use proc_macro2::{TokenStream, Ident};
-use proc_macro_error::{abort_call_site, abort};
+use proc_macro2::{Ident, TokenStream};
+use proc_macro_error::{abort, abort_call_site};
 use quote::quote;
-use syn::{Type, Fields, DeriveInput, Data, punctuated::Iter, Variant};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize};
+use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
+
+use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
     let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input);
     let expanded = match &derive_data {
-        Data::Struct(struct_data) => {
-            generate_struct(arb_int, name, &struct_data.fields)
-        },
+        Data::Struct(struct_data) => generate_struct(arb_int, name, &struct_data.fields),
         Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int);
             generate_enum(arb_int, name, match_arms, fallback)
-        },
+        }
         _ => unreachable(()),
     };
     generate_common(expanded)
@@ -30,9 +29,11 @@ fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitS
     shared::analyze_derive(derive_input, false)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
+fn analyze_enum(
+    variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>, arb_int: &TokenStream,
+) -> (Vec<TokenStream>, Vec<TokenStream>) {
     validate_enum_variants(variants.clone(), fallback);
-    
+
     let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
     if !enum_is_filled && fallback.is_none() {
         abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
@@ -44,47 +45,51 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
 
-    let is_fallback = |variant_name| if let Some(Fallback::Unit(name)|Fallback::WithValue(name)) = fallback {
-        variant_name == name
-    } else {
-        false
+    let is_fallback = |variant_name| {
+        if let Some(Fallback::Unit(name) | Fallback::WithValue(name)) = fallback {
+            variant_name == name
+        } else {
+            false
+        }
     };
 
-    let is_value_fallback = |variant_name| if let Some(Fallback::WithValue(name)) = fallback {
-        variant_name == name
-    } else {
-        false
+    let is_value_fallback = |variant_name| {
+        if let Some(Fallback::WithValue(name)) = fallback {
+            variant_name == name
+        } else {
+            false
+        }
     };
 
-    variants.map(|variant| {
-        let variant_name = &variant.ident;
-        let variant_value = assigner.assign_unsuffixed(variant);
+    variants
+        .map(|variant| {
+            let variant_name = &variant.ident;
+            let variant_value = assigner.assign_unsuffixed(variant);
 
-        let from_int_match_arm = if is_fallback(variant_name) {
-            // this value will be handled by the catch-all arm
-            quote!()
-        } else {
-            quote! { #variant_value => Self::#variant_name, }
-        };
-        
-        let to_int_match_arm = if is_value_fallback(variant_name) {
-            quote! { #name::#variant_name(number) => number, }
-        } else {
-            shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
-        };
+            let from_int_match_arm = if is_fallback(variant_name) {
+                // this value will be handled by the catch-all arm
+                quote!()
+            } else {
+                quote! { #variant_value => Self::#variant_name, }
+            };
 
-        (from_int_match_arm, to_int_match_arm)
-    }).unzip()
+            let to_int_match_arm = if is_value_fallback(variant_name) {
+                quote! { #name::#variant_name(number) => number, }
+            } else {
+                shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
+            };
+
+            (from_int_match_arm, to_int_match_arm)
+        })
+        .unzip()
 }
 
-fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<Fallback>) -> TokenStream {
+fn generate_enum(
+    arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), fallback: Option<Fallback>,
+) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
 
@@ -97,7 +102,7 @@ fn generate_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<Token
         },
         None => quote! {
             // constness: unreachable!() is not const yet
-            _ => panic!("unreachable: arbitrary_int already validates that this is unreachable")
+            _ => ::core::panic!("unreachable: arbitrary_int already validates that this is unreachable")
         },
     };
 
@@ -123,25 +128,21 @@ fn generate_filled_check_for(ty: &Type, vec: &mut Vec<TokenStream>) {
     use Type::*;
     match ty {
         Path(_) => {
-            let assume = quote! { bilge::assume_filled::<#ty>(); };
+            let assume = quote! { ::bilge::assume_filled::<#ty>(); };
             vec.push(assume);
-        },
+        }
         Tuple(tuple) => {
             for elem in &tuple.elems {
                 generate_filled_check_for(elem, vec)
             }
-        },
+        }
         Array(array) => generate_filled_check_for(&array.elem, vec),
         _ => unreachable(()),
     }
 }
 
 fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let mut assumes = Vec::new();
     for field in fields {

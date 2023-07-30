@@ -1,6 +1,7 @@
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type};
+
 use crate::shared::{self, unreachable};
 
 pub(crate) mod struct_gen;
@@ -44,24 +45,26 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
 
     let mut fieldless_next_int = 0;
     let mut previous_field_sizes = vec![];
-    let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields.iter()
+    let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields
+        .iter()
         .map(|field| {
             // offset is needed for bit-shifting
             // struct Example { field1: u8, field2: u4, field3: u4 }
             // previous_field_sizes = []     -> unwrap_or_else -> field_offset = 0
             // previous_field_sizes = [8]    -> reduce         -> field_offset = 0 + 8     =  8
             // previous_field_sizes = [8, 4] -> reduce         -> field_offset = 0 + 8 + 4 = 12
-            let field_offset = previous_field_sizes.iter().cloned().reduce(|acc, next| quote!(#acc + #next)).unwrap_or_else(|| quote!(0));
+            let field_offset = previous_field_sizes
+                .iter()
+                .cloned()
+                .reduce(|acc, next| quote!(#acc + #next))
+                .unwrap_or_else(|| quote!(0));
             let field_size = shared::generate_type_bitsize(&field.ty);
             previous_field_sizes.push(field_size);
             generate_field(field, &field_offset, &mut fieldless_next_int)
-    }).unzip();
+        })
+        .unzip();
 
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     quote! {
         #vis struct #ident {
@@ -101,11 +104,14 @@ fn generate_field(field: &Field, field_offset: &TokenStream, fieldless_next_int:
         // needed for `DebugBits`
         let getter = generate_getter(field, field_offset, &name);
         let size = shared::generate_type_bitsize(ty);
-        return (quote!(#getter), (quote!(), quote! { {
+        let accessors = quote!(#getter);
+        let constructor_arg = quote!();
+        let constructor_part = quote! { {
             // we still need to shift by the element's size
             offset += #size;
             0
-        } }))
+        } };
+        return (accessors, (constructor_arg, constructor_part));
     }
 
     let getter = generate_getter(field, field_offset, &name);
@@ -116,7 +122,7 @@ fn generate_field(field: &Field, field_offset: &TokenStream, fieldless_next_int:
         #getter
         #setter
     };
-    
+
     (accessors, (constructor_arg, constructor_part))
 }
 
@@ -125,11 +131,7 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
     let getter_value = struct_gen::generate_getter_value(ty, offset, false);
 
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let array_at = if let Type::Array(array) = ty {
         let elem_ty = &array.elem;
@@ -141,7 +143,7 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
             #(#attrs)*
             #[allow(clippy::type_complexity, unused_parens)]
             #vis #const_ fn #name(&self, index: usize) -> #elem_ty {
-                assert!(index < #len_expr);
+                ::core::assert!(index < #len_expr);
                 #getter_value
             }
         }
@@ -156,7 +158,7 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         #vis #const_ fn #name(&self) -> #ty {
             #getter_value
         }
-        
+
         #array_at
     }
 }
@@ -167,11 +169,7 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
     let name: Ident = syn::parse_str(&format!("set_{name}")).unwrap_or_else(unreachable);
 
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let array_at = if let Type::Array(array) = ty {
         let elem_ty = &array.elem;
@@ -183,7 +181,7 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
             #(#attrs)*
             #[allow(clippy::type_complexity, unused_parens)]
             #vis #const_ fn #name(&mut self, index: usize, value: #elem_ty) {
-                assert!(index < #len_expr);
+                ::core::assert!(index < #len_expr);
                 #setter_value
             }
         }
@@ -228,7 +226,7 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
     quote! {
         #(#attrs)*
         #expanded
-        impl bilge::Bitsized for #name {
+        impl ::bilge::Bitsized for #name {
             type ArbitraryInt = #arb_int;
             const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;

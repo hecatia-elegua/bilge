@@ -1,22 +1,21 @@
-use proc_macro2::{TokenStream, Ident};
-use proc_macro_error::{emit_call_site_warning, abort};
+use proc_macro2::{Ident, TokenStream};
+use proc_macro_error::{abort, emit_call_site_warning};
 use quote::quote;
-use syn::{DeriveInput, Data, punctuated::Iter, Variant, Type, Fields};
-use crate::shared::{last_ident_of_path, bitsize_from_type_ident};
-use crate::shared::{fallback::Fallback, self, BitSize, unreachable, enum_fills_bitsize, discriminant_assigner::DiscriminantAssigner};
+use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
+
+use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
+use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
     let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input);
     match derive_data {
-        Data::Struct(ref data) => {
-            codegen_struct(arb_int, name, &data.fields)
-        },
+        Data::Struct(ref data) => codegen_struct(arb_int, name, &data.fields),
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int);
             codegen_enum(arb_int, name, match_arms)
-        },
+        }
         _ => unreachable(()),
     }
 }
@@ -34,32 +33,30 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
     if enum_fills_bitsize(internal_bitsize, variants.len()) {
         emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
-    } 
+    }
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
-    
-    variants.map(|variant| {
-        let variant_name = &variant.ident;
-        let variant_value = assigner.assign_unsuffixed(variant);
 
-        let from_int_match_arm = quote! {
-            #variant_value => Ok(Self::#variant_name),
-        };
+    variants
+        .map(|variant| {
+            let variant_name = &variant.ident;
+            let variant_value = assigner.assign_unsuffixed(variant);
 
-        let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
+            let from_int_match_arm = quote! {
+                #variant_value => Ok(Self::#variant_name),
+            };
 
-        (from_int_match_arm, to_int_match_arm)
-    }).unzip()
+            let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
+
+            (from_int_match_arm, to_int_match_arm)
+        })
+        .unzip()
 }
 
 fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
     quote! {
@@ -85,7 +82,8 @@ fn generate_field_check(ty: &Type) -> TokenStream {
 }
 
 fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
-    let is_ok: TokenStream = fields.iter()
+    let is_ok: TokenStream = fields
+        .iter()
         .map(|field| {
             let ty = &field.ty;
             let size_from_type = last_ident_of_path(ty).and_then(bitsize_from_type_ident);
@@ -104,16 +102,12 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
         // `Struct {}` would be handled like this:
         .unwrap_or_else(|| quote!(true));
 
-    let const_ = if cfg!(feature = "nightly") {
-        quote!(const)
-    } else {
-        quote!()
-    };
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     quote! {
         impl #const_ ::core::convert::TryFrom<#arb_int> for #struct_type {
             type Error = ::bilge::BitsError;
-            
+
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
             fn try_from(value: #arb_int) -> ::core::result::Result<Self, Self::Error> {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;

@@ -1,4 +1,4 @@
-use proc_macro2::{TokenStream, Ident};
+use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
 use syn::{Data, Fields};
@@ -15,7 +15,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
         Data::Enum(_) => abort_call_site!("use derive(Debug) for enums"),
         Data::Union(_) => unreachable(()),
     };
-    
+
     let fmt_impl = match struct_data.fields {
         Fields::Named(fields) => {
             let calls = fields.named.iter().map(|f| {
@@ -29,11 +29,10 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
                 // .field("field1", &self.field1()).field("field2", &self.field2()).field("field3", &self.field3()).finish()
                 #(#calls)*.finish()
             }
-        },
+        }
         Fields::Unnamed(fields) => {
             let calls = fields.unnamed.iter().map(|_| {
-                let call: Ident = syn::parse_str(&format!("val_{}", fieldless_next_int))
-                    .unwrap_or_else(unreachable);
+                let call: Ident = syn::parse_str(&format!("val_{}", fieldless_next_int)).unwrap_or_else(unreachable);
                 fieldless_next_int += 1;
                 quote!(.field(&self.#call()))
             });
@@ -42,13 +41,13 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
                 // .field(&self.val0()).field(&self.val1()).finish()
                 #(#calls)*.finish()
             }
-        },
+        }
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
-    
+
     quote! {
-        impl core::fmt::Debug for #name {
-            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        impl ::core::fmt::Debug for #name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 #fmt_impl
             }
         }

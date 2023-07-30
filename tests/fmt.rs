@@ -48,10 +48,7 @@ fn binary_formatting() {
     let bang_raw: u16 = 0b1100110011;
     let bang = Bangers::from(u10::new(bang_raw));
     assert_eq!(bang, lunch.val_0());
-    assert_eq!(
-        format!("0b{:b}", lunch.val_0()),
-        format!("0b{:b}", bang_raw),
-    );
+    assert_eq!(format!("0b{:b}", lunch.val_0()), format!("0b{:b}", bang_raw));
 
     // padding is respected
     assert_eq!(format!("0b{:b}", lunch.val_1()), "0b00");

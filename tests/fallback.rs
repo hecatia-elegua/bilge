@@ -75,10 +75,10 @@ fn different_unit_fallback_positions() {
 
     assert_matches!(UnitFoo::from(val), UnitFoo::Foo);
     assert_eq!(u5::from(UnitFoo::Foo), u5::new(0));
-    
+
     assert_matches!(UnitBar::from(val), UnitBar::Bar);
     assert_eq!(u5::from(UnitBar::Bar), u5::new(1));
-    
+
     assert_matches!(UnitBaz::from(val), UnitBaz::Baz);
     assert_eq!(u5::from(UnitBaz::Baz), u5::new(2));
 }

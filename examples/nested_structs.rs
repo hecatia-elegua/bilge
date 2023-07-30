@@ -13,7 +13,10 @@ struct ParentStruct {
 #[bitsize(2)]
 #[derive(Debug, FromBits)]
 enum ChildEnum {
-    A = 0b000, B = 0x001, C, D = 0o003
+    A = 0b000,
+    B = 0x001,
+    C,
+    D = 0o003,
 }
 
 #[bitsize(2)]
@@ -25,7 +28,9 @@ struct ChildStruct {
 #[bitsize(2)]
 #[derive(Debug, TryFromBits)]
 enum NestedChildEnum {
-    A, B = 2, C, //also, "discriminant value `...` assigned more than once" is handled by rustc
+    A,
+    B = 2,
+    C, //also, "discriminant value `...` assigned more than once" is handled by rustc
 }
 
 fn main() {
@@ -56,11 +61,7 @@ fn main() {
     println!();
     println!();
     println!();
-    let mut a = ParentStruct::new(
-        ChildStruct::new(NestedChildEnum::A),
-        ChildEnum::D,
-        u2::new(0b00),
-    );
+    let mut a = ParentStruct::new(ChildStruct::new(NestedChildEnum::A), ChildEnum::D, u2::new(0b00));
     println!("{a:?}");
     println!("{:?}", a.field1());
     println!("{:?}", a.field2());

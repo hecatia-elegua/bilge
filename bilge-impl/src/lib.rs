@@ -3,16 +3,16 @@ use proc_macro_error::proc_macro_error;
 
 mod bitsize;
 mod bitsize_internal;
-mod try_from_bits;
-mod from_bits;
 mod debug_bits;
-mod fmt_bits;
 mod default_bits;
+mod fmt_bits;
+mod from_bits;
+mod try_from_bits;
 
 mod shared;
 
 /// Defines the bitsize of a struct or an enum.
-/// 
+///
 /// e.g. `#[bitsize(4)]` represents the item as a u4, which is UInt<u8, 4> underneath.
 /// The size of structs is currently limited to 128 bits.
 /// The size of enums is limited to 64 bits.
@@ -32,7 +32,7 @@ pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 /// Generate an `impl TryFrom<uN>` for unfilled bitfields.
-/// 
+///
 /// This should be used when your enum or enums nested in
 /// a struct don't fill their given `bitsize`.
 #[proc_macro_error]
@@ -42,7 +42,7 @@ pub fn derive_try_from_bits(item: TokenStream) -> TokenStream {
 }
 
 /// Generate an `impl From<uN>` for filled bitfields.
-/// 
+///
 /// This should be used when your enum or enums nested in
 /// a struct fill their given `bitsize` or if you're not
 /// using enums.
@@ -53,7 +53,7 @@ pub fn derive_from_bits(item: TokenStream) -> TokenStream {
 }
 
 /// Generate an `impl core::fmt::Debug` for bitfield structs.
-/// 
+///
 /// Please use normal #[derive(Debug)] for enums.
 #[proc_macro_error]
 #[proc_macro_derive(DebugBits, attributes(bitsize_internal))]

@@ -1,8 +1,9 @@
-use crate::shared::{self, unreachable, BitSize, fallback::Fallback};
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type};
+
+use crate::shared::{self, fallback::Fallback, unreachable, BitSize};
 
 pub(crate) fn default_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
@@ -57,7 +58,7 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
                 }
                 acc
             }}
-        },
+        }
         Path(path) => {
             let field_size = shared::generate_type_bitsize(ty);
             // u2::from(HaveFun::default()).value() as u32;
@@ -68,14 +69,16 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
                 offset += #field_size;
                 shifted
             }}
-        },
+        }
         Tuple(tuple) => {
-            tuple.elems.iter()
+            tuple
+                .elems
+                .iter()
                 .map(generate_default_inner)
                 .reduce(|acc, next| quote!(#acc | #next))
                 // `field: (),` will be handled like this:
                 .unwrap_or_else(|| quote!(0))
-        },
+        }
         _ => unreachable(()),
     }
 }
