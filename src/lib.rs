@@ -10,12 +10,10 @@ pub mod prelude {
     #[rustfmt::skip]
     #[doc(no_inline)]
     pub use super::{
-        bitsize, bitsize_internal,
-        Bitsized,
-        DebugBits, FromBits, TryFromBits, BinaryBits, DefaultBits,
+        bitsize, Bitsized,
+        FromBits, TryFromBits, DebugBits, BinaryBits, DefaultBits,
         // we control the version, so this should not be a problem
         arbitrary_int::*,
-        Filled, assume_filled
     };
 }
 
