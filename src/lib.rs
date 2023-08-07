@@ -1,6 +1,8 @@
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![no_std]
 
+use core::fmt;
+
 #[doc(no_inline)]
 pub use arbitrary_int;
 pub use bilge_impl::{bitsize, bitsize_internal, BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits};
@@ -37,6 +39,12 @@ pub const fn assume_filled<T: Filled>() {}
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
 pub struct BitsError;
+
+impl fmt::Display for BitsError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unable to parse bit pattern")
+    }
+}
 
 /// Internally used for generating the `Result::Err` type in `TryFrom`.
 ///
