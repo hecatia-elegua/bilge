@@ -48,6 +48,7 @@ struct InterruptSetEnables([bool; 32]);
 
 #[bitsize(32)]
 #[derive(FromBits, Debug, PartialEq)]
+#[repr(u32)]
 enum Subclass {
     Mouse,
     Keyboard,
@@ -83,6 +84,8 @@ fn main() {
     let num = u32::from(Subclass::from(42));
     assert_eq!(3, num);
     assert_ne!(42, num);
+
+    println!("{:?}", Subclass::from(42).to_ne_bytes());
 
     assert_eq!(Subclass2::Reserved(3), Subclass2::from(3));
     assert_eq!(Subclass2::Reserved(42), Subclass2::from(42));

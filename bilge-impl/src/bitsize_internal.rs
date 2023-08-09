@@ -231,5 +231,35 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
             const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
         }
+        impl #name {
+            pub fn to_ne_bytes(&self) -> [u8; (<Self as Bitsized>::BITS + 7) / 8] {
+                //this works on little endian, since zeroes are cut out (i.e. u40 has 3 bytes left until u64 but they are cut out)
+                // 0 0 0 [1 1 1 1 1]
+                //but not on big endian, since it still copies from the back
+                // 1 1 1 [1 1 0 0 0]
+                // unsafe { core::mem::transmute_copy::<Self, [u8; (<Self as Bitsized>::BITS + 7) / 8]>(self) }
+
+                //this doesn't work for non-repr enums
+                // let mut full = unsafe { core::mem::transmute_copy::<Self, [u8; core::mem::size_of::<Self>()]>(self) };
+
+                //this doesn't work for non-repr enums either, since `Self > Dst` is still getting size checked in `transmute_copy`
+                //and `Self` is 1 byte even if bitsize(32)
+                // let mut full = unsafe {
+                //     core::mem::transmute_copy::<Self, [u8; (<<Self as Bitsized>::ArbitraryInt as Number>::UnderlyingType::BITS as usize) / 8]>(self)
+                // };
+
+                //so, let's use the first one since it's readable:
+                // u40, as 8 bytes
+                let mut full = unsafe { core::mem::transmute_copy::<Self, [u8; core::mem::size_of::<Self>()]>(self) };
+
+                // u40, as 5 bytes
+                #[cfg(target_endian = "big")]
+                {
+                    let size_difference = core::mem::size_of::<Self>() - ((<Self as Bitsized>::BITS + 7) / 8);
+                    full.rotate_left(size_difference);
+                }
+                full[0..((<Self as Bitsized>::BITS + 7) / 8)].try_into().unwrap()
+            }
+        }
     }
 }
