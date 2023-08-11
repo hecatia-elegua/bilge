@@ -233,32 +233,26 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
         }
         impl #name {
             pub fn to_ne_bytes(&self) -> [u8; (<Self as Bitsized>::BITS + 7) / 8] {
-                //this works on little endian, since zeroes are cut out (i.e. u40 has 3 bytes left until u64 but they are cut out)
-                // 0 0 0 [1 1 1 1 1]
-                //but not on big endian, since it still copies from the back
-                // 1 1 1 [1 1 0 0 0]
-                // unsafe { core::mem::transmute_copy::<Self, [u8; (<Self as Bitsized>::BITS + 7) / 8]>(self) }
+                // u40 = u64 = 8 bytes
+                const ARB_INT_BYTES: usize = core::mem::size_of::<#name>();
+                // u40 = (40 + 7) / 8 = 5 bytes
+                const MIN_BYTES: usize = (<#name as Bitsized>::BITS + 7) / 8;
 
-                //this doesn't work for non-repr enums
-                // let mut full = unsafe { core::mem::transmute_copy::<Self, [u8; core::mem::size_of::<Self>()]>(self) };
-
-                //this doesn't work for non-repr enums either, since `Self > Dst` is still getting size checked in `transmute_copy`
-                //and `Self` is 1 byte even if bitsize(32)
-                // let mut full = unsafe {
-                //     core::mem::transmute_copy::<Self, [u8; (<<Self as Bitsized>::ArbitraryInt as Number>::UnderlyingType::BITS as usize) / 8]>(self)
-                // };
-
-                //so, let's use the first one since it's readable:
                 // u40, as 8 bytes
-                let mut full = unsafe { core::mem::transmute_copy::<Self, [u8; core::mem::size_of::<Self>()]>(self) };
-
+                let mut full = unsafe { core::mem::transmute_copy::<Self, [u8; ARB_INT_BYTES]>(self) };
                 // u40, as 5 bytes
                 #[cfg(target_endian = "big")]
                 {
-                    let size_difference = core::mem::size_of::<Self>() - ((<Self as Bitsized>::BITS + 7) / 8);
-                    full.rotate_left(size_difference);
+                    // = 3
+                    let size_difference = ARB_INT_BYTES - MIN_BYTES;
+                    // 0 0 0 [1 1 1 1 1]
+                    return full[size_difference..].try_into().unwrap()
                 }
-                full[0..((<Self as Bitsized>::BITS + 7) / 8)].try_into().unwrap()
+                #[cfg(target_endian = "little")]
+                {
+                    // [1 1 1 1 1] 0 0 0
+                    return full[..MIN_BYTES].try_into().unwrap();
+                }
             }
         }
     }
