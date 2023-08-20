@@ -468,3 +468,35 @@ fn default_bits() {
     let default = ArrayTupleDefault::default();
     assert_eq!(default, ArrayTupleDefault::from(u34::new(0b1000_1000_1000_10_10_1000_01000_1000_01000)));
 }
+
+// TODO: automatic implementation on generic struct fails
+// #[bitsize(2)]
+// #[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
+#[derive(Default, Debug)]
+struct Generic<T>(u2, std::marker::PhantomData<T>);
+
+impl<T> Bitsized for Generic<T> {
+    type ArbitraryInt = u2;
+    const BITS: usize = u2::BITS;
+    const MAX: Self::ArbitraryInt = <u2 as Bitsized>::MAX;
+}
+
+impl<T> From<u2> for Generic<T> {
+    fn from(val: u2) -> Self {
+        Self(val, std::marker::PhantomData)
+    }
+}
+
+impl<T> From<Generic<T>> for u2 {
+    fn from(val: Generic<T>) -> u2 {
+        val.0
+    }
+}
+
+#[bitsize(2)]
+#[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
+struct UsingGeneric(Generic<()>);
+
+#[bitsize(2)]
+#[derive(DefaultBits, PartialEq, DebugBits, TryFromBits)]
+struct UsingGenericUnfilled(Generic<()>);

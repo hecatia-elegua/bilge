@@ -165,7 +165,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 // generate the real value from the arbint `elem_value`
                 quote! {
                     #elem_value
-                    match #ty::try_from(elem_value) {
+                    match <#ty>::try_from(elem_value) {
                         Ok(v) => v,
                         Err(_) => panic!("unreachable"),
                     }
@@ -186,7 +186,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                         #elem_value
                         // so, has try_from impl
                         // note this is available even if the type is `From`
-                        #ty::try_from(elem_value).is_ok()
+                        <#ty>::try_from(elem_value).is_ok()
                     } }
                 }
             }
