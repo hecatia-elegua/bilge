@@ -469,7 +469,29 @@ fn default_bits() {
     assert_eq!(default, ArrayTupleDefault::from(u34::new(0b1000_1000_1000_10_10_1000_01000_1000_01000)));
 }
 
-// TODO: automatic implementation on generic struct fails
+// quick 'n dirty -- consider something more robust if more manual implementations are needed
+#[cfg(not(feature = "nightly"))]
+macro_rules! impl_from (
+    ($($generic:ident),*; $from_ty:ty => $to_ty:ty; |$name:ident| $expr:expr) => {
+        impl<$($generic),*> From<$from_ty> for $to_ty {
+            fn from($name: $from_ty) -> $to_ty {
+                $expr
+            }
+        }
+    }
+);
+#[cfg(feature = "nightly")]
+macro_rules! impl_from (
+    ($($generic:ident),*; $from_ty:ty => $to_ty:ty; |$name:ident| $expr:expr) => {
+        impl<$($generic),*> const From<$from_ty> for $to_ty {
+            fn from($name: $from_ty) -> $to_ty {
+                $expr
+            }
+        }
+    }
+);
+
+// do we want to be able to derive automatically on structs where the user has specified phantomdata?
 // #[bitsize(2)]
 // #[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
 #[derive(Default, Debug)]
@@ -481,17 +503,8 @@ impl<T> Bitsized for Generic<T> {
     const MAX: Self::ArbitraryInt = <u2 as Bitsized>::MAX;
 }
 
-impl<T> From<u2> for Generic<T> {
-    fn from(val: u2) -> Self {
-        Self(val, std::marker::PhantomData)
-    }
-}
-
-impl<T> From<Generic<T>> for u2 {
-    fn from(val: Generic<T>) -> u2 {
-        val.0
-    }
-}
+impl_from!(T; u2 => Generic<T>; |val| Self(val, std::marker::PhantomData));
+impl_from!(T; Generic<T> => u2; |val| val.0);
 
 #[bitsize(2)]
 #[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
