@@ -29,7 +29,7 @@ fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields) -> TokenSt
                 let mut offset = 0;
                 let value = #default_value;
                 let value = <#struct_name as Bitsized>::ArbitraryInt::new(value);
-                Self { value }
+                Self { value, _phantom: ::core::marker::PhantomData }
             }
         }
     }

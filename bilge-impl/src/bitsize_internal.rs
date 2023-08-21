@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type};
+use syn::{Attribute, Field, Generics, Item, ItemEnum, ItemStruct, Type};
 
 use crate::shared::{self, unreachable};
 
@@ -12,6 +12,7 @@ struct ItemIr<'a> {
     name: &'a Ident,
     /// generated item (and setters, getters, constructor, impl Bitsized)
     expanded: TokenStream,
+    generics: &'a Generics,
 }
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
@@ -21,13 +22,25 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStr
             let expanded = generate_struct(item, &arb_int);
             let attrs = &item.attrs;
             let name = &item.ident;
-            ItemIr { attrs, name, expanded }
+            let generics = &item.generics;
+            ItemIr {
+                attrs,
+                name,
+                expanded,
+                generics,
+            }
         }
         Item::Enum(ref item) => {
             let expanded = generate_enum(item);
             let attrs = &item.attrs;
             let name = &item.ident;
-            ItemIr { attrs, name, expanded }
+            let generics = &item.generics;
+            ItemIr {
+                attrs,
+                name,
+                expanded,
+                generics,
+            }
         }
         _ => unreachable(()),
     };
@@ -41,7 +54,19 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
 }
 
 fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
-    let ItemStruct { vis, ident, fields, .. } = struct_data;
+    let ItemStruct {
+        vis,
+        ident,
+        fields,
+        generics,
+        ..
+    } = struct_data;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let phantom_ty = generics.type_params().map(|e| &e.ident).map(|ident| quote!(#ident));
+    let phantom_lt = generics.lifetimes().map(|l| &l.lifetime).map(|lifetime| quote!(& #lifetime ()));
+    // TODO: integrate user-provided PhantomData somehow? (so that the user can set the variance)
+    let phantom = phantom_ty.chain(phantom_lt);
 
     let mut fieldless_next_int = 0;
     let mut previous_field_sizes = vec![];
@@ -67,11 +92,12 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     quote! {
-        #vis struct #ident {
+        #vis struct #ident #generics {
             /// WARNING: modifying this value directly can break invariants
             value: #arb_int,
+            _phantom: ::core::marker::PhantomData<(#(#phantom),*)>
         }
-        impl #ident {
+        impl #impl_generics #ident #ty_generics #where_clause {
             // #[inline]
             #[allow(clippy::too_many_arguments, clippy::type_complexity, unused_parens)]
             pub #const_ fn new(#( #constructor_args )*) -> Self {
@@ -81,7 +107,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
                 let mut offset = 0;
                 let raw_value = #( #constructor_parts )|*;
                 let value = #arb_int::new(raw_value);
-                Self { value }
+                Self { value, _phantom: ::core::marker::PhantomData }
             }
             #( #accessors )*
         }
@@ -221,12 +247,19 @@ fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
 /// We have _one_ `generate_common` function, which holds everything struct and enum have _in common_.
 /// Everything else has its own `generate_` functions.
 fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
-    let ItemIr { attrs, name, expanded } = ir;
+    let ItemIr {
+        attrs,
+        name,
+        expanded,
+        generics,
+    } = ir;
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
         #(#attrs)*
         #expanded
-        impl ::bilge::Bitsized for #name {
+        impl #impl_generics ::bilge::Bitsized for #name #ty_generics #where_clause {
             type ArbitraryInt = #arb_int;
             const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;

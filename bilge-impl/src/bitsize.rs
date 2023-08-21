@@ -121,7 +121,13 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
 }
 
 fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
-    let ItemStruct { vis, ident, fields, .. } = item;
+    let ItemStruct {
+        vis,
+        ident,
+        fields,
+        generics,
+        ..
+    } = item;
     let declared_bitsize = declared_bitsize as usize;
 
     let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
@@ -144,7 +150,7 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     };
 
     quote! {
-        #vis struct #ident #fields_def
+        #vis struct #ident #generics #fields_def
 
         // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
         const _: () = assert!(

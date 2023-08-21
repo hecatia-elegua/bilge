@@ -119,7 +119,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
                 let is_ok: bool = {#is_ok};
 
                 if is_ok {
-                    Ok(Self { value })
+                    Ok(Self { value, _phantom: ::core::marker::PhantomData })
                 } else {
                     Err(::bilge::give_me_error())
                 }

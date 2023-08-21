@@ -510,6 +510,12 @@ impl_from!(T; Generic<T> => u2; |val| val.0);
 #[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
 struct UsingGeneric(Generic<()>);
 
+// TODO: bitsize doesn't work here yet because of the size check: it's trying to get the size of Generic<T> in a non-generic context
+// #[bitsize(2)]
+// FromBits, DefaultBits, and DebugBits don't work yet because they need the generics threaded through to the correct spot.
+// #[derive(PartialEq)] // TODO: FromBits, DefaultBits, DebugBits
+// struct IsGeneric<T>(Generic<T>);
+
 #[bitsize(2)]
 #[derive(DefaultBits, PartialEq, DebugBits, TryFromBits)]
 struct UsingGenericUnfilled(Generic<()>);

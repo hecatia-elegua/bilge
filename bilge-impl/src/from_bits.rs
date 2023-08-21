@@ -156,7 +156,7 @@ fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -
         impl #const_ ::core::convert::From<#arb_int> for #struct_type {
             fn from(value: #arb_int) -> Self {
                 #( #assumes )*
-                Self { value }
+                Self { value, _phantom: ::core::marker::PhantomData }
             }
         }
         impl #const_ ::core::convert::From<#struct_type> for #arb_int {
