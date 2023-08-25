@@ -3,13 +3,13 @@
 // you can use the "Expand glob import" command on
 // use bilge::prelude::*;
 // but still need to add Bitsized, Number yourself
-use bilge::prelude::{bitsize, u1, u18, u2, u39, Bitsized, DebugBits, DefaultBits, FromBits, Number, TryFromBits};
+use bilge::prelude::{bitsize, u1, u18, u2, u39, BinaryBits, Bitsized, DebugBits, DefaultBits, FromBits, Number, TryFromBits};
 
 // This file basically just informs you that yes, combinations of different nestings work.
 // also see `tests/struct.rs`
 
 #[bitsize(39)]
-#[derive(FromBits, DebugBits, PartialEq)]
+#[derive(FromBits, DebugBits, PartialEq, BinaryBits)]
 struct Mess {
     field1: (u1, (u2, u8), u1),
     array: [[InnerTupleStruct; 2]; 2],
@@ -123,4 +123,23 @@ fn main() {
 
     let default = UnfilledEnumMess::default();
     println!("{default:?}");
+
+    println!("{:b}", mess);
+    println!("{:?}", mess.to_ne_bytes());
+    println!(
+        "{:?} == {:?} == {:?}",
+        core::mem::size_of::<Mess>(),
+        core::mem::size_of::<[u8; (<Mess as Bitsized>::BITS + 7) / 8]>(),
+        core::mem::size_of::<[u8; (<<Mess as Bitsized>::ArbitraryInt as Number>::UnderlyingType::BITS as usize + 7) / 8]>()
+    );
+    // 1u8.to_ne_bytes() -> unsafe { mem::transmute(self) }
+    const SIZE: usize = core::mem::size_of::<Mess>();
+    let mut full = unsafe { core::mem::transmute_copy::<Mess, [u8; SIZE]>(&mess) };
+    println!("{:?}", full);
+    full.rotate_left(3);
+    println!("{:?}", full);
+    let part: [u8; (<Mess as Bitsized>::BITS + 7) / 8] = full[0..((<Mess as Bitsized>::BITS + 7) / 8)].try_into().unwrap();
+    println!("{:?}", part);
+
+    println!("{:?}", default.to_ne_bytes());
 }
