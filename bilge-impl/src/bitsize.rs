@@ -149,17 +149,21 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
         }
     };
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     quote! {
         #vis struct #ident #generics #fields_def
 
-        // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
-        const _: () = assert!(
-            (#computed_bitsize) == (#declared_bitsize),
-            concat!("struct size and declared bit size differ: ",
-            // stringify!(#computed_bitsize),
-            " != ",
-            stringify!(#declared_bitsize))
-        );
+        impl #impl_generics #ident #ty_generics #where_clause {
+            // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
+            const _bitsize_check: () = assert!(
+                (#computed_bitsize) == (#declared_bitsize),
+                concat!("struct size and declared bit size differ: ",
+                // stringify!(#computed_bitsize),
+                " != ",
+                stringify!(#declared_bitsize))
+            );
+        }
     }
 }
 
