@@ -1,6 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::{abort, emit_call_site_warning};
 use quote::quote;
+use syn::Generics;
 use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
 
 use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
@@ -8,9 +9,9 @@ use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
 pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
-    let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input);
+    let (derive_data, arb_int, name, generics, internal_bitsize, ..) = analyze(&derive_input);
     match derive_data {
-        Data::Struct(ref data) => codegen_struct(arb_int, name, &data.fields),
+        Data::Struct(ref data) => codegen_struct(arb_int, name, &data.fields, generics),
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int);
@@ -24,7 +25,7 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, &Generics, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, true)
 }
 
@@ -81,7 +82,7 @@ fn generate_field_check(ty: &Type) -> TokenStream {
     crate::bitsize_internal::struct_gen::generate_getter_inner(ty, false)
 }
 
-fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
+fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, generics: &Generics) -> TokenStream {
     let is_ok: TokenStream = fields
         .iter()
         .map(|field| {
@@ -104,8 +105,10 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     quote! {
-        impl #const_ ::core::convert::TryFrom<#arb_int> for #struct_type {
+        impl #impl_generics #const_ ::core::convert::TryFrom<#arb_int> for #struct_type #ty_generics #where_clause {
             type Error = ::bilge::BitsError;
 
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
@@ -126,8 +129,8 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
             }
         }
 
-        impl #const_ ::core::convert::From<#struct_type> for #arb_int {
-            fn from(struct_value: #struct_type) -> Self {
+        impl #impl_generics #const_ ::core::convert::From<#struct_type #ty_generics> for #arb_int #where_clause {
+            fn from(struct_value: #struct_type #ty_generics) -> Self {
                 struct_value.value
             }
         }

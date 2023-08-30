@@ -6,7 +6,7 @@ use fallback::{fallback_variant, Fallback};
 use proc_macro2::{Ident, Literal, TokenStream};
 use proc_macro_error::{abort, abort_call_site};
 use quote::quote;
-use syn::{Attribute, DeriveInput, LitInt, Meta, Type};
+use syn::{Attribute, DeriveInput, Generics, LitInt, Meta, Type};
 use util::PathExt;
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -23,11 +23,11 @@ pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
 
 // allow since we want `if try_from` blocks to stand out
 #[allow(clippy::collapsible_if)]
-pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, &Generics, BitSize, Option<Fallback>) {
     let DeriveInput {
         attrs,
         ident,
-        // generics,
+        generics,
         data,
         ..
     } = derive_input;
@@ -57,7 +57,7 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
         abort_call_site!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
     }
 
-    (data, arb_int, ident, bitsize, fallback)
+    (data, arb_int, ident, generics, bitsize, fallback)
 }
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.

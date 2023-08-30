@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{Data, Fields};
+use syn::{Data, Fields, WhereClause, WherePredicate};
 
 use crate::shared::{self, unreachable};
 
@@ -17,7 +17,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
     };
 
     let fmt_impl = match struct_data.fields {
-        Fields::Named(fields) => {
+        Fields::Named(ref fields) => {
             let calls = fields.named.iter().map(|f| {
                 // We can unwrap since this is a named field
                 let call = f.ident.as_ref().unwrap();
@@ -30,7 +30,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
                 #(#calls)*.finish()
             }
         }
-        Fields::Unnamed(fields) => {
+        Fields::Unnamed(ref fields) => {
             let calls = fields.unnamed.iter().map(|_| {
                 let call: Ident = syn::parse_str(&format!("val_{}", fieldless_next_int)).unwrap_or_else(unreachable);
                 fieldless_next_int += 1;
@@ -45,8 +45,22 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
+    let (impl_generics, ty_generics, where_clause) = derive_input.generics.split_for_impl();
+    let mut where_clause = where_clause.map(<_>::clone).unwrap_or_else(|| WhereClause {
+        where_token: <_>::default(),
+        predicates: <_>::default(),
+    });
+
+    // NOTE: This is a little overkill, as it adds where clauses for concrete types as well
+    // but this is easier than trying to figure out exactly what types we need to add clauses for.
+    where_clause.predicates.extend(struct_data.fields.iter().map(|e| {
+        let ty = &e.ty;
+        let res: WherePredicate = syn::parse_quote!(#ty : ::core::fmt::Debug);
+        res
+    }));
+
     quote! {
-        impl ::core::fmt::Debug for #name {
+        impl #impl_generics ::core::fmt::Debug for #name #ty_generics #where_clause {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 #fmt_impl
             }

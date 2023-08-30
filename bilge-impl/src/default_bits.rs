@@ -1,34 +1,48 @@
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{Data, DeriveInput, Fields, Type};
+use syn::{Data, DeriveInput, Fields, Generics, Type, WhereClause, WherePredicate};
 
 use crate::shared::{self, fallback::Fallback, unreachable, BitSize};
 
 pub(crate) fn default_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
     //TODO: does fallback need handling?
-    let (derive_data, _, name, ..) = analyze(&derive_input);
+    let (derive_data, _, name, generics, ..) = analyze(&derive_input);
 
     match derive_data {
-        Data::Struct(data) => generate_struct_default_impl(name, &data.fields),
+        Data::Struct(data) => generate_struct_default_impl(name, &data.fields, generics),
         Data::Enum(_) => abort_call_site!("use derive(Default) for enums"),
         _ => unreachable(()),
     }
 }
 
-fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields) -> TokenStream {
+fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields, generics: &Generics) -> TokenStream {
     let default_value = fields
         .iter()
         .map(|field| generate_default_inner(&field.ty))
         .reduce(|acc, next| quote!(#acc | #next));
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+    let mut where_clause = where_clause.map(<_>::clone).unwrap_or_else(|| WhereClause {
+        where_token: <_>::default(),
+        predicates: <_>::default(),
+    });
+
+    // NOTE: This is a little overkill, as it adds where clauses for concrete types as well
+    // but this is easier than trying to figure out exactly what types we need to add clauses for.
+    where_clause.predicates.extend(fields.iter().map(|e| {
+        let ty = &e.ty;
+        let res: WherePredicate = syn::parse_quote!(#ty : ::core::default::Default);
+        res
+    }));
+
     quote! {
-        impl ::core::default::Default for #struct_name {
+        impl #impl_generics ::core::default::Default for #struct_name #ty_generics #where_clause {
             fn default() -> Self {
                 let mut offset = 0;
                 let value = #default_value;
-                let value = <#struct_name as Bitsized>::ArbitraryInt::new(value);
+                let value = <#struct_name #ty_generics as Bitsized>::ArbitraryInt::new(value);
                 Self { value, _phantom: ::core::marker::PhantomData }
             }
         }
@@ -87,6 +101,6 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, &Generics, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, false)
 }
