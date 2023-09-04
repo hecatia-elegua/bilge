@@ -29,11 +29,11 @@ fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields, generics: 
         predicates: <_>::default(),
     });
 
-    // NOTE: This is a little overkill, as it adds where clauses for concrete types as well
-    // but this is easier than trying to figure out exactly what types we need to add clauses for.
-    where_clause.predicates.extend(fields.iter().map(|e| {
-        let ty = &e.ty;
-        let res: WherePredicate = syn::parse_quote!(#ty : ::core::default::Default);
+    // NOTE: This is not *ideal*, but it's approximately what the standard library does,
+    //  for various reasons. see https://github.com/rust-lang/rust/issues/26925
+    where_clause.predicates.extend(generics.type_params().map(|t| {
+        let ty = &t.ident;
+        let res: WherePredicate = syn::parse_quote!(#ty : ::core::fmt::Debug);
         res
     }));
 

@@ -51,10 +51,10 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
         predicates: <_>::default(),
     });
 
-    // NOTE: This is a little overkill, as it adds where clauses for concrete types as well
-    // but this is easier than trying to figure out exactly what types we need to add clauses for.
-    where_clause.predicates.extend(struct_data.fields.iter().map(|e| {
-        let ty = &e.ty;
+    // NOTE: This is not *ideal*, but it's approximately what the standard library does,
+    //  for various reasons. see https://github.com/rust-lang/rust/issues/26925
+    where_clause.predicates.extend(derive_input.generics.type_params().map(|t| {
+        let ty = &t.ident;
         let res: WherePredicate = syn::parse_quote!(#ty : ::core::fmt::Debug);
         res
     }));
