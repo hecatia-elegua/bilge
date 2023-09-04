@@ -33,7 +33,7 @@ fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields, generics: 
     //  for various reasons. see https://github.com/rust-lang/rust/issues/26925
     where_clause.predicates.extend(generics.type_params().map(|t| {
         let ty = &t.ident;
-        let res: WherePredicate = syn::parse_quote!(#ty : ::core::fmt::Debug);
+        let res: WherePredicate = syn::parse_quote!(#ty : ::core::default::Default);
         res
     }));
 
