@@ -121,13 +121,7 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
 }
 
 fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
-    let ItemStruct {
-        vis,
-        ident,
-        fields,
-        generics,
-        ..
-    } = item;
+    let ItemStruct { ident, fields, generics, .. } = item;
     let declared_bitsize = declared_bitsize as usize;
 
     let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
@@ -135,24 +129,14 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
         quote!(#acc + #field_size)
     });
 
-    // we could remove this if the whole struct gets passed
-    let is_tuple_struct = fields.iter().any(|field| field.ident.is_none());
-    let fields_def = if is_tuple_struct {
-        let fields = fields.iter();
-        quote! {
-            ( #(#fields,)* );
-        }
-    } else {
-        let fields = fields.iter();
-        quote! {
-            { #(#fields,)* }
-        }
-    };
+    // The only part of the struct we don't want to pass through are the attributes
+    let mut item = item.clone();
+    item.attrs = Vec::new();
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
-        #vis struct #ident #generics #fields_def
+        #item
 
         impl #impl_generics #ident #ty_generics #where_clause {
             // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize

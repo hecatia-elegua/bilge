@@ -92,7 +92,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     quote! {
-        #vis struct #ident #generics {
+        #vis struct #ident #generics #where_clause {
             /// WARNING: modifying this value directly can break invariants
             value: #arb_int,
             _phantom: ::core::marker::PhantomData<(#(#phantom),*)>
