@@ -63,11 +63,6 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     } = struct_data;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let phantom_ty = generics.type_params().map(|e| &e.ident).map(|ident| quote!(#ident));
-    let phantom_lt = generics.lifetimes().map(|l| &l.lifetime).map(|lifetime| quote!(& #lifetime ()));
-    // TODO: integrate user-provided PhantomData somehow? (so that the user can set the variance)
-    let phantom = phantom_ty.chain(phantom_lt);
-
     let mut fieldless_next_int = 0;
     let mut previous_field_sizes = vec![];
     let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields
@@ -91,11 +86,13 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
+    let phantom_type = generate_phantom_type(generics);
+
     quote! {
         #vis struct #ident #generics #where_clause {
             /// WARNING: modifying this value directly can break invariants
             value: #arb_int,
-            _phantom: ::core::marker::PhantomData<(#(#phantom),*)>
+            _phantom: ::core::marker::PhantomData<#phantom_type>
         }
         impl #impl_generics #ident #ty_generics #where_clause {
             // #[inline]
@@ -111,6 +108,21 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
             }
             #( #accessors )*
         }
+    }
+}
+
+/// Returns a tuple with the following types, in order:
+///  - The original struct's type parameters
+///  - References to `()` bound by the original struct's lifetime parameters
+/// If there are 0 generics, the type will simply be `()`.
+/// If there is a single generic type or lifetime, the type will not wrapped in a tuple.
+fn generate_phantom_type(generics: &Generics) -> TokenStream {
+    let phantom_ty = generics.type_params().map(|e| &e.ident).map(|ident| quote!(#ident));
+    let phantom_lt = generics.lifetimes().map(|l| &l.lifetime).map(|lifetime| quote!(& #lifetime ()));
+    // TODO: integrate user-provided PhantomData somehow? (so that the user can set the variance)
+    let phantom = phantom_ty.chain(phantom_lt);
+    quote! {
+        (#(#phantom),*)
     }
 }
 
