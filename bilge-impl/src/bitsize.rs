@@ -129,9 +129,10 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
         quote!(#acc + #field_size)
     });
 
-    // The only part of the struct we don't want to pass through are the attributes
-    let mut item = item.clone();
-    item.attrs = Vec::new();
+    let item = ItemStruct {
+        attrs: Vec::new(),
+        ..item.clone()
+    };
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
