@@ -219,7 +219,7 @@ pub(crate) fn generate_trait_where_clause<'a>(
     };
 
     Some(Cow::Owned(WhereClause {
-        where_token: existing_clause.map(|c| c.where_token).unwrap_or(<_>::default()),
+        where_token: existing_clause.map(|c| c.where_token).unwrap_or_default(),
         predicates,
     }))
 }
