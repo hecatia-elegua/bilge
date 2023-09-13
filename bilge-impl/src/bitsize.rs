@@ -120,43 +120,14 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
     }
 }
 
-fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
-    let ItemStruct { ident, fields, generics, .. } = item;
-    let declared_bitsize = declared_bitsize as usize;
-
-    let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
-        let field_size = shared::generate_type_bitsize(&next.ty);
-        quote!(#acc + #field_size)
-    });
-
+fn generate_struct(item: &ItemStruct, _declared_bitsize: u8) -> TokenStream {
     let item = ItemStruct {
         attrs: Vec::new(),
         ..item.clone()
     };
 
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
     quote! {
         #item
-
-        const _: () = {
-            // TODO: This is useless without methods that reference it, and this is un-namable outside of this block.
-            //  Move or add some method implementations inside this block?
-            trait Assertion {
-                const SIZE_CHECK: ();
-            }
-
-            impl #impl_generics Assertion for #ident #ty_generics #where_clause {
-                // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
-                const SIZE_CHECK: () = assert!(
-                    (#computed_bitsize) == (#declared_bitsize),
-                    concat!("struct size and declared bit size differ: ",
-                    // stringify!(#computed_bitsize),
-                    " != ",
-                    stringify!(#declared_bitsize))
-                );
-            }
-        };
     }
 }
 
