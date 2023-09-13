@@ -139,16 +139,24 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     quote! {
         #item
 
-        impl #impl_generics #ident #ty_generics #where_clause {
-            // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
-            const _BITSIZE_CHECK: () = assert!(
-                (#computed_bitsize) == (#declared_bitsize),
-                concat!("struct size and declared bit size differ: ",
-                // stringify!(#computed_bitsize),
-                " != ",
-                stringify!(#declared_bitsize))
-            );
-        }
+        const _: () = {
+            // TODO: This is useless without methods that reference it, and this is un-namable outside of this block.
+            //  Move or add some method implementations inside this block?
+            trait Assertion {
+                const SIZE_CHECK: ();
+            }
+
+            impl #impl_generics Assertion for #ident #ty_generics #where_clause {
+                // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
+                const SIZE_CHECK: () = assert!(
+                    (#computed_bitsize) == (#declared_bitsize),
+                    concat!("struct size and declared bit size differ: ",
+                    // stringify!(#computed_bitsize),
+                    " != ",
+                    stringify!(#declared_bitsize))
+                );
+            }
+        };
     }
 }
 
