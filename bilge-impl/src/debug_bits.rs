@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{Data, Fields, WhereClause, WherePredicate};
+use syn::{Data, Fields};
 
 use crate::shared::{self, unreachable};
 
@@ -46,18 +46,8 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
     };
 
     let (impl_generics, ty_generics, where_clause) = derive_input.generics.split_for_impl();
-    let mut where_clause = where_clause.map(<_>::clone).unwrap_or_else(|| WhereClause {
-        where_token: <_>::default(),
-        predicates: <_>::default(),
-    });
 
-    // NOTE: This is not *ideal*, but it's approximately what the standard library does,
-    //  for various reasons. see https://github.com/rust-lang/rust/issues/26925
-    where_clause.predicates.extend(derive_input.generics.type_params().map(|t| {
-        let ty = &t.ident;
-        let res: WherePredicate = syn::parse_quote!(#ty : ::core::fmt::Debug);
-        res
-    }));
+    let where_clause = shared::generate_trait_where_clause(&derive_input.generics, where_clause, quote!(::core::fmt::Debug));
 
     quote! {
         impl #impl_generics ::core::fmt::Debug for #name #ty_generics #where_clause {

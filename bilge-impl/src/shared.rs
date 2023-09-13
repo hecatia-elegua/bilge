@@ -2,11 +2,13 @@ pub mod discriminant_assigner;
 pub mod fallback;
 pub mod util;
 
+use std::borrow::Cow;
+
 use fallback::{fallback_variant, Fallback};
 use proc_macro2::{Ident, Literal, TokenStream};
 use proc_macro_error::{abort, abort_call_site};
 use quote::quote;
-use syn::{Attribute, DeriveInput, Generics, LitInt, Meta, Type};
+use syn::{Attribute, DeriveInput, Generics, LitInt, Meta, Type, WhereClause, WherePredicate};
 use util::PathExt;
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -193,4 +195,31 @@ pub(crate) fn bitsize_internal_arg(attr: &Attribute) -> Option<TokenStream> {
     }
 
     None
+}
+
+pub(crate) fn generate_trait_where_clause<'a>(
+    generics: &Generics, existing_clause: Option<&'a WhereClause>, req_trait: TokenStream,
+) -> Option<Cow<'a, WhereClause>> {
+    // NOTE: This is not *ideal*, but it's approximately what the standard library does,
+    // for various reasons. see https://github.com/rust-lang/rust/issues/26925
+    let mut extra_predicates = generics
+        .type_params()
+        .map(|t| {
+            let ty = &t.ident;
+            let res: WherePredicate = syn::parse_quote!(#ty : #req_trait);
+            res
+        })
+        .peekable();
+
+    let predicates = match (existing_clause, extra_predicates.peek()) {
+        (Some(clause), Some(_)) => clause.predicates.iter().cloned().chain(extra_predicates).collect(),
+        (Some(clause), None) => return Some(Cow::Borrowed(clause)),
+        (None, Some(_)) => extra_predicates.collect(),
+        (None, None) => return None,
+    };
+
+    Some(Cow::Owned(WhereClause {
+        where_token: existing_clause.map(|c| c.where_token).unwrap_or(<_>::default()),
+        predicates,
+    }))
 }

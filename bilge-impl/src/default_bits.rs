@@ -1,7 +1,7 @@
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{Data, DeriveInput, Fields, Generics, Type, WhereClause, WherePredicate};
+use syn::{Data, DeriveInput, Fields, Generics, Type};
 
 use crate::shared::{self, fallback::Fallback, unreachable, BitSize};
 
@@ -24,18 +24,8 @@ fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields, generics: 
         .reduce(|acc, next| quote!(#acc | #next));
 
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let mut where_clause = where_clause.map(<_>::clone).unwrap_or_else(|| WhereClause {
-        where_token: <_>::default(),
-        predicates: <_>::default(),
-    });
 
-    // NOTE: This is not *ideal*, but it's approximately what the standard library does,
-    //  for various reasons. see https://github.com/rust-lang/rust/issues/26925
-    where_clause.predicates.extend(generics.type_params().map(|t| {
-        let ty = &t.ident;
-        let res: WherePredicate = syn::parse_quote!(#ty : ::core::default::Default);
-        res
-    }));
+    let where_clause = shared::generate_trait_where_clause(generics, where_clause, quote!(::core::default::Default));
 
     quote! {
         impl #impl_generics ::core::default::Default for #struct_name #ty_generics #where_clause {
