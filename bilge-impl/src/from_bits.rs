@@ -157,12 +157,14 @@ fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, g
     quote! {
         impl #impl_generics #const_ ::core::convert::From<#arb_int> for #struct_type #ty_generics #where_clause {
             fn from(value: #arb_int) -> Self {
+                <Self as Bitsized>::BITS;
                 #( #assumes )*
                 Self { value, _phantom: ::core::marker::PhantomData }
             }
         }
         impl #impl_generics #const_ ::core::convert::From<#struct_type #ty_generics> for #arb_int #where_clause {
             fn from(value: #struct_type #ty_generics) -> Self {
+                <#struct_type #ty_generics as Bitsized>::BITS;
                 value.value
             }
         }

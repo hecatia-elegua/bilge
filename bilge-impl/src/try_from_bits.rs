@@ -65,6 +65,7 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
             type Error = ::bilge::BitsError;
 
             fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
+                <T as Bitsized>::BITS;
                 match number.value() {
                     #( #from_int_match_arms )*
                     i => Err(::bilge::give_me_error()),
@@ -116,6 +117,8 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, ge
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
                 type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
 
+                <Self as Bitsized>::BITS;
+
                 // cursor starts at value's first field
                 let mut cursor = value.value();
 
@@ -131,6 +134,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, ge
 
         impl #impl_generics #const_ ::core::convert::From<#struct_type #ty_generics> for #arb_int #where_clause {
             fn from(struct_value: #struct_type #ty_generics) -> Self {
+                <#struct_type #ty_generics as Bitsized>::BITS;
                 struct_value.value
             }
         }
