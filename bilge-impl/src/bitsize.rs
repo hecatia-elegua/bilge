@@ -120,40 +120,14 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
     }
 }
 
-fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
-    let ItemStruct { vis, ident, fields, .. } = item;
-    let declared_bitsize = declared_bitsize as usize;
-
-    let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
-        let field_size = shared::generate_type_bitsize(&next.ty);
-        quote!(#acc + #field_size)
-    });
-
-    // we could remove this if the whole struct gets passed
-    let is_tuple_struct = fields.iter().any(|field| field.ident.is_none());
-    let fields_def = if is_tuple_struct {
-        let fields = fields.iter();
-        quote! {
-            ( #(#fields,)* );
-        }
-    } else {
-        let fields = fields.iter();
-        quote! {
-            { #(#fields,)* }
-        }
+fn generate_struct(item: &ItemStruct, _declared_bitsize: u8) -> TokenStream {
+    let item = ItemStruct {
+        attrs: Vec::new(),
+        ..item.clone()
     };
 
     quote! {
-        #vis struct #ident #fields_def
-
-        // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
-        const _: () = assert!(
-            (#computed_bitsize) == (#declared_bitsize),
-            concat!("struct size and declared bit size differ: ",
-            // stringify!(#computed_bitsize),
-            " != ",
-            stringify!(#declared_bitsize))
-        );
+        #item
     }
 }
 

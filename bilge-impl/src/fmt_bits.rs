@@ -1,21 +1,21 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{punctuated::Iter, Data, DeriveInput, Fields, Variant};
+use syn::{punctuated::Iter, Data, DeriveInput, Fields, Generics, Variant};
 
 use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, unreachable, BitSize};
 
 pub(crate) fn binary(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
-    let (derive_data, arb_int, name, bitsize, fallback) = analyze(&derive_input);
+    let (derive_data, arb_int, name, generics, bitsize, fallback) = analyze(&derive_input);
 
     match derive_data {
-        Data::Struct(data) => generate_struct_binary_impl(name, &data.fields),
+        Data::Struct(data) => generate_struct_binary_impl(name, &data.fields, generics),
         Data::Enum(data) => generate_enum_binary_impl(name, data.variants.iter(), arb_int, bitsize, fallback),
         _ => unreachable(()),
     }
 }
 
-fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStream {
+fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields, generics: &Generics) -> TokenStream {
     let write_underscore = quote! { write!(f, "_")?; };
 
     // fields are printed from most significant to least significant, separated by an underscore
@@ -37,8 +37,10 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStr
         })
         .reduce(|acc, next| quote!(#acc #write_underscore #next));
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     quote! {
-        impl ::core::fmt::Binary for #struct_name {
+        impl #impl_generics ::core::fmt::Binary for #struct_name #ty_generics #where_clause {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 let struct_size = <#struct_name as Bitsized>::BITS;
                 let mut last_bit_pos = struct_size;
@@ -107,6 +109,6 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, &Generics, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, false)
 }

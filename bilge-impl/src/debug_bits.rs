@@ -17,7 +17,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
     };
 
     let fmt_impl = match struct_data.fields {
-        Fields::Named(fields) => {
+        Fields::Named(ref fields) => {
             let calls = fields.named.iter().map(|f| {
                 // We can unwrap since this is a named field
                 let call = f.ident.as_ref().unwrap();
@@ -30,7 +30,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
                 #(#calls)*.finish()
             }
         }
-        Fields::Unnamed(fields) => {
+        Fields::Unnamed(ref fields) => {
             let calls = fields.unnamed.iter().map(|_| {
                 let call: Ident = syn::parse_str(&format!("val_{}", fieldless_next_int)).unwrap_or_else(unreachable);
                 fieldless_next_int += 1;
@@ -45,8 +45,12 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
+    let (impl_generics, ty_generics, where_clause) = derive_input.generics.split_for_impl();
+
+    let where_clause = shared::generate_trait_where_clause(&derive_input.generics, where_clause, quote!(::core::fmt::Debug));
+
     quote! {
-        impl ::core::fmt::Debug for #name {
+        impl #impl_generics ::core::fmt::Debug for #name #ty_generics #where_clause {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 #fmt_impl
             }

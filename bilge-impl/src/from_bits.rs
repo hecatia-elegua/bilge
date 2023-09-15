@@ -2,15 +2,15 @@ use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::{abort, abort_call_site};
 use quote::quote;
-use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
+use syn::{punctuated::Iter, Data, DeriveInput, Fields, Generics, Type, Variant};
 
 use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
 
 pub(super) fn from_bits(item: TokenStream) -> TokenStream {
     let derive_input = parse(item);
-    let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input);
+    let (derive_data, arb_int, name, generics, internal_bitsize, fallback) = analyze(&derive_input);
     let expanded = match &derive_data {
-        Data::Struct(struct_data) => generate_struct(arb_int, name, &struct_data.fields),
+        Data::Struct(struct_data) => generate_struct(arb_int, name, &struct_data.fields, generics),
         Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int);
@@ -25,7 +25,7 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, &Generics, BitSize, Option<Fallback>) {
     shared::analyze_derive(derive_input, false)
 }
 
@@ -141,7 +141,7 @@ fn generate_filled_check_for(ty: &Type, vec: &mut Vec<TokenStream>) {
     }
 }
 
-fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
+fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, generics: &Generics) -> TokenStream {
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let mut assumes = Vec::new();
@@ -152,15 +152,19 @@ fn generate_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -
     // a single check per type is enough, so the checks can be deduped
     let assumes = assumes.into_iter().unique_by(TokenStream::to_string);
 
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     quote! {
-        impl #const_ ::core::convert::From<#arb_int> for #struct_type {
+        impl #impl_generics #const_ ::core::convert::From<#arb_int> for #struct_type #ty_generics #where_clause {
             fn from(value: #arb_int) -> Self {
+                <Self as Bitsized>::BITS;
                 #( #assumes )*
-                Self { value }
+                Self { value, _phantom: ::core::marker::PhantomData }
             }
         }
-        impl #const_ ::core::convert::From<#struct_type> for #arb_int {
-            fn from(value: #struct_type) -> Self {
+        impl #impl_generics #const_ ::core::convert::From<#struct_type #ty_generics> for #arb_int #where_clause {
+            fn from(value: #struct_type #ty_generics) -> Self {
+                <#struct_type #ty_generics as Bitsized>::BITS;
                 value.value
             }
         }

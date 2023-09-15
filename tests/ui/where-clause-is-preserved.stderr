@@ -1,0 +1,44 @@
+error[E0277]: `()` is not an iterator
+  --> tests/ui/where-clause-is-preserved.rs:34:22
+   |
+34 |     BoundedGeneric::<()> {
+   |                      ^^ `()` is not an iterator
+   |
+   = help: the trait `Iterator` is not implemented for `()`
+note: required by a bound in `BoundedGeneric`
+  --> tests/ui/where-clause-is-preserved.rs:30:8
+   |
+28 | struct BoundedGeneric<T>(Generic<T>, u3)
+   |        -------------- required by a bound in this
+29 | where
+30 |     T: Iterator<Item = ()>;
+   |        ^^^^^^^^^^^^^^^^^^^ required by this bound in `BoundedGeneric`
+
+error[E0599]: the function or associated item `new` exists for struct `BoundedGeneric<()>`, but its trait bounds were not satisfied
+  --> tests/ui/where-clause-is-preserved.rs:39:27
+   |
+27 | #[bitsize(5)]
+   | ------------- function or associated item `new` not found for this struct
+...
+39 |     BoundedGeneric::<()>::new(<_>::default(), u3::new(0));
+   |                           ^^^ function or associated item cannot be called on `BoundedGeneric<()>` due to unsatisfied trait bounds
+   |
+   = note: the following trait bounds were not satisfied:
+           `<() as Iterator>::Item = ()`
+           `(): Iterator`
+
+error[E0277]: `()` is not an iterator
+  --> tests/ui/where-clause-is-preserved.rs:39:5
+   |
+39 |     BoundedGeneric::<()>::new(<_>::default(), u3::new(0));
+   |     ^^^^^^^^^^^^^^^^^^^^ `()` is not an iterator
+   |
+   = help: the trait `Iterator` is not implemented for `()`
+note: required by a bound in `BoundedGeneric`
+  --> tests/ui/where-clause-is-preserved.rs:30:8
+   |
+28 | struct BoundedGeneric<T>(Generic<T>, u3)
+   |        -------------- required by a bound in this
+29 | where
+30 |     T: Iterator<Item = ()>;
+   |        ^^^^^^^^^^^^^^^^^^^ required by this bound in `BoundedGeneric`
