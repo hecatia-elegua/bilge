@@ -65,7 +65,7 @@ fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenS
             type Error = ::bilge::BitsError;
 
             fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
-                <T as Bitsized>::BITS;
+                <Self as Bitsized>::BITS;
                 match number.value() {
                     #( #from_int_match_arms )*
                     i => Err(::bilge::give_me_error()),
