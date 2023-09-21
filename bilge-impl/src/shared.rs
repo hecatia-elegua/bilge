@@ -5,8 +5,12 @@ pub mod util;
 use fallback::{fallback_variant, Fallback};
 use proc_macro2::{Ident, Literal, TokenStream};
 use proc_macro_error::{abort, abort_call_site};
-use quote::quote;
-use syn::{Attribute, DeriveInput, LitInt, Meta, Type};
+use quote::{format_ident, quote};
+use syn::{
+    parse::{ParseStream, Parser},
+    spanned::Spanned,
+    Attribute, DeriveInput, Error, LitInt, Meta, Result, Token, Type,
+};
 use util::PathExt;
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -50,7 +54,7 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
         .iter()
         .find_map(bitsize_internal_arg)
         .unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
-    let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args);
+    let (bitsize, arb_int, _) = bitsize_and_arbitrary_int_from(args);
 
     let fallback = fallback_variant(data, bitsize);
     if fallback.is_some() && try_from {
@@ -61,17 +65,39 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
 }
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.
-pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, TokenStream) {
-    let bitsize: LitInt = syn::parse2(bitsize_arg.clone())
-        .unwrap_or_else(|_| abort!(bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`"));
+pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, TokenStream, FieldLayout) {
+    let parser = |input: syn::parse::ParseStream| -> Result<(LitInt, Option<Ident>)> {
+        let bitsize: LitInt = input.parse()?;
+        let layout = if input.peek(Token![,]) {
+            let _: Token![,] = input.parse()?;
+            let layout: Ident = input.parse()?;
+            Some(layout)
+        } else {
+            None
+        };
+        Ok((bitsize, layout))
+    };
+
+    let (bitsize, layout) = parser
+        .parse2(bitsize_arg.clone())
+        .unwrap_or_else(|_| abort!(bitsize_arg, "invalid arguments"; help = "arguments format: (<bit size> [, auto | manual])"));
+
     // without postfix
     let bitsize = bitsize
         .base10_parse()
         .ok()
         .filter(|&n| n != 0 && n <= MAX_STRUCT_BIT_SIZE)
-        .unwrap_or_else(|| abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE));
+        .unwrap_or_else(
+            || abort!(bitsize_arg, "bit size argument is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE),
+        );
+
+    let layout = match layout {
+        Some(layout) => FieldLayout::parse(layout)
+            .unwrap_or_else(|_| abort!(bitsize_arg, "invalid layout (optional) argument"; help = "two options allowed: manual or auto")),
+        None => FieldLayout::Auto,
+    };
     let arb_int = syn::parse_str(&format!("u{bitsize}")).unwrap_or_else(unreachable);
-    (bitsize, arb_int)
+    (bitsize, arb_int, layout)
 }
 
 pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
@@ -192,5 +218,131 @@ pub(crate) fn bitsize_internal_arg(attr: &Attribute) -> Option<TokenStream> {
         }
     }
 
+    None
+}
+
+/// Specify field layout:
+/// 1. Auto: All fields are adjacent to each other, without gaps or overlaps.
+/// 2. Manual: Manually specify bit range of each field, allows gaps and overlaps.
+#[derive(Debug, Clone, Copy)]
+pub enum FieldLayout {
+    Auto,
+    Manual,
+}
+impl FieldLayout {
+    fn parse(arg: Ident) -> Result<Self> {
+        match arg.to_string().as_str() {
+            "auto" => Ok(FieldLayout::Auto),
+            "manual" => Ok(FieldLayout::Manual),
+            _ => Err(Error::new_spanned(arg, "invalid layout argument, expect: (manual | auto)")),
+        }
+    }
+    pub fn ident(&self) -> Ident {
+        match self {
+            FieldLayout::Auto => format_ident!("auto"),
+            FieldLayout::Manual => format_ident!("manual"),
+        }
+    }
+}
+
+/// Bit range data including bit range, access mode of field.
+pub struct BitRange {
+    /// Index offset of start bit
+    pub start_bit: usize,
+    pub bit_size: usize,
+    pub access: Access,
+}
+pub enum Access {
+    ReadOnly,
+    WriteOnly,
+    ReadWrite,
+}
+impl Access {
+    fn parse(i: Ident) -> Result<Access> {
+        match i.to_string().as_str() {
+            "r" => Ok(Access::ReadOnly),
+            "w" => Ok(Access::WriteOnly),
+            "rw" => Ok(Access::ReadWrite),
+            _ => Err(Error::new(i.span(), "invalid access mode, expect: (r | w | rw)")),
+        }
+    }
+}
+pub enum BitRangeAttr<'a> {
+    /// 1. Single bit: #[bit(<index>)]
+    BitAttr(&'a Attribute),
+    /// 2. Multiple bits: #[bits(<start>..[=]<end>)]]
+    BitsAttr(&'a Attribute),
+}
+impl<'a> BitRangeAttr<'a> {
+    pub fn parse(&self) -> Result<BitRange> {
+        match self {
+            BitRangeAttr::BitAttr(attr) => attr
+                .parse_args_with(Self::parse_bit_attr)
+                .map_err(|e| syn::Error::new(attr.span(), format!("{}, should be like: #[bit(7, rw)]", e))),
+            BitRangeAttr::BitsAttr(attr) => attr
+                .parse_args_with(Self::parse_bits_attr)
+                .map_err(|e| syn::Error::new(attr.span(), format!("{}, should be like: #[bits(5..=10, r)]", e))),
+        }
+    }
+
+    pub fn raw(&self) -> &Attribute {
+        match self {
+            BitRangeAttr::BitAttr(attr) => attr,
+            BitRangeAttr::BitsAttr(attr) => attr,
+        }
+    }
+
+    fn parse_bit_attr(input: ParseStream) -> Result<BitRange> {
+        let bit_index = input.parse::<LitInt>()?.base10_parse::<usize>()?;
+        let access = if input.peek(Token![,]) {
+            let _: Token![,] = input.parse()?;
+            let access: Ident = input.parse()?;
+            Access::parse(access)?
+        } else {
+            Access::ReadWrite
+        };
+        Ok(BitRange {
+            start_bit: bit_index,
+            bit_size: 1,
+            access,
+        })
+    }
+
+    fn parse_bits_attr(input: ParseStream) -> Result<BitRange> {
+        let span = input.span();
+        let start_bit = input.parse::<LitInt>()?.base10_parse::<usize>()?;
+        let _ = input.parse::<Token![..]>()?;
+        let inclusive: Option<Token![=]> = input.parse()?;
+        let end_bit = input.parse::<LitInt>()?.base10_parse::<usize>()?;
+        let bit_size = if inclusive.is_some() {
+            if start_bit > end_bit {
+                return Err(Error::new(span, "expected start <= end in #[bits(start..=end)]"));
+            }
+            end_bit + 1 - start_bit
+        } else {
+            if start_bit >= end_bit {
+                return Err(Error::new(span, "expected start < end in #[btis(start..end)]"));
+            }
+            end_bit - start_bit
+        };
+        let access = if input.peek(Token![,]) {
+            let _: Token![,] = input.parse()?;
+            let access: Ident = input.parse()?;
+            Access::parse(access)?
+        } else {
+            Access::ReadWrite
+        };
+        Ok(BitRange { start_bit, bit_size, access })
+    }
+}
+// Find #[bit] or [#bits].
+pub fn find_bit_range_attr(attrs: &[Attribute]) -> Option<BitRangeAttr> {
+    for attr in attrs {
+        if attr.path().is_ident("bit") {
+            return Some(BitRangeAttr::BitAttr(attr));
+        } else if attr.path().is_ident("bits") {
+            return Some(BitRangeAttr::BitsAttr(attr));
+        }
+    }
     None
 }

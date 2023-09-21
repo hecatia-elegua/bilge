@@ -2,11 +2,11 @@ mod split;
 
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::{abort, abort_call_site};
-use quote::quote;
+use quote::{quote, quote_spanned};
 use split::SplitAttributes;
 use syn::{punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant};
 
-use crate::shared::{self, enum_fills_bitsize, is_fallback_attribute, unreachable, BitSize, MAX_ENUM_BIT_SIZE};
+use crate::shared::{self, enum_fills_bitsize, is_fallback_attribute, unreachable, BitSize, FieldLayout, MAX_ENUM_BIT_SIZE};
 
 /// Intermediate Representation, just for bundling these together
 struct ItemIr {
@@ -15,13 +15,13 @@ struct ItemIr {
 }
 
 pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, declared_bitsize) = parse(item, args);
+    let (item, declared_bitsize, layout) = parse(item, args);
     let attrs = SplitAttributes::from_item(&item);
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);
             analyze_struct(&item.fields);
-            let expanded = generate_struct(&item, declared_bitsize);
+            let expanded = generate_struct(&item, declared_bitsize, layout);
             ItemIr { expanded }
         }
         Item::Enum(item) => {
@@ -31,18 +31,18 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
         }
         _ => unreachable(()),
     };
-    generate_common(ir, attrs, declared_bitsize)
+    generate_common(ir, attrs, declared_bitsize, layout)
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
+fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize, FieldLayout) {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
 
     if args.is_empty() {
-        abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
+        abort_call_site!("missing attribute arguments"; help = "need arguments like this: `#[bitsize(32)]` or `#[bitsize(32, manual)]")
     }
 
-    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, declared_bitsize)
+    let (declared_bitsize, _arb_int, layout) = shared::bitsize_and_arbitrary_int_from(args);
+    (item, declared_bitsize, layout)
 }
 
 fn check_type_is_supported(ty: &Type) {
@@ -120,14 +120,14 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
     }
 }
 
-fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
+fn generate_struct(item: &ItemStruct, declared_bitsize: u8, layout: FieldLayout) -> TokenStream {
     let ItemStruct { vis, ident, fields, .. } = item;
-    let declared_bitsize = declared_bitsize as usize;
 
-    let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
-        let field_size = shared::generate_type_bitsize(&next.ty);
-        quote!(#acc + #field_size)
-    });
+    let declared_bitsize = declared_bitsize as usize;
+    let fields_check = match layout {
+        FieldLayout::Auto => generate_auto_layout_check(fields, declared_bitsize),
+        FieldLayout::Manual => generate_manual_layout_check(fields, declared_bitsize),
+    };
 
     // we could remove this if the whole struct gets passed
     let is_tuple_struct = fields.iter().any(|field| field.ident.is_none());
@@ -146,6 +146,21 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
     quote! {
         #vis struct #ident #fields_def
 
+        #fields_check
+    }
+}
+
+fn generate_auto_layout_check(fields: &Fields, declared_bitsize: usize) -> TokenStream {
+    fields.iter().for_each(|f| {
+        if let Some(attr) = shared::find_bit_range_attr(&f.attrs) {
+            abort!(attr.raw().span(), "#[bit]/#[bits] is forbidden under auto layout")
+        }
+    });
+    let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
+        let field_size = shared::generate_type_bitsize(&next.ty);
+        quote!(#acc + #field_size)
+    });
+    quote!(
         // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
         const _: () = assert!(
             (#computed_bitsize) == (#declared_bitsize),
@@ -154,7 +169,33 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
             " != ",
             stringify!(#declared_bitsize))
         );
-    }
+    )
+}
+
+fn generate_manual_layout_check(fields: &Fields, declared_bitsize: usize) -> TokenStream {
+    fields
+        .iter()
+        .map(|f| {
+            let Some(attr) = shared::find_bit_range_attr(&f.attrs) else {
+                abort!(f.span(), "required #[bit]/#[bits] attribute under manual layout")
+            };
+            let range = attr.parse().unwrap_or_else(|e| abort!(e.span(), e));
+            if range.start_bit + range.bit_size > declared_bitsize {
+                abort!(attr.raw().span(), "#[bit]/#[bits] exceeds struct size");
+            }
+            let declared_bits = range.bit_size;
+            let actual_bits = shared::generate_type_bitsize(&f.ty);
+            let msg = format!("declared size ({declared_bits}) not match actual field size");
+            // generate code to check field's bit size
+            quote_spanned!(attr.raw().span()=>
+                const _: () = {
+                    if #actual_bits != #declared_bits {
+                        panic!(#msg);
+                    }
+                };
+            )
+        })
+        .collect()
 }
 
 // attributes are handled in `generate_common`
@@ -169,14 +210,17 @@ fn generate_enum(item: &ItemEnum) -> TokenStream {
 
 /// we have _one_ generate_common function, which holds everything that struct and enum have _in common_.
 /// Everything else has its own generate_ functions.
-fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> TokenStream {
+fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8, layout: FieldLayout) -> TokenStream {
     let ItemIr { expanded } = ir;
     let SplitAttributes {
         before_compression,
         after_compression,
     } = attrs;
 
-    let bitsize_internal_attr = quote! {#[::bilge::bitsize_internal(#declared_bitsize)]};
+    // before_compression.iter_mut().for_each(|attr| if attr.path() =="bit" );
+
+    let layout = layout.ident();
+    let bitsize_internal_attr = quote! {#[::bilge::bitsize_internal(#declared_bitsize, #layout)]};
 
     quote! {
         #(#before_compression)*

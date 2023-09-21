@@ -318,12 +318,13 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
 /// The constructor code just needs every field setter.
 ///
 /// [`super::generate_struct`] contains the initialization of `offset`.
-pub(crate) fn generate_constructor_part(ty: &Type, name: &Ident) -> TokenStream {
+pub(crate) fn generate_constructor_part(ty: &Type, name: &Ident, offset: &TokenStream) -> TokenStream {
     let value_shifted = generate_setter_inner(ty);
     // setters look like this: `fn set_field1(&mut self, value: u3)`
     // constructors like this: `fn new(field1: u3, field2: u4) -> Self`
     // so we need to rename `field1` -> `value` and put this in a scope
     quote! { {
+        let mut offset = #offset;
         let value = #name;
         #value_shifted
         value_shifted

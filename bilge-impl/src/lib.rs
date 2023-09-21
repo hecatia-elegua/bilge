@@ -36,7 +36,7 @@ pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
 /// This should be used when your enum or enums nested in
 /// a struct don't fill their given `bitsize`.
 #[proc_macro_error]
-#[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback))]
+#[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback, bit, bits))]
 pub fn derive_try_from_bits(item: TokenStream) -> TokenStream {
     try_from_bits::try_from_bits(item.into()).into()
 }
@@ -56,7 +56,7 @@ pub fn derive_from_bits(item: TokenStream) -> TokenStream {
 ///
 /// Please use normal #[derive(Debug)] for enums.
 #[proc_macro_error]
-#[proc_macro_derive(DebugBits, attributes(bitsize_internal))]
+#[proc_macro_derive(DebugBits, attributes(bitsize_internal, bit, bits))]
 pub fn debug_bits(item: TokenStream) -> TokenStream {
     debug_bits::debug_bits(item.into()).into()
 }
