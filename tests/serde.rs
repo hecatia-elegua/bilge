@@ -56,12 +56,12 @@ fn serde_struct_extra_field() {
     );
 }
 
+#[bitsize(16)]
+#[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]
+struct BitsTupleStruct(u8, u8);
+
 #[test]
 fn serde_tuple_struct() {
-    #[bitsize(16)]
-    #[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]
-    struct BitsTupleStruct(u8, u8);
-
     let bits = BitsTupleStruct::from(0b0000_0001_0010_0011);
 
     assert_tokens(
@@ -75,5 +75,16 @@ fn serde_tuple_struct() {
             Token::U8(0b0000_0001),
             Token::TupleStructEnd,
         ],
+    );
+}
+
+#[test]
+fn serde_tuple_struct_map() {
+    assert_de_tokens_error::<BitsTupleStruct>(
+        &[
+            Token::TupleStruct { name: "BitsStruct", len: 3 },
+            Token::Str("val_0"),
+        ],
+        r#"invalid type: string "val_0", expected u8"#,
     );
 }

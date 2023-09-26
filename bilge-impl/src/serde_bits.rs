@@ -23,8 +23,7 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
 
     let serialize_impl = match struct_data.fields {
         Fields::Named(fields) => {
-            let calls = fields.named.iter()
-                .filter(filter_not_reserved_or_padding).map(|f| {
+            let calls = fields.named.iter().filter(filter_not_reserved_or_padding).map(|f| {
                 // We can unwrap since this is a named field
                 let call = f.ident.as_ref().unwrap();
                 let name = call.to_string();
@@ -68,29 +67,33 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
     }
 }
 
-fn deserialize_field_parts(i: usize, field_ident: &Ident) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, String) {
+fn deserialize_field_parts(
+    i: usize, field_ident: &Ident,
+) -> (
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    TokenStream,
+    String,
+) {
     let field_name_string = field_ident.to_string();
     (
-        quote!(#field_ident,)
-    ,
-        quote!(#field_name_string => Ok(Field::#field_ident),)
-    ,
-        quote!(#field_name_string,)
-    ,
-        quote!(let #field_ident = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
-    ,
-        quote!(let mut #field_ident = None;)
-    ,
+        quote!(#field_ident,),
+        quote!(#field_name_string => Ok(Field::#field_ident),),
+        quote!(#field_name_string,),
+        quote!(let #field_ident = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;),
+        quote!(let mut #field_ident = None;),
         quote!(Field::#field_ident => {
-                    if #field_ident.is_some() {
-                        return Err(::serde::de::Error::duplicate_field(#field_name_string));
-                    }
-                    #field_ident = Some(map.next_value()?);
-                })
-    ,
-        quote!(let #field_ident = #field_ident.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
-    ,
-        format!("`{}`", field_name_string)
+            if #field_ident.is_some() {
+                return Err(::serde::de::Error::duplicate_field(#field_name_string));
+            }
+            #field_ident = Some(map.next_value()?);
+        }),
+        quote!(let #field_ident = #field_ident.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;),
+        format!("`{}`", field_name_string),
     )
 }
 
@@ -105,15 +108,33 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
         Data::Union(_) => unreachable(()),
     };
 
-    let (field_names, field_deserialize, field_name_strings, field_visit_seq, field_visit_map_init, field_visit_map_match, field_visit_map_check, mut field_expecting): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = match struct_data.fields {
-        Fields::Named(fields) => {
-            multiunzip(fields.named.iter()
-                .filter(filter_not_reserved_or_padding).enumerate().map(|(i, f)| deserialize_field_parts(i, f.ident.as_ref().unwrap())))
-        }
-        Fields::Unnamed(fields) => {
-            multiunzip(fields.unnamed.iter()
-                .enumerate().map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable))))
-        }
+    let should_have_visit_map = matches!(struct_data.fields, Fields::Named(_));
+
+    let (
+        field_names,
+        field_deserialize,
+        field_name_strings,
+        field_visit_seq,
+        field_visit_map_init,
+        field_visit_map_match,
+        field_visit_map_check,
+        mut field_expecting,
+    ): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = match struct_data.fields {
+        Fields::Named(fields) => multiunzip(
+            fields
+                .named
+                .iter()
+                .filter(filter_not_reserved_or_padding)
+                .enumerate()
+                .map(|(i, f)| deserialize_field_parts(i, f.ident.as_ref().unwrap())),
+        ),
+        Fields::Unnamed(fields) => multiunzip(
+            fields
+                .unnamed
+                .iter()
+                .enumerate()
+                .map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable))),
+        ),
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
@@ -121,6 +142,24 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
         field_expecting.last_mut().unwrap().insert_str(0, "or ");
     }
     let field_expecting = field_expecting.join(", ");
+
+    let visit_map = if should_have_visit_map {
+        quote!(fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+            where
+                V: ::serde::de::MapAccess<'de>,
+            {
+                #(#field_visit_map_init)*
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        #(#field_visit_map_match)*
+                    }
+                }
+                #(#field_visit_map_check)*
+                Ok(#name::new(#(#field_names)*))
+            })
+    } else {
+        quote!()
+    };
 
     quote! {
         impl<'de> ::serde::Deserialize<'de> for #name {
@@ -176,19 +215,7 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
                         Ok(Self::Value::new(#(#field_names)*))
                     }
 
-                    fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
-                    where
-                        V: ::serde::de::MapAccess<'de>,
-                    {
-                        #(#field_visit_map_init)*
-                        while let Some(key) = map.next_key()? {
-                            match key {
-                                #(#field_visit_map_match)*
-                            }
-                        }
-                        #(#field_visit_map_check)*
-                        Ok(#name::new(#(#field_names)*))
-                    }
+                    #visit_map
                 }
 
                 const FIELDS: &'static [&'static str] = &[#(#field_name_strings)*];
