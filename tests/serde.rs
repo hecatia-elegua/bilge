@@ -5,14 +5,15 @@ use serde_test::{assert_tokens, Token};
 
 #[test]
 fn serde_struct() {
-    #[bitsize(16)]
+    #[bitsize(17)]
     #[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]
     struct BitsStruct {
         field1: u8,
         field2: u8,
+        padding: u1,
     }
 
-    let bits = BitsStruct::from(0b0000_0001_0010_0011);
+    let bits = BitsStruct::from(u17::new(0b0_0000_0001_0010_0011));
 
     assert_tokens(
         &bits,

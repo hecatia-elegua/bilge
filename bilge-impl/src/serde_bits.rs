@@ -1,9 +1,15 @@
+use itertools::multiunzip;
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
-use syn::{Data, Fields};
+use syn::{Data, Field, Fields};
 
 use crate::shared::{self, unreachable};
+
+fn filter_not_reserved_or_padding(field: &&Field) -> bool {
+    let field_name_string = field.ident.as_ref().unwrap().to_string();
+    !field_name_string.starts_with("reserved_") && !field_name_string.starts_with("padding_")
+}
 
 pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
     let derive_input = shared::parse_derive(item);
@@ -17,13 +23,14 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
 
     let serialize_impl = match struct_data.fields {
         Fields::Named(fields) => {
-            let calls = fields.named.iter().map(|f| {
+            let calls = fields.named.iter()
+                .filter(filter_not_reserved_or_padding).map(|f| {
                 // We can unwrap since this is a named field
                 let call = f.ident.as_ref().unwrap();
                 let name = call.to_string();
                 quote!(state.serialize_field(#name, &self.#call())?;)
             });
-            let len = fields.named.len();
+            let len = fields.named.iter().filter(filter_not_reserved_or_padding).count();
             quote! {
                 use ::serde::ser::SerializeStruct;
                 let mut state = serializer.serialize_struct(#name_str, #len)?;
@@ -61,10 +68,61 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
     }
 }
 
+fn deserialize_field_parts((i, f): (usize, &Field)) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream) {
+    let field_name = f.ident.as_ref().unwrap();
+    let field_name_string = field_name.to_string();
+    (
+        quote!(#field_name,)
+    ,
+        quote!(#field_name_string => Ok(Field::#field_name),)
+    ,
+        quote!(#field_name_string,)
+    ,
+        quote!(let #field_name = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
+    ,
+        quote!(let mut #field_name = None;)
+    ,
+        quote!(Field::#field_name => {
+                    if #field_name.is_some() {
+                        return Err(::serde::de::Error::duplicate_field(#field_name_string));
+                    }
+                    #field_name = Some(map.next_value()?);
+                })
+    ,
+        quote!(let #field_name = #field_name.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
+    )
+}
+
+fn deserialize_field_parts2((i, _): (usize, &Field)) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream) {
+    let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
+    let field_name_string = field_name.to_string();
+    (
+        quote!(#field_name,)
+        ,
+        quote!(#field_name_string => Ok(Field::#field_name),)
+        ,
+        quote!(#field_name_string,)
+        ,
+        quote!(let #field_name = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
+        ,
+        quote!(let mut #field_name = None;)
+        ,
+        quote!(Field::#field_name => {
+                    if #field_name.is_some() {
+                        return Err(::serde::de::Error::duplicate_field(#field_name_string));
+                    }
+                    #field_name = Some(map.next_value()?);
+                })
+        ,
+        quote!(let #field_name = #field_name.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
+    )
+}
+
 pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;
     let name_str = name.to_string();
+    let struct_name_str = format!("struct {}", name_str);
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
         Data::Enum(_) => abort_call_site!("use derive(Serialize) for enums"),
@@ -73,22 +131,10 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
 
     let deserialize_impl = match struct_data.fields {
         Fields::Named(fields) => {
-            let field_names = fields
-                .named
-                .iter()
-                .map(|f| {
-                    let field_name = f.ident.as_ref().unwrap();
-                    quote!(#field_name,)
-                })
-                .collect::<Vec<_>>();
-            let field_deserialize = fields.named.iter().map(|f| {
-                let field_name = f.ident.as_ref().unwrap();
-                let field_name_string = field_name.to_string();
-                quote!(#field_name_string => Ok(Field::#field_name),)
-            });
             let field_expecting = fields
                 .named
                 .iter()
+                .filter(filter_not_reserved_or_padding)
                 .enumerate()
                 .map(|(i, f)| {
                     let field_name = f.ident.as_ref().unwrap();
@@ -101,34 +147,8 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let struct_name_str = format!("struct {}", name.to_string());
-            let field_name_strings = fields.named.iter().map(|f| {
-                let field_name_string = f.ident.as_ref().unwrap().to_string();
-                quote!(#field_name_string,)
-            });
-            let field_visit_seq = fields.named.iter().enumerate().map(|(i, f)| {
-                let field_name = f.ident.as_ref().unwrap();
-                quote!(let #field_name = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
-            });
-            let field_visit_map_init = fields.named.iter().map(|f| {
-                let field_name = f.ident.as_ref().unwrap();
-                quote!(let mut #field_name = None;)
-            });
-            let field_visit_map_match = fields.named.iter().map(|f| {
-                let field_name = f.ident.as_ref().unwrap();
-                let field_name_string = f.ident.as_ref().unwrap().to_string();
-                quote!(Field::#field_name => {
-                    if #field_name.is_some() {
-                        return Err(::serde::de::Error::duplicate_field(#field_name_string));
-                    }
-                    #field_name = Some(map.next_value()?);
-                })
-            });
-            let field_visit_map_check = fields.named.iter().map(|f| {
-                let field_name = f.ident.as_ref().unwrap();
-                let field_name_string = f.ident.as_ref().unwrap().to_string();
-                quote!(let #field_name = #field_name.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
-            });
+            let (field_names, field_deserialize, field_name_strings, field_visit_seq, field_visit_map_init, field_visit_map_match, field_visit_map_check): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = multiunzip(fields.named.iter()
+                .filter(filter_not_reserved_or_padding).enumerate().map(deserialize_field_parts));
             quote! {
                 #[allow(non_camel_case_types)]
                 enum Field { #(#field_names)* }
@@ -198,20 +218,6 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
             }
         }
         Fields::Unnamed(fields) => {
-            let field_names = fields
-                .unnamed
-                .iter()
-                .enumerate()
-                .map(|(i, _)| {
-                    let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                    quote!(#field_name,)
-                })
-                .collect::<Vec<_>>();
-            let field_deserialize = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                let field_name_string = field_name.to_string();
-                quote!(#field_name_string => Ok(Field::#field_name),)
-            });
             let field_expecting = fields
                 .unnamed
                 .iter()
@@ -227,34 +233,8 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
                 })
                 .collect::<Vec<_>>()
                 .join(", ");
-            let struct_name_str = format!("struct {}", name.to_string());
-            let field_name_strings = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let field_name_string = format!("val_{}", i);
-                quote!(#field_name_string,)
-            });
-            let field_visit_seq = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                quote!(let #field_name = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
-            });
-            let field_visit_map_init = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                quote!(let mut #field_name = None;)
-            });
-            let field_visit_map_match = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                let field_name_string = field_name.to_string();
-                quote!(Field::#field_name => {
-                    if #field_name.is_some() {
-                        return Err(::serde::de::Error::duplicate_field(#field_name_string));
-                    }
-                    #field_name = Some(map.next_value()?);
-                })
-            });
-            let field_visit_map_check = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                let field_name_string = field_name.to_string();
-                quote!(let #field_name = #field_name.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
-            });
+            let (field_names, field_deserialize, field_name_strings, field_visit_seq, field_visit_map_init, field_visit_map_match, field_visit_map_check): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = multiunzip(fields.unnamed.iter()
+                .enumerate().map(deserialize_field_parts2));
             quote! {
                 #[allow(non_camel_case_types)]
                 enum Field { #(#field_names)* }
