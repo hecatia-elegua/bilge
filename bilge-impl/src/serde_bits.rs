@@ -42,15 +42,15 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
         Fields::Unnamed(fields) => {
             let calls = fields.unnamed.iter().enumerate().map(|(i, _)| {
                 let call: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                quote!(ts.serialize_field(&self.#call())?;)
+                quote!(state.serialize_field(&self.#call())?;)
             });
             let len = fields.unnamed.len();
             quote! {
                 use serde::ser::SerializeTupleStruct;
-                let mut ts = serializer.serialize_tuple_struct(#name_str, #len)?;
-                // ts.serialize_field(&self.val0())?; ts.serialize_field(&self.val1())?; ts.end()
+                let mut state = serializer.serialize_tuple_struct(#name_str, #len)?;
+                // state.serialize_field(&self.val0())?; state.serialize_field(&self.val1())?; state.end()
                 #(#calls)*
-                ts.end()
+                state.end()
             }
         }
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
@@ -68,53 +68,29 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
     }
 }
 
-fn deserialize_field_parts((i, f): (usize, &Field)) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream) {
-    let field_name = f.ident.as_ref().unwrap();
-    let field_name_string = field_name.to_string();
+fn deserialize_field_parts(i: usize, field_ident: &Ident) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, String) {
+    let field_name_string = field_ident.to_string();
     (
-        quote!(#field_name,)
+        quote!(#field_ident,)
     ,
-        quote!(#field_name_string => Ok(Field::#field_name),)
+        quote!(#field_name_string => Ok(Field::#field_ident),)
     ,
         quote!(#field_name_string,)
     ,
-        quote!(let #field_name = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
+        quote!(let #field_ident = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
     ,
-        quote!(let mut #field_name = None;)
+        quote!(let mut #field_ident = None;)
     ,
-        quote!(Field::#field_name => {
-                    if #field_name.is_some() {
+        quote!(Field::#field_ident => {
+                    if #field_ident.is_some() {
                         return Err(::serde::de::Error::duplicate_field(#field_name_string));
                     }
-                    #field_name = Some(map.next_value()?);
+                    #field_ident = Some(map.next_value()?);
                 })
     ,
-        quote!(let #field_name = #field_name.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
-    )
-}
-
-fn deserialize_field_parts2((i, _): (usize, &Field)) -> (TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream, TokenStream) {
-    let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-    let field_name_string = field_name.to_string();
-    (
-        quote!(#field_name,)
-        ,
-        quote!(#field_name_string => Ok(Field::#field_name),)
-        ,
-        quote!(#field_name_string,)
-        ,
-        quote!(let #field_name = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
-        ,
-        quote!(let mut #field_name = None;)
-        ,
-        quote!(Field::#field_name => {
-                    if #field_name.is_some() {
-                        return Err(::serde::de::Error::duplicate_field(#field_name_string));
-                    }
-                    #field_name = Some(map.next_value()?);
-                })
-        ,
-        quote!(let #field_name = #field_name.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
+        quote!(let #field_ident = #field_ident.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
+    ,
+        format!("`{}`", field_name_string)
     )
 }
 
@@ -129,182 +105,22 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
         Data::Union(_) => unreachable(()),
     };
 
-    let deserialize_impl = match struct_data.fields {
+    let (field_names, field_deserialize, field_name_strings, field_visit_seq, field_visit_map_init, field_visit_map_match, field_visit_map_check, mut field_expecting): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = match struct_data.fields {
         Fields::Named(fields) => {
-            let field_expecting = fields
-                .named
-                .iter()
-                .filter(filter_not_reserved_or_padding)
-                .enumerate()
-                .map(|(i, f)| {
-                    let field_name = f.ident.as_ref().unwrap();
-                    let field_name_string = field_name.to_string();
-                    let mut field_name_string = format!("`{}`", field_name_string);
-                    if i == fields.named.len() - 1 {
-                        field_name_string = format!("or {}", field_name_string);
-                    }
-                    field_name_string
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            let (field_names, field_deserialize, field_name_strings, field_visit_seq, field_visit_map_init, field_visit_map_match, field_visit_map_check): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = multiunzip(fields.named.iter()
-                .filter(filter_not_reserved_or_padding).enumerate().map(deserialize_field_parts));
-            quote! {
-                #[allow(non_camel_case_types)]
-                enum Field { #(#field_names)* }
-                impl<'de> ::serde::Deserialize<'de> for Field {
-                    fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
-                    where
-                        D: ::serde::Deserializer<'de>,
-                    {
-                        struct FieldVisitor;
-
-                        impl<'de> ::serde::de::Visitor<'de> for FieldVisitor {
-                            type Value = Field;
-
-                            fn expecting(&self, formatter: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                                formatter.write_str(#field_expecting)
-                            }
-
-                            fn visit_str<E>(self, value: &str) -> Result<Field, E>
-                            where
-                                E: ::serde::de::Error,
-                            {
-                                match value {
-                                    #(#field_deserialize)*
-                                    _ => Err(::serde::de::Error::unknown_field(value, FIELDS)),
-                                }
-                            }
-                        }
-
-                        deserializer.deserialize_identifier(FieldVisitor)
-                    }
-                }
-
-                struct Visitor;
-
-                impl<'de> ::serde::de::Visitor<'de> for Visitor {
-                    type Value = #name;
-
-                    fn expecting(&self, formatter: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                        formatter.write_str(#struct_name_str)
-                    }
-
-                    fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
-                    where
-                        V: ::serde::de::SeqAccess<'de>,
-                    {
-                        #(#field_visit_seq)*
-                        Ok(Self::Value::new(#(#field_names)*))
-                    }
-
-                    fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
-                    where
-                        V: ::serde::de::MapAccess<'de>,
-                    {
-                        #(#field_visit_map_init)*
-                        while let Some(key) = map.next_key()? {
-                            match key {
-                                #(#field_visit_map_match)*
-                            }
-                        }
-                        #(#field_visit_map_check)*
-                        Ok(#name::new(#(#field_names)*))
-                    }
-                }
-
-                const FIELDS: &'static [&'static str] = &[#(#field_name_strings)*];
-                deserializer.deserialize_struct(#name_str, FIELDS, Visitor)
-            }
+            multiunzip(fields.named.iter()
+                .filter(filter_not_reserved_or_padding).enumerate().map(|(i, f)| deserialize_field_parts(i, f.ident.as_ref().unwrap())))
         }
         Fields::Unnamed(fields) => {
-            let field_expecting = fields
-                .unnamed
-                .iter()
-                .enumerate()
-                .map(|(i, _)| {
-                    let field_name: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
-                    let field_name_string = field_name.to_string();
-                    let mut field_name_string = format!("`{}`", field_name_string);
-                    if i == fields.unnamed.len() - 1 {
-                        field_name_string = format!("or {}", field_name_string);
-                    }
-                    field_name_string
-                })
-                .collect::<Vec<_>>()
-                .join(", ");
-            let (field_names, field_deserialize, field_name_strings, field_visit_seq, field_visit_map_init, field_visit_map_match, field_visit_map_check): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = multiunzip(fields.unnamed.iter()
-                .enumerate().map(deserialize_field_parts2));
-            quote! {
-                #[allow(non_camel_case_types)]
-                enum Field { #(#field_names)* }
-                impl<'de> ::serde::Deserialize<'de> for Field {
-                    fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
-                    where
-                        D: ::serde::Deserializer<'de>,
-                    {
-                        struct FieldVisitor;
-
-                        impl<'de> ::serde::de::Visitor<'de> for FieldVisitor {
-                            type Value = Field;
-
-                            fn expecting(&self, formatter: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                                formatter.write_str(#field_expecting)
-                            }
-
-                            fn visit_str<E>(self, value: &str) -> Result<Field, E>
-                            where
-                                E: ::serde::de::Error,
-                            {
-                                match value {
-                                    #(#field_deserialize)*
-                                    _ => Err(::serde::de::Error::unknown_field(value, FIELDS)),
-                                }
-                            }
-                        }
-
-                        deserializer.deserialize_identifier(FieldVisitor)
-                    }
-                }
-
-                struct Visitor;
-
-                impl<'de> ::serde::de::Visitor<'de> for Visitor {
-                    type Value = #name;
-
-                    fn expecting(&self, formatter: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
-                        formatter.write_str(#struct_name_str)
-                    }
-
-                    fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
-                    where
-                        V: ::serde::de::SeqAccess<'de>,
-                    {
-                        #(#field_visit_seq)*
-                        Ok(Self::Value::new(#(#field_names)*))
-                    }
-
-                    fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
-                    where
-                        V: ::serde::de::MapAccess<'de>,
-                    {
-                        #(#field_visit_map_init)*
-                        while let Some(key) = map.next_key()? {
-                            match key {
-                                #(#field_visit_map_match)*
-                            }
-                        }
-                        #(#field_visit_map_check)*
-                        Ok(#name::new(#(#field_names)*))
-                    }
-                }
-
-                const FIELDS: &'static [&'static str] = &[#(#field_name_strings)*];
-                deserializer.deserialize_struct(#name_str, FIELDS, Visitor)
-            }
+            multiunzip(fields.unnamed.iter()
+                .enumerate().map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable))))
         }
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
+
+    if field_expecting.len() > 1 {
+        field_expecting.last_mut().unwrap().insert_str(0, "or ");
+    }
+    let field_expecting = field_expecting.join(", ");
 
     quote! {
         impl<'de> ::serde::Deserialize<'de> for #name {
@@ -312,7 +128,71 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
             where
                 D: ::serde::Deserializer<'de>,
             {
-                #deserialize_impl
+                #[allow(non_camel_case_types)]
+                enum Field { #(#field_names)* }
+                impl<'de> ::serde::Deserialize<'de> for Field {
+                    fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
+                    where
+                        D: ::serde::Deserializer<'de>,
+                    {
+                        struct FieldVisitor;
+
+                        impl<'de> ::serde::de::Visitor<'de> for FieldVisitor {
+                            type Value = Field;
+
+                            fn expecting(&self, formatter: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+                                formatter.write_str(#field_expecting)
+                            }
+
+                            fn visit_str<E>(self, value: &str) -> Result<Field, E>
+                            where
+                                E: ::serde::de::Error,
+                            {
+                                match value {
+                                    #(#field_deserialize)*
+                                    _ => Err(::serde::de::Error::unknown_field(value, FIELDS)),
+                                }
+                            }
+                        }
+
+                        deserializer.deserialize_identifier(FieldVisitor)
+                    }
+                }
+
+                struct Visitor;
+
+                impl<'de> ::serde::de::Visitor<'de> for Visitor {
+                    type Value = #name;
+
+                    fn expecting(&self, formatter: &mut ::core::fmt::Formatter) -> ::core::fmt::Result {
+                        formatter.write_str(#struct_name_str)
+                    }
+
+                    fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+                    where
+                        V: ::serde::de::SeqAccess<'de>,
+                    {
+                        #(#field_visit_seq)*
+                        Ok(Self::Value::new(#(#field_names)*))
+                    }
+
+                    fn visit_map<V>(self, mut map: V) -> Result<Self::Value, V::Error>
+                    where
+                        V: ::serde::de::MapAccess<'de>,
+                    {
+                        #(#field_visit_map_init)*
+                        while let Some(key) = map.next_key()? {
+                            match key {
+                                #(#field_visit_map_match)*
+                            }
+                        }
+                        #(#field_visit_map_check)*
+                        Ok(#name::new(#(#field_names)*))
+                    }
+                }
+
+                const FIELDS: &'static [&'static str] = &[#(#field_name_strings)*];
+                deserializer.deserialize_struct(#name_str, FIELDS, Visitor)
             }
         }
     }
