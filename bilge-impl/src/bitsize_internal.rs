@@ -73,7 +73,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
         }
         impl #ident {
             // #[inline]
-            #[allow(clippy::too_many_arguments, clippy::type_complexity, unused_parens)]
+            #[allow(clippy::too_many_arguments, clippy::type_complexity, missing_docs, unused_parens)]
             pub #const_ fn new(#( #constructor_args )*) -> Self {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
                 type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
