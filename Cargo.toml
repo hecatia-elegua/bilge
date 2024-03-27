@@ -40,7 +40,7 @@ serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 
 [dependencies]
 # cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
-arbitrary-int = { git = "https://github.com/widberg/arbitrary-int.git" }
+arbitrary-int = "1.2.7"
 bilge-impl = { version = "=0.2.0", path = "bilge-impl" }
 
 [dev-dependencies]
