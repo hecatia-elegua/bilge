@@ -6,6 +6,8 @@ use core::fmt;
 #[doc(no_inline)]
 pub use arbitrary_int;
 pub use bilge_impl::{bitsize, bitsize_internal, BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits};
+#[cfg(feature = "serde")]
+pub use bilge_impl::{DeserializeBits, SerializeBits};
 
 /// used for `use bilge::prelude::*;`
 pub mod prelude {
@@ -17,6 +19,8 @@ pub mod prelude {
         // we control the version, so this should not be a problem
         arbitrary_int::*,
     };
+    #[cfg(feature = "serde")]
+    pub use super::{DeserializeBits, SerializeBits};
 }
 
 /// This is internally used, but might be useful. No guarantees are given (for now).

@@ -7,6 +7,9 @@ mod debug_bits;
 mod default_bits;
 mod fmt_bits;
 mod from_bits;
+#[cfg(feature = "serde")]
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
+mod serde_bits;
 mod try_from_bits;
 
 mod shared;
@@ -73,4 +76,24 @@ pub fn derive_binary_bits(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(DefaultBits)]
 pub fn derive_default_bits(item: TokenStream) -> TokenStream {
     default_bits::default_bits(item.into()).into()
+}
+
+/// Generate an `impl serde::Serialize` for bitfield structs.
+///
+/// Please use normal #[derive(Serialize)] for enums.
+#[cfg(feature = "serde")]
+#[proc_macro_error]
+#[proc_macro_derive(SerializeBits, attributes(bitsize_internal))]
+pub fn serialize_bits(item: TokenStream) -> TokenStream {
+    serde_bits::serialize_bits(item.into()).into()
+}
+
+/// Generate an `impl serde::Deserialize` for bitfield structs.
+///
+/// Please use normal #[derive(Deserialize)] for enums.
+#[cfg(feature = "serde")]
+#[proc_macro_error]
+#[proc_macro_derive(DeserializeBits, attributes(bitsize_internal))]
+pub fn deserialize_bits(item: TokenStream) -> TokenStream {
+    serde_bits::deserialize_bits(item.into()).into()
 }
