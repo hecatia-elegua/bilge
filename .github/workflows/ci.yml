@@ -39,19 +39,19 @@ jobs:
     - name: Lint stable
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
-        cargo clippy --workspace -- -D warnings
+        cargo clippy --workspace --features serde -- -D warnings
 
     - name: Lint nightly
       if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
       run: |
-        cargo clippy --workspace --features nightly -- -D warnings
+        cargo clippy --workspace --features nightly serde -- -D warnings
 
     - name: Test stable
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
-        cargo test --workspace
+        cargo test --workspace --features serde
 
     - name: Test nightly
       if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
       run: |
-        cargo test --workspace --features nightly
+        cargo test --workspace --features nightly serde
