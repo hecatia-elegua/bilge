@@ -1,4 +1,4 @@
-use itertools::multiunzip;
+use itertools::MultiUnzip;
 use proc_macro2::{Ident, TokenStream};
 use proc_macro_error::abort_call_site;
 use quote::quote;
@@ -120,21 +120,19 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
         field_visit_map_check,
         mut field_expecting,
     ): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = match struct_data.fields {
-        Fields::Named(fields) => multiunzip(
-            fields
+        Fields::Named(fields) => fields
                 .named
                 .iter()
                 .filter(filter_not_reserved_or_padding)
                 .enumerate()
-                .map(|(i, f)| deserialize_field_parts(i, f.ident.as_ref().unwrap())),
-        ),
-        Fields::Unnamed(fields) => multiunzip(
-            fields
+                .map(|(i, f)| deserialize_field_parts(i, f.ident.as_ref().unwrap()))
+                .multiunzip(),
+        Fields::Unnamed(fields) => fields
                 .unnamed
                 .iter()
                 .enumerate()
-                .map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable))),
-        ),
+                .map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable)))
+                .multiunzip(),
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
