@@ -511,5 +511,13 @@ impl_from!(T; Generic<T> => u2; |val| val.0);
 struct UsingGeneric(Generic<()>);
 
 #[bitsize(2)]
+#[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
+struct IsGeneric<T>(Generic<T>);
+
+#[bitsize(2)]
+#[derive(DefaultBits, PartialEq, DebugBits, TryFromBits)]
+struct IsGenericUnfilled<T>(Generic<T>);
+
+#[bitsize(2)]
 #[derive(DefaultBits, PartialEq, DebugBits, TryFromBits)]
 struct UsingGenericUnfilled(Generic<()>);

@@ -1,6 +1,6 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type};
+use syn::{Attribute, Field, Generics, Item, ItemEnum, ItemStruct, Type};
 
 use crate::shared::{self, unreachable};
 
@@ -12,36 +12,36 @@ struct ItemIr<'a> {
     name: &'a Ident,
     /// generated item (and setters, getters, constructor, impl Bitsized)
     expanded: TokenStream,
+    generics: &'a Generics,
+    check_expr: TokenStream,
 }
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, arb_int) = parse(item, args);
+    let (item, arb_int, declared_bitsize) = parse(item, args);
     let ir = match item {
-        Item::Struct(ref item) => {
-            let expanded = generate_struct(item, &arb_int);
-            let attrs = &item.attrs;
-            let name = &item.ident;
-            ItemIr { attrs, name, expanded }
-        }
-        Item::Enum(ref item) => {
-            let expanded = generate_enum(item);
-            let attrs = &item.attrs;
-            let name = &item.ident;
-            ItemIr { attrs, name, expanded }
-        }
+        Item::Struct(ref item) => generate_struct(item, &arb_int, declared_bitsize),
+        Item::Enum(ref item) => generate_enum(item),
         _ => unreachable(()),
     };
     generate_common(ir, &arb_int)
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
+fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream, u8) {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
-    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, arb_int)
+    let (declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
+    (item, arb_int, declared_bitsize)
 }
 
-fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
-    let ItemStruct { vis, ident, fields, .. } = struct_data;
+fn generate_struct<'a>(struct_data: &'a ItemStruct, arb_int: &TokenStream, declared_bitsize: u8) -> ItemIr<'a> {
+    let ItemStruct {
+        vis,
+        ident,
+        fields,
+        generics,
+        attrs,
+        ..
+    } = struct_data;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let mut fieldless_next_int = 0;
     let mut previous_field_sizes = vec![];
@@ -66,12 +66,15 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
-    quote! {
-        #vis struct #ident {
+    let phantom_type = generate_phantom_type(generics);
+
+    let expanded = quote! {
+        #vis struct #ident #generics #where_clause {
             /// WARNING: modifying this value directly can break invariants
             value: #arb_int,
+            _phantom: ::core::marker::PhantomData<#phantom_type>
         }
-        impl #ident {
+        impl #impl_generics #ident #ty_generics #where_clause {
             // #[inline]
             #[allow(clippy::too_many_arguments, clippy::type_complexity, missing_docs, unused_parens)]
             pub #const_ fn new(#( #constructor_args )*) -> Self {
@@ -81,10 +84,48 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
                 let mut offset = 0;
                 let raw_value = #( #constructor_parts )|*;
                 let value = #arb_int::new(raw_value);
-                Self { value }
+                Self { value, _phantom: ::core::marker::PhantomData }
             }
             #( #accessors )*
         }
+    };
+
+    let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
+        let field_size = shared::generate_type_bitsize(&next.ty);
+        quote!(#acc + #field_size)
+    });
+
+    let declared_bitsize = declared_bitsize as usize;
+
+    let check_expr = quote!(assert!(
+        (#computed_bitsize) == (#declared_bitsize),
+        concat!("struct size and declared bit size differ: ",
+        // stringify!(#computed_bitsize),
+        " != ",
+        stringify!(#declared_bitsize))
+    ));
+
+    ItemIr {
+        attrs,
+        name: ident,
+        expanded,
+        generics,
+        check_expr,
+    }
+}
+
+/// Returns a tuple with the following types, in order:
+///  - The original struct's type parameters
+///  - References to `()` bound by the original struct's lifetime parameters
+/// If there are 0 generics, the type will simply be `()`.
+/// If there is a single generic type or lifetime, the type will not wrapped in a tuple.
+fn generate_phantom_type(generics: &Generics) -> TokenStream {
+    let phantom_ty = generics.type_params().map(|e| &e.ident).map(|ident| quote!(#ident));
+    let phantom_lt = generics.lifetimes().map(|l| &l.lifetime).map(|lifetime| quote!(& #lifetime ()));
+    // TODO: integrate user-provided PhantomData somehow? (so that the user can set the variance)
+    let phantom = phantom_ty.chain(phantom_lt);
+    quote! {
+        (#(#phantom),*)
     }
 }
 
@@ -209,27 +250,59 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
     (constructor_arg, constructor_part)
 }
 
-fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
-    let ItemEnum { vis, ident, variants, .. } = enum_data;
-    quote! {
+fn generate_enum(enum_data: &ItemEnum) -> ItemIr {
+    let ItemEnum {
+        vis,
+        ident,
+        variants,
+        generics,
+        attrs,
+        ..
+    } = enum_data;
+    let expanded = quote! {
         #vis enum #ident {
             #variants
         }
+    };
+    ItemIr {
+        attrs,
+        name: ident,
+        expanded,
+        generics,
+        check_expr: quote! { () },
     }
 }
 
 /// We have _one_ `generate_common` function, which holds everything struct and enum have _in common_.
 /// Everything else has its own `generate_` functions.
 fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
-    let ItemIr { attrs, name, expanded } = ir;
+    let ItemIr {
+        attrs,
+        name,
+        expanded,
+        generics,
+        check_expr,
+    } = ir;
+
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     quote! {
         #(#attrs)*
         #expanded
-        impl ::bilge::Bitsized for #name {
-            type ArbitraryInt = #arb_int;
-            const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
-            const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
-        }
+        const _: () = {
+            trait Assertion {
+                const SIZE_CHECK: ();
+            }
+
+            impl #impl_generics Assertion for #name #ty_generics #where_clause {
+                const SIZE_CHECK: () = #check_expr;
+            }
+
+            impl #impl_generics ::bilge::Bitsized for #name #ty_generics #where_clause {
+                type ArbitraryInt = #arb_int;
+                const BITS: usize = (<Self::ArbitraryInt as Bitsized>::BITS, <Self as Assertion>::SIZE_CHECK).0;
+                const MAX: Self::ArbitraryInt = (<Self::ArbitraryInt as Bitsized>::MAX, <Self as Assertion>::SIZE_CHECK).0;
+            }
+        };
     }
 }
