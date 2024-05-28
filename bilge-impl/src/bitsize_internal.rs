@@ -231,5 +231,29 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
             const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
         }
+        impl #name {
+            pub fn to_ne_bytes(&self) -> [u8; (<Self as Bitsized>::BITS + 7) / 8] {
+                // u40 = u64 = 8 bytes
+                const ARB_INT_BYTES: usize = core::mem::size_of::<#name>();
+                // u40 = (40 + 7) / 8 = 5 bytes
+                const MIN_BYTES: usize = (<#name as Bitsized>::BITS + 7) / 8;
+
+                // u40, as 8 bytes
+                let mut full = unsafe { core::mem::transmute_copy::<Self, [u8; ARB_INT_BYTES]>(self) };
+                // u40, as 5 bytes
+                #[cfg(target_endian = "big")]
+                {
+                    // = 3
+                    let size_difference = ARB_INT_BYTES - MIN_BYTES;
+                    // 0 0 0 [1 1 1 1 1]
+                    return full[size_difference..].try_into().unwrap()
+                }
+                #[cfg(target_endian = "little")]
+                {
+                    // [1 1 1 1 1] 0 0 0
+                    return full[..MIN_BYTES].try_into().unwrap();
+                }
+            }
+        }
     }
 }
