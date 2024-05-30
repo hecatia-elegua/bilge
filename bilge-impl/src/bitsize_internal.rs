@@ -43,11 +43,11 @@ fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
 fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
     let ItemStruct { vis, ident, fields, .. } = struct_data;
 
-    let mut fieldless_next_int = 0;
     let mut previous_field_sizes = vec![];
     let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields
         .iter()
-        .map(|field| {
+        .enumerate()
+        .map(|(i, field)| {
             // offset is needed for bit-shifting
             // struct Example { field1: u8, field2: u4, field3: u4 }
             // previous_field_sizes = []     -> unwrap_or_else -> field_offset = 0
@@ -60,7 +60,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
                 .unwrap_or_else(|| quote!(0));
             let field_size = shared::generate_type_bitsize(&field.ty);
             previous_field_sizes.push(field_size);
-            generate_field(field, &field_offset, &mut fieldless_next_int)
+            generate_field(field, &field_offset, i)
         })
         .unzip();
 
@@ -88,13 +88,12 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     }
 }
 
-fn generate_field(field: &Field, field_offset: &TokenStream, fieldless_next_int: &mut usize) -> (TokenStream, (TokenStream, TokenStream)) {
+fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (TokenStream, (TokenStream, TokenStream)) {
     let Field { ident, ty, .. } = field;
     let name = if let Some(ident) = ident {
         ident.clone()
     } else {
-        let name = format!("val_{fieldless_next_int}");
-        *fieldless_next_int += 1;
+        let name = format!("val_{i}");
         syn::parse_str(&name).unwrap_or_else(unreachable)
     };
 
