@@ -31,10 +31,13 @@ rust-version = "1.65"
 
 [features]
 # at bilge devs: easiest way to test nightly is by switching the
-# channel in `rust-toolchain.toml` and switching to nightly here:
+# channel in `rust-toolchain.toml` and switching to nightly here,
+# but it might not work anymore. I would rather want to wait for
+# upstream rust nightly to support the const trait featureset again.
+# The code still contains conditional `const` keywords for later.
 # default = ["nightly"]
 default = []
-# Enables constness, see README.md: only usable with nightly-2022-11-03
+# Enables constness on nightly
 nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/nightly"]
 serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 
@@ -61,7 +64,7 @@ zerocopy = "0.5.0"
 # criterion = "0.3"
 # modular-bitfield = "0.11.2"
 # bitbybit = "1.1.4"
-# is not const enough:
+# TODO: test again, might inline/const more things now:
 # deku = "0.16"
 
 # criterion workaround to make `cargo bench -- --verbose` work

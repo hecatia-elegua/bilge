@@ -1,21 +1,31 @@
 error: remove bitsize_internal
-  --> tests/ui/internal-attr-is-forbidden.rs:10:1
-   |
-10 | #[bitsize_internal]
-   | ^^^^^^^^^^^^^^^^^^^
-   |
-   = help: attribute bitsize_internal can only be applied internally by the bitsize macros
+
+         = help: attribute bitsize_internal can only be applied internally by the bitsize macros
+
+ --> tests/ui/internal-attr-is-forbidden.rs:9:1
+  |
+9 | #[bitsize_internal]
+  | ^^^^^^^^^^^^^^^^^^^
 
 error: remove bitsize_internal
-  --> tests/ui/internal-attr-is-forbidden.rs:14:1
+
+         = help: attribute bitsize_internal can only be applied internally by the bitsize macros
+
+  --> tests/ui/internal-attr-is-forbidden.rs:13:1
    |
-14 | #[bitsize_internal]
+13 | #[bitsize_internal]
    | ^^^^^^^^^^^^^^^^^^^
-   |
-   = help: attribute bitsize_internal can only be applied internally by the bitsize macros
 
 error: expected derive macro, found derive helper attribute `bitsize_internal`
-  --> tests/ui/internal-attr-is-forbidden.rs:21:20
+  --> tests/ui/internal-attr-is-forbidden.rs:20:20
    |
-21 | #[derive(FromBits, bitsize_internal)]
+20 | #[derive(FromBits, bitsize_internal)]
    |                    ^^^^^^^^^^^^^^^^ not a derive macro
+   |
+help: remove from the surrounding `derive()`
+  --> tests/ui/internal-attr-is-forbidden.rs:20:20
+   |
+20 | #[derive(FromBits, bitsize_internal)]
+   |                    ^^^^^^^^^^^^^^^^
+   = help: add as non-Derive macro
+           `#[bitsize_internal]`

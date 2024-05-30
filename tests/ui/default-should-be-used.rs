@@ -1,4 +1,4 @@
-#![feature(const_trait_impl)] use bilge::prelude::*;
+use bilge::prelude::*;
 
 #[bitsize(2)]
 #[derive(DefaultBits)]

@@ -18,8 +18,10 @@ jobs:
           - stable
           # - beta
           # - nightly
-          # keep this fixed to the version in rust-toolchain.toml, README.md and below
-          - nightly-2023-04-01
+          # (this was arbitrary-int with const I think, probably won't matter later)
+          # - nightly-2023-04-01
+          # keep this fixed to the version in rust-toolchain.toml and below
+          # - nightly-2022-11-03 # NOTE: gave up on supporting this, let's wait for rust const support
           # - 1.31.0  # find out MSRV
     steps:
     - uses: actions/checkout@v3
@@ -41,17 +43,17 @@ jobs:
       run: |
         cargo clippy --workspace --features "serde" -- -D warnings
 
-    - name: Lint nightly
-      if: ${{ matrix.toolchain == 'nightly-2023-04-01' }}
-      run: |
-        cargo clippy --workspace --features "nightly serde" -- -D warnings
+    # - name: Lint nightly
+    #   if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
+    #   run: |
+    #     cargo clippy --workspace --features "nightly serde" -- -D warnings
 
     - name: Test stable
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
         cargo test --workspace --features "serde"
 
-    - name: Test nightly
-      if: ${{ matrix.toolchain == 'nightly-2023-04-01' }}
-      run: |
-        cargo test --workspace --features "nightly serde"
+    # - name: Test nightly
+    #   if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
+    #   run: |
+    #     cargo test --workspace --features "nightly serde"

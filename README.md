@@ -19,7 +19,7 @@ I wanted a design fitting rust:
     - only minimally and gradually introduce advanced concepts
     - provide extension mechanisms
 
-The lib is **no-std** (and fully `const` behind a `"nightly"` feature gate).
+The lib is **no-std** (and will be `const` again when rust [const-trait-impl](https://github.com/rust-lang/rust/issues/110395) works again).
 
 For some more explanations on the "why" and "how": [blog post](https://hecatia-elegua.github.io/blog/no-more-bit-fiddling/) and [reddit comments](https://www.reddit.com/r/rust/comments/13ic0mf/no_more_bit_fiddling_and_introducing_bilge/).
 
@@ -28,10 +28,6 @@ For some more explanations on the "why" and "how": [blog post](https://hecatia-e
 Our current version is still pre 1.0, which means nothing is completely stable.
 
 However, constructors, getters, setters and From/TryFrom should stay the same, since their semantics are very clear.
-
-[//]: # (keep this fixed to the version in .github/workflows/ci.yml, rust-toolchain.toml)
-
-The nightly feature is tested on `nightly-2022-11-03` and [will not work on the newest nightly until const_convert comes back](https://github.com/rust-lang/rust/issues/110395#issuecomment-1524775763).
 
 ## Usage
 
@@ -306,6 +302,7 @@ implementation differences (as of 26.04.23):
 - it can do read/write-only, array strides and repeat the same bits for multiple fields
     - bilge: these will be added the moment someone needs it
 - redundant bit-offset specification, which can help or annoy, the same way bilge's `reserved` fields can help or annoy
+    - idea: [Optionally support specifying the bit-range of a field instead](https://github.com/hecatia-elegua/bilge/issues/28)
 
 ### deku
 
