@@ -9,7 +9,6 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;
     let name_str = name.to_string();
-    let mut fieldless_next_int = 0;
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
         Data::Enum(_) => abort_call_site!("use derive(Debug) for enums"),
@@ -31,9 +30,8 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
             }
         }
         Fields::Unnamed(fields) => {
-            let calls = fields.unnamed.iter().map(|_| {
-                let call: Ident = syn::parse_str(&format!("val_{}", fieldless_next_int)).unwrap_or_else(unreachable);
-                fieldless_next_int += 1;
+            let calls = fields.unnamed.iter().enumerate().map(|(i, _)| {
+                let call: Ident = syn::parse_str(&format!("val_{i}")).unwrap_or_else(unreachable);
                 quote!(.field(&self.#call()))
             });
             quote! {
