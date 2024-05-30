@@ -1,4 +1,3 @@
-#![feature(const_trait_impl)]
 use bilge::bitsize_internal;
 use bilge::prelude::*;
 

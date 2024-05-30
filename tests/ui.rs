@@ -1,15 +1,9 @@
-// We're only testing ui on nightly-2022-11-03, until newer
-// nightly has some notion of const_convert again.
+// We're only testing ui on stable,
+// since the errors are pretty much the same,
+// but change the position of help in the error message.
 //
-// TODO(upstream): currently just fails
-// #[rustversion::attr(not(nightly(2022-11-03)), ignore)]
-//
-//  so,
-// `cargo +nightly test` will fail
-// `cargo +nightly-2022-11-03 test` should not fail
-#[allow(unused_attributes, clippy::duplicated_attributes)]
-#[rustversion::attr(not(nightly), ignore)]
-#[cfg_attr(not(feature = "nightly"), ignore)]
+// #[rustversion::attr(not(stable), ignore)]
+// #[cfg_attr(feature = "nightly", ignore)]
 #[test]
 fn ui() {
     let t = trybuild::TestCases::new();

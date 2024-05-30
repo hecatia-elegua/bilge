@@ -1,8 +1,10 @@
 error: only one enum variant may be `#[fallback]`
+
+         = help: remove #[fallback] attributes until you only have one
+
  --> tests/ui/fallback/multiple-fallbacks.rs:4:10
   |
 4 | #[derive(FromBits)]
   |          ^^^^^^^^
   |
-  = help: remove #[fallback] attributes until you only have one
   = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)

@@ -1,4 +1,4 @@
-#![feature(const_trait_impl)] use bilge::prelude::*;
+use bilge::prelude::*;
 
 #[bitsize(4)]
 #[derive(FromBits)]
@@ -8,7 +8,11 @@ struct A(u4);
 #[bitsize(4)]
 #[derive(FromBits)]
 #[non_exhaustive]
-enum B { A, B, C }
+enum B {
+    A,
+    B,
+    C,
+}
 
 #[bitsize(4)]
 #[derive(TryFromBits)]
@@ -18,6 +22,10 @@ struct C(u4);
 #[bitsize(4)]
 #[derive(TryFromBits)]
 #[non_exhaustive]
-enum D { A, B, C }
+enum D {
+    A,
+    B,
+    C,
+}
 
 fn main() {}

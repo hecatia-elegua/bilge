@@ -1,7 +1,8 @@
 error: FromBits only supports unit variants for variants without `#[fallback]`
+
+         = help: add a fallback variant or change this variant to a unit
+
  --> tests/ui/fallback/non-unit-variant-without-fallback.rs:8:5
   |
 8 |     Is(u2),
   |     ^^^^^^
-  |
-  = help: add a fallback variant or change this variant to a unit

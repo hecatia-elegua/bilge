@@ -1,10 +1,11 @@
 error: variant `A` is not a number
+
+         = help: only literal integers currently supported
+
  --> tests/ui/discriminant-invalid.rs:9:9
   |
 9 |     A = EXTERNAL,
   |         ^^^^^^^^
-  |
-  = help: only literal integers currently supported
 
 error: Value of variant exceeds the given number of bits
   --> tests/ui/discriminant-invalid.rs:17:5
@@ -13,19 +14,23 @@ error: Value of variant exceeds the given number of bits
    |     ^^^^^^^^^^^^
 
 error: enum overflows its bitsize
+
+         = help: there should only be at most 2 variants defined
+
   --> tests/ui/discriminant-invalid.rs:22:10
    |
 22 | #[derive(FromBits)]
    |          ^^^^^^^^
    |
-   = help: there should only be at most 2 variants defined
    = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error: enum overflows its bitsize
+
+         = help: there should only be at most 2 variants defined
+
   --> tests/ui/discriminant-invalid.rs:30:1
    |
 30 | #[bitsize(1)]
    | ^^^^^^^^^^^^^
    |
-   = help: there should only be at most 2 variants defined
    = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)

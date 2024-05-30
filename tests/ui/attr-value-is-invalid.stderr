@@ -1,26 +1,29 @@
 error: attribute value is not a valid number
+
+         = help: currently, numbers from 1 to 128 are allowed
+
  --> tests/ui/attr-value-is-invalid.rs:4:11
   |
 4 | #[bitsize(-1)]
   |           ^^
-  |
-  = help: currently, numbers from 1 to 128 are allowed
 
 error: attribute value is not a valid number
+
+         = help: currently, numbers from 1 to 128 are allowed
+
  --> tests/ui/attr-value-is-invalid.rs:8:11
   |
 8 | #[bitsize(0)]
   |           ^
-  |
-  = help: currently, numbers from 1 to 128 are allowed
 
 error: attribute value is not a valid number
+
+         = help: currently, numbers from 1 to 128 are allowed
+
   --> tests/ui/attr-value-is-invalid.rs:12:11
    |
 12 | #[bitsize(129)]
    |           ^^^
-   |
-   = help: currently, numbers from 1 to 128 are allowed
 
 error: enum bitsize is limited to 64
   --> tests/ui/attr-value-is-invalid.rs:16:1
