@@ -39,7 +39,7 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStr
 
     quote! {
         impl ::core::fmt::Binary for #struct_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 let struct_size = <#struct_name as Bitsized>::BITS;
                 let mut last_bit_pos = struct_size;
                 let mask = <#struct_name as Bitsized>::MAX;
@@ -68,7 +68,7 @@ fn generate_enum_binary_impl(
 
     quote! {
         impl ::core::fmt::Binary for #enum_name {
-            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 #body
             }
         }
