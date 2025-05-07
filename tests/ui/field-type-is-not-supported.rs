@@ -41,6 +41,9 @@ struct A {
 
     // Paren(_)
     m: (u8),
+
+    // Path(type_path) where type_path has a segment with angle brackets 
+    n: Box<dyn Write>,
 }
 
 fn main() {}
