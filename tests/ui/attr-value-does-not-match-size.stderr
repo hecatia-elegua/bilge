@@ -1,0 +1,15 @@
+error[E0080]: evaluation of `bilge::AssertEquals::<19, 18>::EQUAL` failed
+ --> src/lib.rs
+  |
+  |     pub const EQUAL: () = assert!(COMPUTED_SIZE == DECLARED_SIZE, "computed bitsize and declared bitsize differ");
+  |                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ the evaluated program panicked at 'computed bitsize and declared bitsize differ', $DIR/src/lib.rs:55:27
+  |
+  = note: this error originates in the macro `$crate::panic::panic_2021` which comes from the expansion of the macro `assert` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0080]: evaluation of constant value failed
+ --> tests/ui/attr-value-does-not-match-size.rs:3:1
+  |
+3 | #[bitsize(18)]
+  | ^^^^^^^^^^^^^^ referenced constant has errors
+  |
+  = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)
