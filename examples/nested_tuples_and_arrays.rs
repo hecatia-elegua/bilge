@@ -3,7 +3,7 @@
 // you can use the "Expand glob import" command on
 // use bilge::prelude::*;
 // but still need to add Bitsized, Number yourself
-use bilge::prelude::{bitsize, u1, u18, u2, u39, Bitsized, DebugBits, DefaultBits, FromBits, Number, TryFromBits};
+use bilge::prelude::{bitsize, u1, u18, u2, u39, Bitsized, DebugBits, DefaultBits, FromBits, Integer, TryFromBits};
 
 // This file basically just informs you that yes, combinations of different nestings work.
 // also see `tests/struct.rs`

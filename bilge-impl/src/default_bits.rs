@@ -64,7 +64,7 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
             // u2::from(HaveFun::default()).value() as u32;
             quote! {{
                 let as_int = <#path as Bitsized>::ArbitraryInt::from(<#path as ::core::default::Default>::default()).value();
-                let as_base_int = as_int as <<Self as Bitsized>::ArbitraryInt as Number>::UnderlyingType;
+                let as_base_int = as_int as <<Self as Bitsized>::ArbitraryInt as ::arbitrary_int::prelude::Integer>::UnderlyingType;
                 let shifted = as_base_int << offset;
                 offset += #field_size;
                 shifted

@@ -17,7 +17,7 @@ pub mod prelude {
         bitsize, Bitsized,
         FromBits, TryFromBits, DebugBits, BinaryBits, DefaultBits,
         // we control the version, so this should not be a problem
-        arbitrary_int::*,
+        arbitrary_int::prelude::*,
     };
     #[cfg(feature = "serde")]
     pub use super::{DeserializeBits, SerializeBits};
@@ -64,11 +64,11 @@ pub const fn give_me_error() -> BitsError {
 /// Finding some way to combine Number and Bitsized would be good as well.
 impl<BaseType, const BITS: usize> Bitsized for arbitrary_int::UInt<BaseType, BITS>
 where
-    arbitrary_int::UInt<BaseType, BITS>: arbitrary_int::Number,
+    arbitrary_int::UInt<BaseType, BITS>: arbitrary_int::prelude::UnsignedInteger,
 {
     type ArbitraryInt = Self;
     const BITS: usize = BITS;
-    const MAX: Self::ArbitraryInt = <Self as arbitrary_int::Number>::MAX;
+    const MAX: Self::ArbitraryInt = <Self as arbitrary_int::prelude::Integer>::MAX;
 }
 
 macro_rules! bitsized_impl {
@@ -77,7 +77,7 @@ macro_rules! bitsized_impl {
             impl Bitsized for $name {
                 type ArbitraryInt = Self;
                 const BITS: usize = $bits;
-                const MAX: Self::ArbitraryInt = <Self as arbitrary_int::Number>::MAX;
+                const MAX: Self::ArbitraryInt = <Self as arbitrary_int::prelude::Integer>::MAX;
             }
         )+
     };
@@ -88,5 +88,5 @@ bitsized_impl!((u8, 8), (u16, 16), (u32, 32), (u64, 64), (u128, 128));
 impl Bitsized for bool {
     type ArbitraryInt = arbitrary_int::u1;
     const BITS: usize = 1;
-    const MAX: Self::ArbitraryInt = <arbitrary_int::u1 as arbitrary_int::Number>::MAX;
+    const MAX: Self::ArbitraryInt = <arbitrary_int::u1 as arbitrary_int::prelude::Integer>::MAX;
 }

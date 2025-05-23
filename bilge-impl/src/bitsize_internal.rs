@@ -76,7 +76,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
             #[allow(clippy::too_many_arguments, clippy::type_complexity, missing_docs, unused_parens)]
             pub #const_ fn new(#( #constructor_args )*) -> Self {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-                type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
+                type BaseIntOf<T> = <ArbIntOf<T> as ::arbitrary_int::prelude::Integer>::UnderlyingType;
 
                 let mut offset = 0;
                 let raw_value = #( #constructor_parts )|*;

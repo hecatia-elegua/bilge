@@ -39,8 +39,9 @@ nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/night
 serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 
 [dependencies]
-# cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
-arbitrary-int = "1.2.7"
+# Support for arbitrary signed integers is not in a released version yet
+# TODO: Once an update is released, change this
+arbitrary-int = { git = 'https://github.com/danlehmann/arbitrary-int.git', rev = '8c873ee7ff1195836489a6462ff73156197cc729' }
 bilge-impl = { version = "=0.2.0", path = "bilge-impl" }
 
 [dev-dependencies]

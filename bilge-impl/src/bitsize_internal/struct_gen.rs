@@ -45,7 +45,7 @@ pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream, is_array_el
     quote! {
         // for ease of reading
         type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-        type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
+        type BaseIntOf<T> = <ArbIntOf<T> as ::arbitrary_int::prelude::Integer>::UnderlyingType;
         // cursor is the value we read from and starts at the struct's first field
         let mut cursor = self.value.value();
         // this field's offset
@@ -216,7 +216,7 @@ pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream, is_array_el
     let mask = generate_ty_mask(ty);
     quote! {
         type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-        type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
+        type BaseIntOf<T> = <ArbIntOf<T> as ::arbitrary_int::prelude::Integer>::UnderlyingType;
 
         // offset now starts at this field
         let mut offset = #offset;
