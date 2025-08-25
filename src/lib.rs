@@ -65,6 +65,7 @@ pub const fn give_me_error() -> BitsError {
 impl<BaseType, const BITS: usize> Bitsized for arbitrary_int::UInt<BaseType, BITS>
 where
     arbitrary_int::UInt<BaseType, BITS>: arbitrary_int::prelude::UnsignedInteger,
+    BaseType: arbitrary_int::prelude::UnsignedInteger + arbitrary_int::prelude::BuiltinInteger,
 {
     type ArbitraryInt = Self;
     const BITS: usize = BITS;

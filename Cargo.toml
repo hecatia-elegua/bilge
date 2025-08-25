@@ -41,7 +41,7 @@ serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 [dependencies]
 # Support for arbitrary signed integers is not in a released version yet
 # TODO: Once an update is released, change this
-arbitrary-int = { git = 'https://github.com/danlehmann/arbitrary-int.git', rev = '8c873ee7ff1195836489a6462ff73156197cc729' }
+arbitrary-int = { git = 'https://github.com/j-walther/arbitrary-int.git', rev = '55e2ef0e903d1f3d53ca7a03174f9a828aeddecd' }
 bilge-impl = { version = "=0.2.0", path = "bilge-impl" }
 
 [dev-dependencies]
