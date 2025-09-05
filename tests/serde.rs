@@ -1,4 +1,5 @@
 #![cfg(feature = "serde")]
+#![allow(clippy::unusual_byte_groupings)]
 
 use bilge::prelude::*;
 use serde_test::{assert_de_tokens_error, assert_tokens, Token};
@@ -84,10 +85,7 @@ fn serde_tuple_struct() {
 #[test]
 fn serde_tuple_struct_map() {
     assert_de_tokens_error::<BitsTupleStruct>(
-        &[
-            Token::TupleStruct { name: "BitsStruct", len: 3 },
-            Token::Str("val_0"),
-        ],
+        &[Token::TupleStruct { name: "BitsStruct", len: 3 }, Token::Str("val_0")],
         r#"invalid type: string "val_0", expected u8"#,
     );
 }

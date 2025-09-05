@@ -1,5 +1,5 @@
 use bilge::{
-    arbitrary_int::{u12, u2, u20, u4, u5, Number},
+    arbitrary_int::{u12, u2, u20, u4, u5, Integer},
     bitsize, Bitsized, DebugBits, FromBits,
 };
 

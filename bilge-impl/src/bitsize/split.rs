@@ -122,7 +122,7 @@ impl SplitAttributes {
     }
 }
 
-fn parse_attribute(attribute: &Attribute) -> ParsedAttribute {
+fn parse_attribute(attribute: &Attribute) -> ParsedAttribute<'_> {
     match &attribute.meta {
         Meta::List(list) if list.path.is_ident("derive") => {
             let mut derives = Vec::new();

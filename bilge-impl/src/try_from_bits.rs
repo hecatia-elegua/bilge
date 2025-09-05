@@ -111,7 +111,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
             fn try_from(value: #arb_int) -> ::core::result::Result<Self, Self::Error> {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-                type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
+                type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
 
                 // cursor starts at value's first field
                 let mut cursor = value.value();

@@ -7,7 +7,7 @@
 //  so,
 // `cargo +nightly test` will fail
 // `cargo +nightly-2022-11-03 test` should not fail
-#[allow(unused_attributes)]
+#[allow(unused_attributes, clippy::duplicated_attributes)]
 #[rustversion::attr(not(nightly), ignore)]
 #[cfg_attr(not(feature = "nightly"), ignore)]
 #[test]
