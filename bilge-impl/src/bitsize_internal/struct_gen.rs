@@ -45,7 +45,7 @@ pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream, is_array_el
     quote! {
         // for ease of reading
         type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-        type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
+        type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
         // cursor is the value we read from and starts at the struct's first field
         let mut cursor = self.value.value();
         // this field's offset
@@ -142,23 +142,19 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
         Path(_) => {
             // get the size, so we can shift to the next element's offset
             let size = shared::generate_type_bitsize(ty);
-            // get the mask, so we can get this element's value
-            let mask = generate_ty_mask(ty);
 
             // do all steps until conversion
             let elem_value = quote! {
-                // the element's mask
-                let mask = #mask;
                 // the cursor starts at this element's offset, now get its value
-                let raw_value = cursor & mask;
+                let raw_value = cursor;
                 // after getting the value, we can shift by the element's size
                 // TODO: we could move this into tuple/array (and try_from, below)
                 let size = #size;
                 cursor = cursor.wrapping_shr(size as u32);
                 // cast the element value (e.g. u32 -> u8),
                 let raw_value: BaseIntOf<#ty> = raw_value as BaseIntOf<#ty>;
-                // which allows it to be used here (e.g. u4::new(u8))
-                let elem_value = <#ty as Bitsized>::ArbitraryInt::new(raw_value);
+                // which allows it to be used here (e.g. u4::masked_new(u8))
+                let elem_value = <#ty as Bitsized>::ArbitraryInt::masked_new(raw_value);
             };
 
             if is_getter {
@@ -216,7 +212,7 @@ pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream, is_array_el
     let mask = generate_ty_mask(ty);
     quote! {
         type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-        type BaseIntOf<T> = <ArbIntOf<T> as Number>::UnderlyingType;
+        type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
 
         // offset now starts at this field
         let mut offset = #offset;

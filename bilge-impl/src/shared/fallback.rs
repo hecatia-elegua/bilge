@@ -57,7 +57,7 @@ impl Fallback {
 /// a "fallback variant" may come in one of two forms:
 /// 1. `#[fallback] Foo`, which we map to `Fallback::Unit`
 /// 2. `#[fallback] Foo(uN)`, where `N` is the enum's bitsize and `Foo` is the enum's last variant,
-/// which we map to `Fallback::WithValue`
+///    which we map to `Fallback::WithValue`
 pub fn fallback_variant(data: &Data, enum_bitsize: BitSize) -> Option<Fallback> {
     match data {
         Data::Enum(enum_data) => {

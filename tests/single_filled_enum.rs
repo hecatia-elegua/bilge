@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
+#![allow(clippy::disallowed_names)]
 use bilge::prelude::*;
 
 #[bitsize(32)]

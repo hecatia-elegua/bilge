@@ -19,7 +19,7 @@ jobs:
           # - beta
           # - nightly
           # keep this fixed to the version in rust-toolchain.toml, README.md and below
-          - nightly-2022-11-03 
+          - nightly-2023-04-01
           # - 1.31.0  # find out MSRV
     steps:
     - uses: actions/checkout@v3
@@ -39,19 +39,19 @@ jobs:
     - name: Lint stable
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
-        cargo clippy --workspace --features serde -- -D warnings
+        cargo clippy --workspace --features "serde" -- -D warnings
 
     - name: Lint nightly
-      if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
+      if: ${{ matrix.toolchain == 'nightly-2023-04-01' }}
       run: |
-        cargo clippy --workspace --features nightly serde -- -D warnings
+        cargo clippy --workspace --features "nightly serde" -- -D warnings
 
     - name: Test stable
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
-        cargo test --workspace --features serde
+        cargo test --workspace --features "serde"
 
     - name: Test nightly
-      if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}
+      if: ${{ matrix.toolchain == 'nightly-2023-04-01' }}
       run: |
-        cargo test --workspace --features nightly serde
+        cargo test --workspace --features "nightly serde"
