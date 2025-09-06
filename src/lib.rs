@@ -5,6 +5,8 @@ use core::fmt;
 
 #[doc(no_inline)]
 pub use arbitrary_int;
+#[cfg(feature = "schemars")]
+pub use bilge_impl::JsonSchemaBits;
 pub use bilge_impl::{bitsize, bitsize_internal, BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits};
 #[cfg(feature = "serde")]
 pub use bilge_impl::{DeserializeBits, SerializeBits};
@@ -19,6 +21,8 @@ pub mod prelude {
         // we control the version, so this should not be a problem
         arbitrary_int::prelude::*,
     };
+    #[cfg(feature = "schemars")]
+    pub use super::JsonSchemaBits;
     #[cfg(feature = "serde")]
     pub use super::{DeserializeBits, SerializeBits};
 }

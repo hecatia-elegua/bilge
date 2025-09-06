@@ -17,6 +17,7 @@ proc-macro = true
 default = []
 # Enables constness, see README.md for the specific nightly version
 nightly = []
+schemars = []
 serde = []
 
 [dependencies]

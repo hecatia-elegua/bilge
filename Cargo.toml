@@ -40,6 +40,7 @@ rust-version = "1.83"
 default = []
 # Enables constness on nightly; FIXME: re-enable when const convert and const trait impl are back on nightly
 # nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/nightly"]
+schemars = ["bilge-impl/schemars", "arbitrary-int/schemars"]
 serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 
 [dependencies]
@@ -53,6 +54,7 @@ rustversion = "1.0"
 trybuild = "1.0"
 custom_bits = { path = "tests/custom_bits" }
 assert_matches = "1.5.0"
+schemars = "0.8"
 serde = "1.0"
 serde_test = "1.0"
 

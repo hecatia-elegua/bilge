@@ -7,6 +7,9 @@ mod debug_bits;
 mod default_bits;
 mod fmt_bits;
 mod from_bits;
+#[cfg(feature = "schemars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "schemars")))]
+mod schemars_bits;
 #[cfg(feature = "serde")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 mod serde_bits;
@@ -76,6 +79,16 @@ pub fn derive_binary_bits(item: TokenStream) -> TokenStream {
 #[proc_macro_derive(DefaultBits)]
 pub fn derive_default_bits(item: TokenStream) -> TokenStream {
     default_bits::default_bits(item.into()).into()
+}
+
+/// Generate an `impl schemars::JsonSchema` for bitfield structs.
+///
+/// Please use normal #[derive(JsonSchema)] for enums.
+#[cfg(feature = "schemars")]
+#[proc_macro_error]
+#[proc_macro_derive(JsonSchemaBits, attributes(bitsize_internal))]
+pub fn json_schema_bits(item: TokenStream) -> TokenStream {
+    schemars_bits::json_schema_bits(item.into()).into()
 }
 
 /// Generate an `impl serde::Serialize` for bitfield structs.
