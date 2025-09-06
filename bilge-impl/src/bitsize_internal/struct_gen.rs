@@ -298,7 +298,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
             let size = shared::generate_type_bitsize(ty);
             quote! {
                 // the element's value as it's underlying type
-                let value: BaseIntOf<#ty> = <ArbIntOf<#ty>>::from(value).value();
+                let value: BaseIntOf<#ty> = <ArbIntOf<#ty>>::from(value).value(); // FIXME: to_bits
                 // cast the element value (e.g. u8 -> u32),
                 // which allows it to be combined with the struct's value later
                 let value: BaseIntOf<Self> = value as BaseIntOf<Self>;
@@ -379,7 +379,7 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
         Path(_) => quote! {
             // Casting this is needed in some places, but it might not be needed in some others.
             // (u2, u12) -> u8 << 0 | u16 << 2 -> u8 | u16 not possible
-            (<#ty as Bitsized>::MAX.value() as BaseIntOf<Self>)
+            (<#ty as Bitsized>::MAX.value() as BaseIntOf<Self>) // FIXME: MASK
         },
         _ => unreachable(()),
     }
