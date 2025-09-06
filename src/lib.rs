@@ -72,6 +72,16 @@ where
     const MAX: Self::ArbitraryInt = <Self as arbitrary_int::traits::Integer>::MAX;
 }
 
+impl<BaseType, const BITS: usize> Bitsized for arbitrary_int::Int<BaseType, BITS>
+where
+    BaseType: arbitrary_int::traits::SignedInteger + arbitrary_int::traits::BuiltinInteger,
+    arbitrary_int::Int<BaseType, BITS>: arbitrary_int::traits::SignedInteger,
+{
+    type ArbitraryInt = Self;
+    const BITS: usize = BITS;
+    const MAX: Self::ArbitraryInt = <Self as arbitrary_int::traits::Integer>::MAX;
+}
+
 macro_rules! bitsized_impl {
     ($(($name:ident, $bits:expr)),+) => {
         $(
@@ -84,6 +94,7 @@ macro_rules! bitsized_impl {
     };
 }
 bitsized_impl!((u8, 8), (u16, 16), (u32, 32), (u64, 64), (u128, 128));
+bitsized_impl!((i8, 8), (i16, 16), (i32, 32), (i64, 64), (i128, 128));
 
 /// Handle bool as a u1
 impl Bitsized for bool {

@@ -85,7 +85,114 @@ fn serde_tuple_struct() {
 #[test]
 fn serde_tuple_struct_map() {
     assert_de_tokens_error::<BitsTupleStruct>(
-        &[Token::TupleStruct { name: "BitsStruct", len: 3 }, Token::Str("val_0")],
+        &[
+            Token::TupleStruct {
+                name: "BitsTupleStruct",
+                len: 3,
+            },
+            Token::Str("val_0"),
+        ],
+        r#"invalid type: string "val_0", expected u8"#,
+    );
+}
+
+#[bitsize(17)]
+#[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]
+struct BitsStructSigned {
+    padding: u1,
+    reserved: i1,
+    field1: i8,
+    padding: u1,
+    field2: u5,
+    reserved: u1,
+}
+
+#[test]
+fn serde_struct_signed() {
+    let bits = BitsStructSigned::from(u17::new(0b0_01001_0_00100011_0_0));
+
+    assert_tokens(
+        &bits,
+        &[
+            Token::Struct {
+                name: "BitsStructSigned",
+                len: 2,
+            },
+            Token::Str("field1"),
+            Token::I8(0b00100011),
+            Token::Str("field2"),
+            Token::U8(0b01001),
+            Token::StructEnd,
+        ],
+    );
+}
+
+#[test]
+fn serde_struct_missing_field_signed() {
+    assert_de_tokens_error::<BitsStructSigned>(
+        &[
+            Token::Struct {
+                name: "BitsStructSigned",
+                len: 1,
+            },
+            Token::Str("field1"),
+            Token::U8(0b00100011),
+            Token::StructEnd,
+        ],
+        "missing field `field2`",
+    );
+}
+
+#[test]
+fn serde_struct_extra_field_signed() {
+    assert_de_tokens_error::<BitsStructSigned>(
+        &[
+            Token::Struct {
+                name: "BitsStructSigned",
+                len: 3,
+            },
+            Token::Str("field1"),
+            Token::U8(0b00100011),
+            Token::Str("field2"),
+            Token::U8(0b01001),
+            Token::Str("field3"),
+        ],
+        "unknown field `field3`, expected `field1` or `field2`",
+    );
+}
+
+#[bitsize(13)]
+#[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]
+struct BitsTupleStructSigned(u8, i5);
+
+#[test]
+fn serde_tuple_struct_signed() {
+    let bits = BitsTupleStructSigned::from(u13::new(0b01001_00100011));
+
+    assert_tokens(
+        &bits,
+        &[
+            Token::TupleStruct {
+                name: "BitsTupleStructSigned",
+                len: 2,
+            },
+            Token::U8(0b00100011),
+            Token::I8(0b01001),
+            Token::TupleStructEnd,
+        ],
+    );
+}
+
+#[test]
+fn serde_tuple_struct_map_signed() {
+    assert_de_tokens_error::<BitsTupleStructSigned>(
+        &[
+            Token::TupleStruct {
+                name: "BitsTupleStructSigned",
+                len: 3,
+            },
+            Token::Str("val_0"),
+        ],
         r#"invalid type: string "val_0", expected u8"#,
     );
 }
