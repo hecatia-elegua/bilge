@@ -201,10 +201,12 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 }
 
 fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStream) {
+    let name = format!("arg_{name}");
+    let name: Ident = syn::parse_str(&name).unwrap_or_else(unreachable);
     let constructor_arg = quote! {
         #name: #ty,
     };
-    let constructor_part = struct_gen::generate_constructor_part(ty, name);
+    let constructor_part = struct_gen::generate_constructor_part(ty, &name);
     (constructor_arg, constructor_part)
 }
 
