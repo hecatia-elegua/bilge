@@ -27,7 +27,8 @@ repository = "https://github.com/hecatia-elegua/bilge"
 # tested with `cargo msrv`:
 # 1.64 without let...else
 # 1.34 without cargo workspace-inheritance
-rust-version = "1.65"
+# 1.78 mutable references are not allowed in constant functions, etc. in arbitrary-int 2.0.0
+rust-version = "1.83"
 
 [features]
 # at bilge devs: easiest way to test nightly is by switching the
@@ -37,8 +38,8 @@ rust-version = "1.65"
 # The code still contains conditional `const` keywords for later.
 # default = ["nightly"]
 default = []
-# Enables constness on nightly
-nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/nightly"]
+# Enables constness on nightly; FIXME: re-enable when const convert and const trait impl are back on nightly
+# nightly = ["arbitrary-int/const_convert_and_const_trait_impl", "bilge-impl/nightly"]
 serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 
 [dependencies]
@@ -78,3 +79,8 @@ path = "benches/compared/main.rs"
 harness = false
 # REMOVE this when benchmarking
 bench = false
+
+[workspace.lints.rust]
+unexpected_cfgs = "allow"
+[lints.rust]
+unexpected_cfgs = "allow"
