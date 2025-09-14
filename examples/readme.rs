@@ -78,6 +78,7 @@ fn main() {
     ise.set_val_0_at(2, ise5);
     assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
 
+    assert_eq!(Subclass::Speakers, Subclass::from(2));
     assert_eq!(Subclass::Reserved, Subclass::from(3));
     assert_eq!(Subclass::Reserved, Subclass::from(42));
     let num = u32::from(Subclass::from(42));

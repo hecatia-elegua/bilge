@@ -17,7 +17,7 @@ I wanted a design fitting rust:
 - **simple to complex**
     - obvious and readable basic frontend, like normal structs
     - only minimally and gradually introduce advanced concepts
-    - provide extension mechanisms
+    - provide extension mechanisms (that means being modular! you can add more `derive`s easily)
 
 The lib is **no-std** (and will be `const` again when rust [const-trait-impl](https://github.com/rust-lang/rust/issues/110395) works again).
 
@@ -64,7 +64,7 @@ struct Footer {
 
 As you can see, we added `#[derive(FromBits)]`, which is needed for `Register`'s getters and setters.
 Due to how rust macros work (outside-in), it needs to be below `#[bitsize]`.
-Also, `bool` can be used as one bit.
+Also, `bool` will be saved as one bit.
 
 `Code` is another nesting, this time an enum:
 
@@ -109,6 +109,7 @@ Which produces the usual getter and setter, but also element accessors:
 
 ```rust
 let mut ise = InterruptSetEnables::from(0b0000_0000_0000_0000_0000_0000_0001_0000);
+// val_0 is the array, val_0_at is indexing into the array
 let ise5 = ise.val_0_at(4);
 ise.set_val_0_at(2, ise5);
 assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
@@ -132,6 +133,7 @@ enum Subclass {
 which will convert any undeclared bits to `Reserved`:
 
 ```rust
+assert_eq!(Subclass::Speakers, Subclass::from(2));
 assert_eq!(Subclass::Reserved, Subclass::from(3));
 assert_eq!(Subclass::Reserved, Subclass::from(42));
 let num = u32::from(Subclass::from(42));
@@ -231,7 +233,7 @@ struct Register { value: u14 }
 
 This means you _could_ modify the inner value directly, but it breaks type safety guarantees (e.g. unfilled or read-only fields).
 So if you need to modify the whole field, instead use the type-safe conversions `u14::from(register)` and `Register::from(u14)`.
-It is possible that this inner type will be made private.
+It is possible that this inner type will be made private in the future (possibly configurable).
 
 For some more examples and an overview of functionality, take a look at `/examples` and `/tests`.
 
@@ -243,6 +245,7 @@ First of all, [basic benchmarking](https://github.com/hecatia-elegua/bilge/blob/
 
 ### build-time
 
+(outdated)
 Measuring build time of the crate inself (both with its dependencies and without), yields these numbers on my machine:
 |                       | debug | debug single crate | release   | release single crate |
 |-----------------------|-------|--------------------|-----------|----------------------|
@@ -269,7 +272,7 @@ The common handwritten implementation pattern for bitfields in rust looks [somew
 
 The often used and very inspiring [`modular-bitfield`](https://github.com/robbepop/modular-bitfield) has a few
 problems:
-- it is unmaintained and has a quirky structure
+- (it is unmaintained and has a quirky structure) somebody took over maintainership
 - constructors use the builder pattern
     - makes user code unreadable if you have many fields
     - can accidentally leave things uninitialized
@@ -296,16 +299,17 @@ Tell me where I can do better, I will try.
 
 ### bitbybit
 
-One of the libs inspired by the same crate is [`bitbybit`](https://github.com/danlehmann/bitfield), which is much more readable and up-to-date. Actually, I even helped and am still helping on that one as well. After experimenting and hacking around in their code though, I realized it would need to be severely changed for the features and structure I had in mind.
+One of the libs inspired by the same crate is [`bitbybit`](https://github.com/danlehmann/bitfield), which is much more readable and up-to-date. Actually, I helped on that one in the past as well. After experimenting and hacking around in their code though, I realized it would need to be severely changed for the features and structure I had in mind.
 
 implementation differences (as of 26.04.23):
 - it can do read/write-only, array strides and repeat the same bits for multiple fields
-    - bilge: these will be added the moment someone needs it
+    - bilge: these will be added the moment someone needs it and I or somebody else has time
 - redundant bit-offset specification, which can help or annoy, the same way bilge's `reserved` fields can help or annoy
     - idea: [Optionally support specifying the bit-range of a field instead](https://github.com/hecatia-elegua/bilge/issues/28)
 
 ### deku
 
+(outdated, I think they fixed that)
 After looking at a ton of bitfield libs on crates.io, I _didn't_ find [`deku`](https://github.com/sharksforarms/deku).
 I will still mention it here because it uses a very interesting crate underneath (bitvec).
 Currently (as of 26.04.23), it generates far more assembly and takes longer to run, since parts of the API are not `const`.
