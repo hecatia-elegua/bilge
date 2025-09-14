@@ -1,4 +1,4 @@
-use proc_macro_error::{abort, abort_call_site};
+use proc_macro_error2::{abort, abort_call_site};
 use quote::ToTokens;
 use syn::{meta::ParseNestedMeta, parse_quote, Attribute, Item, Meta, Path};
 

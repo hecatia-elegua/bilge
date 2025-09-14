@@ -4,7 +4,7 @@ pub mod util;
 
 use fallback::{fallback_variant, Fallback};
 use proc_macro2::{Ident, Literal, TokenStream};
-use proc_macro_error::{abort, abort_call_site};
+use proc_macro_error2::{abort, abort_call_site};
 use quote::quote;
 use syn::{Attribute, DeriveInput, LitInt, Meta, Type};
 use util::PathExt;

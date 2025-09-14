@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use proc_macro2::Ident;
-use proc_macro_error::{abort, abort_call_site};
+use proc_macro_error2::{abort, abort_call_site};
 use syn::{Data, Variant};
 
 use super::{bitsize_from_type_ident, is_fallback_attribute, last_ident_of_path, unreachable, BitSize};

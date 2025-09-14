@@ -1,5 +1,5 @@
 use proc_macro2::Literal;
-use proc_macro_error::abort;
+use proc_macro_error2::abort;
 use syn::{Expr, ExprLit, Lit, Variant};
 
 use super::{unreachable, BitSize};
