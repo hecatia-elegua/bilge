@@ -44,7 +44,8 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     let ItemStruct { vis, ident, fields, .. } = struct_data;
 
     let mut previous_field_sizes = vec![];
-    let (accessors, (constructor_args, constructor_parts)): (Vec<TokenStream>, (Vec<TokenStream>, Vec<TokenStream>)) = fields
+    type TokenVec = Vec<TokenStream>;
+    let (accessors, (constructor_args, (constructor_parts, shifted_names))): (TokenVec, (TokenVec, (TokenVec, Vec<Ident>))) = fields
         .iter()
         .enumerate()
         .map(|(i, field)| {
@@ -79,7 +80,8 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
                 type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
 
                 let mut offset = 0;
-                let raw_value = #( #constructor_parts )|*;
+                #( #constructor_parts )*
+                let raw_value = #( #shifted_names )|*;
                 let value = #arb_int::new(raw_value);
                 Self { value }
             }
@@ -88,7 +90,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
     }
 }
 
-fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (TokenStream, (TokenStream, TokenStream)) {
+fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (TokenStream, (TokenStream, (TokenStream, Ident))) {
     let Field { ident, ty, .. } = field;
     let name = if let Some(ident) = ident {
         ident.clone()
@@ -105,24 +107,28 @@ fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (Token
         let size = shared::generate_type_bitsize(ty);
         let accessors = quote!(#getter);
         let constructor_arg = quote!();
-        let constructor_part = quote! { {
-            // we still need to shift by the element's size
-            offset += #size;
-            0
-        } };
-        return (accessors, (constructor_arg, constructor_part));
+        let shifted_name = format!("shifted_{name}");
+        let shifted_name: Ident = syn::parse_str(&shifted_name).unwrap_or_else(unreachable);
+        let constructor_part = quote! {
+            let #shifted_name = {
+                // we still need to shift by the element's size
+                offset += #size;
+                0
+            };
+        };
+        return (accessors, (constructor_arg, (constructor_part, shifted_name)));
     }
 
     let getter = generate_getter(field, field_offset, &name);
     let setter = generate_setter(field, field_offset, &name);
-    let (constructor_arg, constructor_part) = generate_constructor_stuff(ty, &name);
+    let (constructor_arg, constructor_part, shifted_name) = generate_constructor_stuff(ty, &name);
 
     let accessors = quote! {
         #getter
         #setter
     };
 
-    (accessors, (constructor_arg, constructor_part))
+    (accessors, (constructor_arg, (constructor_part, shifted_name)))
 }
 
 fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenStream {
@@ -200,14 +206,17 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     }
 }
 
-fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStream) {
+fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStream, Ident) {
     let name = format!("arg_{name}");
     let name: Ident = syn::parse_str(&name).unwrap_or_else(unreachable);
     let constructor_arg = quote! {
         #name: #ty,
     };
-    let constructor_part = struct_gen::generate_constructor_part(ty, &name);
-    (constructor_arg, constructor_part)
+    let shifted_name = format!("shifted_{name}");
+    let shifted_name: Ident = syn::parse_str(&shifted_name).unwrap_or_else(unreachable);
+
+    let constructor_part = struct_gen::generate_constructor_part(ty, &name, &shifted_name);
+    (constructor_arg, constructor_part, shifted_name)
 }
 
 fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
