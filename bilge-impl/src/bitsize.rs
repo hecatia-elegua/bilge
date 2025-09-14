@@ -1,7 +1,7 @@
 mod split;
 
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error::{abort, abort_call_site};
+use proc_macro_error2::{abort, abort_call_site};
 use quote::quote;
 use split::SplitAttributes;
 use syn::{punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant};

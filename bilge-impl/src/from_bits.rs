@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error::{abort, abort_call_site};
+use proc_macro_error2::{abort, abort_call_site};
 use quote::quote;
 use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
 

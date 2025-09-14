@@ -1,5 +1,5 @@
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error::{abort, emit_call_site_warning};
+use proc_macro_error2::{abort, emit_call_site_warning};
 use quote::quote;
 use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
 
