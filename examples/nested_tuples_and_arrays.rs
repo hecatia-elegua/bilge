@@ -123,4 +123,11 @@ fn main() {
 
     let default = UnfilledEnumMess::default();
     println!("{default:?}");
+    assert_eq!(
+        default,
+        UnfilledEnumMess::new([[
+            ([[(HaveFun::Yes, u2::new(0)), (HaveFun::Yes, u2::new(0))]], u1::new(0)),
+            ([[(HaveFun::Yes, u2::new(0)), (HaveFun::Yes, u2::new(0))]], u1::new(0)),
+        ]])
+    );
 }

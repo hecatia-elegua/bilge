@@ -54,8 +54,10 @@ fn main() {
         group: unsafe { VolatilePtr::new_read_only((&mut group).into()) },
     };
 
+    // 0_0000_0_1_1_00000010000000010000_0_0_00
     println!("{:032b}", redist.control.read());
     println!("{:?}", redist.control);
+    // 11111111111111101111111111111111
     println!("{:032b}", redist.group.read());
     println!("{:?}", redist.group);
 
@@ -66,8 +68,10 @@ fn main() {
         group: unsafe { VolatilePtr::new_read_only((&mut raw_memory.1).into()) },
     };
 
+    // 0_0000_0_1_1_00000010000000010000_0_0_00
     println!("{:032b}", redist.control.read());
     println!("{:?}", redist.control);
+    // 11111111111111101111111111111111
     println!("{:032b}", redist.group.read());
     println!("{:?}", redist.group);
 }
