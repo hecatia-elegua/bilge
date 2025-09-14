@@ -35,6 +35,7 @@ fn main() {
     let _: u2 = u2::new(b.clone() as u8);
     let c: u2 = b.clone().into();
 
+    // A A 0
     println!("{:?} {:?} {:?}", a, b, c);
 
     let ada = 1u8;
@@ -48,5 +49,6 @@ fn main() {
     let a = 2;
     let b = CompleteEnum::from(u2::new(a));
     let c: u2 = b.into();
+    // 2
     println!("{:?}", c);
 }

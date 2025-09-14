@@ -28,6 +28,7 @@ fn main() {
     // Let's say we want bit 3, 4 and 31, so 0, 1, 1:
     let value = 0b11111111_00001111_00110011_10101010;
     let thing = SomeBits::from(value);
+    // SomeBits { one: false, two: true, three: true }
     println!("{thing:?}");
 }
 
