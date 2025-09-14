@@ -15,7 +15,7 @@ include = ["src/lib.rs", "LICENSE-*", "README.md"]
 members = ["bilge-impl"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 categories = ["data-structures", "no-std::no-alloc", "embedded", "rust-patterns"]
 description = "Use bitsized types as if they were a feature of rust."
 documentation = "https://docs.rs/bilge"
@@ -45,7 +45,7 @@ serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 [dependencies]
 # cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
 arbitrary-int = "2.0.0"
-bilge-impl = { version = "=0.2.0", path = "bilge-impl" }
+bilge-impl = { version = "=0.3.0", path = "bilge-impl" }
 
 [dev-dependencies]
 # tests
