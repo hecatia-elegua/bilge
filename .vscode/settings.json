@@ -4,4 +4,5 @@
         "editor.formatOnSave": true
     },
     "rust-analyzer.cargo.features": ["serde"],
+    "rust-analyzer.diagnostics.disabled": ["macro-error"],
 }

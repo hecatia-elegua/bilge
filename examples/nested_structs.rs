@@ -1,21 +1,31 @@
+//! Example of nested structs and enums.
+//! Also tests documentation warnings are working right.
 #![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
+#![deny(missing_docs)]
 use bilge::prelude::*;
 
 //it is still a little annoying that rust gives us the helpful message to implement "Debug" instead of "DebugBits"
+/// This is ParentStruct.
 #[bitsize(6)]
 #[derive(DebugBits, TryFromBits)]
-struct ParentStruct {
-    field1: ChildStruct,
+pub struct ParentStruct {
+    /// This is field1.
+    pub field1: ChildStruct,
     field2: ChildEnum,
     field3: u2,
 }
 
+/// This is ChildEnum.
 #[bitsize(2)]
 #[derive(Debug, FromBits)]
-enum ChildEnum {
+pub enum ChildEnum {
+    /// This is A.
     A = 0b000,
+    /// This is B.
     B = 0x001,
+    /// This is C.
     C,
+    /// This is D.
     D = 0o003,
 }
 

@@ -25,8 +25,11 @@ pub mod prelude {
 
 /// This is internally used, but might be useful. No guarantees are given (for now).
 pub trait Bitsized {
+    /// The arbitrary_int type, used internally to 'generically' access its methods.
     type ArbitraryInt;
+    /// The number of bits this type uses.
     const BITS: usize;
+    /// The maximum value this type can hold.
     const MAX: Self::ArbitraryInt;
 }
 
@@ -40,6 +43,7 @@ unsafe impl<T> Filled for T where T: Bitsized + From<<T as Bitsized>::ArbitraryI
 /// This is generated to statically validate that a type implements `FromBits`.
 pub const fn assume_filled<T: Filled>() {}
 
+/// The error type used for `TryFromBits`.
 #[non_exhaustive]
 #[derive(Debug, PartialEq)]
 pub struct BitsError;
