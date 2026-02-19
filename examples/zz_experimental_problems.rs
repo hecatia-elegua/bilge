@@ -17,9 +17,9 @@ enum Unfilled {
 fn main() {
     // This file mostly shows one flaw to still be solved or at least to be made configurable:
     // The inner value of a bitfield, which holds invariants, can currently still be changed.
-    let mut a = CanBeChanged::new(Unfilled::A);
+    let mut _a = CanBeChanged::new(Unfilled::A);
     // There is no enum value for `3` or `0b11`, but we can set it anyways:
-    a.value = u4::new(3);
+    _a.value = u4::new(3);
     // This panics internally:
     // a.val_0();
 
@@ -53,8 +53,8 @@ mod somebits {
     #[allow(dead_code)]
     fn modify_inner() {
         let a = 0b10101010;
-        let mut b = SomeBits::new(true, true, true);
-        b.value = u3::new(a);
+        let mut _b = SomeBits::new(true, true, true);
+        _b.value = u3::new(a);
     }
 }
 use somebits::*;
