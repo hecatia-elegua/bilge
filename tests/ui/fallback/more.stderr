@@ -4,7 +4,7 @@ error: `#[fallback]` does not support variants with named fields
 
   --> tests/ui/fallback/more.rs:9:5
    |
-9  | /     #[fallback]
+ 9 | /     #[fallback]
 10 | |     Dee { fallback: u15 },
    | |_________________________^
 
