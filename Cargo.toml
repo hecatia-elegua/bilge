@@ -16,11 +16,16 @@ members = ["bilge-impl"]
 
 [workspace.package]
 version = "0.3.0"
-categories = ["data-structures", "no-std::no-alloc", "embedded", "rust-patterns"]
+categories = [
+    "data-structures",
+    "no-std::no-alloc",
+    "embedded",
+    "rust-patterns",
+]
 description = "Use bitsized types as if they were a feature of rust."
 documentation = "https://docs.rs/bilge"
 edition = "2021"
-keywords   = ["bilge", "bitfield", "bits", "register"]
+keywords = ["bilge", "bitfield", "bits", "register"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/hecatia-elegua/bilge"
@@ -55,6 +60,7 @@ custom_bits = { path = "tests/custom_bits" }
 assert_matches = "1.5.0"
 serde = "1.0"
 serde_test = "1.0"
+defmt = "1.0.1"
 
 # examples
 # volatile = { git = "https://github.com/theseus-os/volatile" }

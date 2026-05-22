@@ -40,7 +40,7 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
                 #(#calls)*.finish()
             }
         }
-        Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => ::core::todo!("this is a unit struct, which is not supported right now"),
     };
 
     quote! {

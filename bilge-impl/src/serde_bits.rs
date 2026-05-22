@@ -52,7 +52,7 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
                 state.end()
             }
         }
-        Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => ::core::todo!("this is a unit struct, which is not supported right now"),
     };
 
     quote! {
@@ -133,7 +133,7 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
             .enumerate()
             .map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable)))
             .multiunzip(),
-        Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => ::core::todo!("this is a unit struct, which is not supported right now"),
     };
 
     if field_expecting.len() > 1 {

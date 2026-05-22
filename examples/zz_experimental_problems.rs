@@ -14,6 +14,7 @@ enum Unfilled {
     C,
 }
 
+#[allow(unused)]
 fn main() {
     // This file mostly shows one flaw to still be solved or at least to be made configurable:
     // The inner value of a bitfield, which holds invariants, can currently still be changed.
@@ -50,7 +51,7 @@ mod somebits {
     // mean all the private items would not be accessible..
     //
     // If we find any other way to make `value` inaccessible, update this.
-    #[allow(dead_code)]
+    #[allow(dead_code, unused)]
     fn modify_inner() {
         let a = 0b10101010;
         let mut b = SomeBits::new(true, true, true);

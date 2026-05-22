@@ -1,7 +1,7 @@
 error[E0624]: method `val_0` is private
   --> tests/ui/vis-privacy-is-respected.rs:29:11
    |
-5  |     #[bitsize(96)]
+ 5 |     #[bitsize(96)]
    |     -------------- private method defined here
 ...
 29 |     diary.val_0();
@@ -10,7 +10,7 @@ error[E0624]: method `val_0` is private
 error[E0624]: method `set_val_0` is private
   --> tests/ui/vis-privacy-is-respected.rs:31:11
    |
-5  |     #[bitsize(96)]
+ 5 |     #[bitsize(96)]
    |     -------------- private method defined here
 ...
 31 |     diary.set_val_0(rusti);
@@ -19,7 +19,7 @@ error[E0624]: method `set_val_0` is private
 error[E0624]: method `val_1_at` is private
   --> tests/ui/vis-privacy-is-respected.rs:37:7
    |
-9  |     #[bitsize(8)]
+ 9 |     #[bitsize(8)]
    |     ------------- private method defined here
 ...
 37 |     a.val_1_at(1);
@@ -28,7 +28,7 @@ error[E0624]: method `val_1_at` is private
 error[E0624]: method `set_val_1_at` is private
   --> tests/ui/vis-privacy-is-respected.rs:38:7
    |
-9  |     #[bitsize(8)]
+ 9 |     #[bitsize(8)]
    |     ------------- private method defined here
 ...
 38 |     a.set_val_1_at(1, u2::new(0));

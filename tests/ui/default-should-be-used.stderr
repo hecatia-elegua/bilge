@@ -22,4 +22,11 @@ error[E0277]: the trait bound `Inner: Default` is not satisfied
   --> tests/ui/default-should-be-used.rs:14:8
    |
 14 |     b: Inner,
-   |        ^^^^^ the trait `Default` is not implemented for `Inner`
+   |        ^^^^^ unsatisfied trait bound
+   |
+help: the trait `Default` is not implemented for `Inner`
+  --> tests/ui/default-should-be-used.rs:17:1
+   |
+17 | #[bitsize(2)]
+   | ^^^^^^^^^^^^^
+   = note: this error originates in the attribute macro `::bilge::bitsize_internal` (in Nightly builds, run with -Z macro-backtrace for more info)

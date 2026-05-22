@@ -16,7 +16,7 @@ pub(crate) fn binary(item: TokenStream) -> TokenStream {
 }
 
 fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStream {
-    let write_underscore = quote! { write!(f, "_")?; };
+    let write_underscore = quote! { ::core::write!(f, "_")?; };
 
     // fields are printed from most significant to least significant, separated by an underscore
     let writes = fields
@@ -32,7 +32,7 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStr
                 let first_bit_pos = last_bit_pos - field_size;
                 last_bit_pos -= field_size;
                 let extracted = field_mask & (self.value >> first_bit_pos);
-                write!(f, "{:0width$b}", extracted, width = field_size)?;
+                ::core::write!(f, "{:0width$b}", extracted, width = field_size)?;
             }
         })
         .reduce(|acc, next| quote!(#acc #write_underscore #next));
@@ -62,7 +62,7 @@ fn generate_enum_binary_impl(
             let value = match self {
                 #( #to_int_match_arms )*
             };
-            write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
+            ::core::write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
         }
     };
 
