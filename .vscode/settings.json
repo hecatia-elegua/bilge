@@ -3,6 +3,6 @@
         "editor.defaultFormatter": "rust-lang.rust-analyzer",
         "editor.formatOnSave": true
     },
-    "rust-analyzer.cargo.features": ["serde"],
+    "rust-analyzer.cargo.features": ["serde", "schemars"],
     "rust-analyzer.diagnostics.disabled": ["macro-error"],
 }
