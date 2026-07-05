@@ -14,8 +14,8 @@ struct ItemIr<'a> {
     expanded: TokenStream,
 }
 
-pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, arb_int) = parse(item, args);
+pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result {
+    let (item, arb_int) = parse(item, args)?;
     let ir = match item {
         Item::Struct(ref item) => {
             let expanded = generate_struct(item, &arb_int);
@@ -31,13 +31,13 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> TokenStr
         }
         _ => unreachable(()),
     };
-    generate_common(ir, &arb_int)
+    Ok(generate_common(ir, &arb_int))
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, TokenStream) {
+fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, TokenStream)> {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
-    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, arb_int)
+    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args)?;
+    Ok((item, arb_int))
 }
 
 fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {

@@ -1,17 +1,17 @@
+use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error2::abort_call_site;
 use quote::quote;
 use syn::{Data, Fields};
 
 use crate::shared::{self, unreachable};
 
-pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
+pub(super) fn debug_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;
     let name_str = name.to_string();
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
-        Data::Enum(_) => abort_call_site!("use derive(Debug) for enums"),
+        Data::Enum(_) => bail!("use derive(Debug) for enums"),
         Data::Union(_) => unreachable(()),
     };
 
@@ -43,11 +43,11 @@ pub(super) fn debug_bits(item: TokenStream) -> TokenStream {
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
-    quote! {
+    Ok(quote! {
         impl ::core::fmt::Debug for #name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 #fmt_impl
             }
         }
-    }
+    })
 }

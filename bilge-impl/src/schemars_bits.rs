@@ -1,5 +1,5 @@
+use manyhow::bail;
 use proc_macro2::TokenStream;
-use proc_macro_error2::abort_call_site;
 use quote::quote;
 use syn::{Data, Field, Fields};
 
@@ -10,13 +10,13 @@ fn filter_not_reserved_or_padding(field: &&Field) -> bool {
     !field_name_string.starts_with("reserved_") && !field_name_string.starts_with("padding_")
 }
 
-pub(super) fn json_schema_bits(item: TokenStream) -> TokenStream {
+pub(super) fn json_schema_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;
     let name_str = name.to_string();
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
-        Data::Enum(_) => abort_call_site!("use derive(JsonSchema) for enums"),
+        Data::Enum(_) => bail!("use derive(JsonSchema) for enums"),
         Data::Union(_) => unreachable(()),
     };
 
@@ -67,7 +67,7 @@ pub(super) fn json_schema_bits(item: TokenStream) -> TokenStream {
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
-    quote! {
+    Ok(quote! {
         impl ::schemars::JsonSchema for #name {
             fn schema_name() -> ::std::string::String {
                 <str as ::std::borrow::ToOwned>::to_owned(#name_str)
@@ -81,5 +81,5 @@ pub(super) fn json_schema_bits(item: TokenStream) -> TokenStream {
                 #json_schema_impl
             }
         }
-    }
+    })
 }

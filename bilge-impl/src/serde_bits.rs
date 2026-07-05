@@ -1,6 +1,6 @@
 use itertools::MultiUnzip;
+use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error2::abort_call_site;
 use quote::quote;
 use syn::{Data, Field, Fields};
 
@@ -11,13 +11,13 @@ fn filter_not_reserved_or_padding(field: &&Field) -> bool {
     !field_name_string.starts_with("reserved_") && !field_name_string.starts_with("padding_")
 }
 
-pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
+pub(super) fn serialize_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;
     let name_str = name.to_string();
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
-        Data::Enum(_) => abort_call_site!("use derive(Serialize) for enums"),
+        Data::Enum(_) => bail!("use derive(Serialize) for enums"),
         Data::Union(_) => unreachable(()),
     };
 
@@ -55,7 +55,7 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
         Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
     };
 
-    quote! {
+    Ok(quote! {
         impl ::serde::Serialize for #name {
             fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
             where
@@ -64,7 +64,7 @@ pub(super) fn serialize_bits(item: TokenStream) -> TokenStream {
                 #serialize_impl
             }
         }
-    }
+    })
 }
 
 fn deserialize_field_parts(
@@ -97,14 +97,14 @@ fn deserialize_field_parts(
     )
 }
 
-pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
+pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = shared::parse_derive(item);
     let name = &derive_input.ident;
     let name_str = name.to_string();
     let struct_name_str = format!("struct {}", name_str);
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
-        Data::Enum(_) => abort_call_site!("use derive(Serialize) for enums"),
+        Data::Enum(_) => bail!("use derive(Serialize) for enums"),
         Data::Union(_) => unreachable(()),
     };
 
@@ -159,7 +159,7 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
         quote!()
     };
 
-    quote! {
+    Ok(quote! {
         impl<'de> ::serde::Deserialize<'de> for #name {
             fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
             where
@@ -220,5 +220,5 @@ pub(super) fn deserialize_bits(item: TokenStream) -> TokenStream {
                 deserializer.deserialize_struct(#name_str, FIELDS, Visitor)
             }
         }
-    }
+    })
 }
