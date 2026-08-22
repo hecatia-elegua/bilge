@@ -2,9 +2,9 @@ use itertools::Itertools;
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
+use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
-use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
+use crate::shared::{self, BitSize, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable};
 
 pub(super) fn from_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);

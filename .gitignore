@@ -1,3 +1,5 @@
 /target
 /Cargo.lock
+/compare/target
+/compare/Cargo.lock
 /wip

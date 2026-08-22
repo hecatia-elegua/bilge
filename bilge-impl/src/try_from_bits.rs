@@ -1,9 +1,9 @@
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
+use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
-use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
+use crate::shared::{self, BitSize, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable};
 use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
 pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {

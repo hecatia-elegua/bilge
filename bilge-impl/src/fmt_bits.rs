@@ -1,8 +1,8 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{punctuated::Iter, Data, DeriveInput, Fields, Variant};
+use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
 
-use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, unreachable, BitSize};
+use crate::shared::{self, BitSize, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, unreachable};
 
 pub(crate) fn binary(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);

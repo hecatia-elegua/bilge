@@ -261,28 +261,23 @@ For some more examples and an overview of functionality, take a look at `/exampl
 
 ### benchmarks, performance, asm line count
 
-First of all, [basic benchmarking](https://github.com/hecatia-elegua/bilge/blob/main/benches/compared/main.rs) reveals that all alternatives mentioned here (besides deku) have about the same performance and line count. This includes a handwritten version.
+[Comparison benches](https://github.com/hecatia-elegua/bilge/blob/main/compare/benches/compared/main.rs) (`cargo bench --manifest-path compare/Cargo.toml`) time construction from a host integer, field getters, a setter, and a combined MMIO-style round trip against modular-bitfield, bitbybit, deku, and a handwritten baseline. Integer-backed crates (bilge, bitbybit, handmade) are in the same ballpark; deku is a bit-stream parser and is much slower by design.
 
-<!--
 ### build-time
 
-(outdated)
-Measuring build time of the crate inself (both with its dependencies and without), yields these numbers on my machine:
-|                       | debug | debug single crate | release   | release single crate |
-|-----------------------|-------|--------------------|-----------|----------------------|
-| bilge 1.67-nightly    | 8     | 1.8                | 6         | 0.8                  |
-| bitbybit 1.69         | 4.5   | 1.3                | 13.5 [^*] | 9.5 [^*]             |
-| modular-bitfield 1.69 | 8     | 2.2                | 7.2       | 1.6                  |
+Measured on rustc 1.96, using `cargo clean && cargo build --lib [--release] --quiet --timings`. **Total** is wall clock of that clean build (dependency graph included). **Crate** is rustc time of the bitfield package plus its proc-macro, read from the timings graph.
 
-[^*]: This is just a weird rustc regression or my setup or sth, not representative.
+|                       | debug | debug crate | release | release crate |
+|-----------------------|------:|------------:|--------:|--------------:|
+| bilge 0.3             |   3.6 |         0.8 |     3.6 |           0.7 |
+| bitbybit 2.0          |   5.6 |         0.5 |     3.0 |           0.6 |
+| modular-bitfield 0.13 |   3.1 |         0.7 |     3.0 |           0.7 |
 
-This was measured with `cargo clean && cargo build [--release] --quiet --timings`.
-Of course, the actual codegen time on an example project needs to be measured, too.
--->
+Totals are dominated by `syn`, not by the bitfield crate itself. bitbybit 2's debug total is higher because it uses syn 3 (about 3.7s here vs ~1.7–2.1s for syn 2). Macro expansion of one 8-bit struct is ~0.04s in all three cases.
 
 ### handwritten implementation
 
-The common handwritten implementation pattern for bitfields in rust looks [somewhat like benches/compared/handmade.rs](https://github.com/hecatia-elegua/bilge/blob/main/benches/compared/handmade.rs), sometimes also throwing around a lot of consts for field offsets. The problems with this approach are:
+The common handwritten implementation pattern for bitfields in rust looks [somewhat like compare/benches/compared/handmade.rs](https://github.com/hecatia-elegua/bilge/blob/main/compare/benches/compared/handmade.rs), sometimes also throwing around a lot of consts for field offsets. The problems with this approach are:
 - readability suffers
 - offset, cast or masking errors could go unnoticed
 - bit fiddling, shifting and masking is done all over the place, in contrast to bitfields
@@ -330,11 +325,7 @@ implementation differences (as of 26.04.23):
 
 ### deku
 
-(outdated, I think they fixed that)
-After looking at a ton of bitfield libs on crates.io, I _didn't_ find [`deku`](https://github.com/sharksforarms/deku).
-I will still mention it here because it uses a very interesting crate underneath (bitvec).
-Currently (as of 26.04.23), it generates far more assembly and takes longer to run, since parts of the API are not `const`.
-I've opened an issue on their repo about that.
+[`deku`](https://github.com/sharksforarms/deku) is a declarative binary parser, not an integer-backed register crate. I only found it via bitvec, and it produced ~20× more asm than other bitfield crates, probably because some stuff can't be `const` currently, like `DekuRead`.
 
 ### most others
 

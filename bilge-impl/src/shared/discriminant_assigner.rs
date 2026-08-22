@@ -2,7 +2,7 @@ use manyhow::bail;
 use proc_macro2::Literal;
 use syn::{Expr, ExprLit, Lit, Variant};
 
-use super::{unreachable, BitSize};
+use super::{BitSize, unreachable};
 
 pub(crate) struct DiscriminantAssigner {
     bitsize: BitSize,

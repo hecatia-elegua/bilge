@@ -4,10 +4,10 @@ use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use split::SplitAttributes;
-use syn::{parse_quote, punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant, Visibility};
+use syn::{Fields, Item, ItemEnum, ItemStruct, Type, Variant, Visibility, parse_quote, punctuated::Iter, spanned::Spanned};
 
 use crate::shared::{
-    self, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_fallback_attribute, unreachable, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE,
+    self, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_fallback_attribute, unreachable,
 };
 
 /// Intermediate Representation, just for bundling these together

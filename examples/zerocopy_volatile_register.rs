@@ -1,7 +1,9 @@
 #![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs, const_maybe_uninit_write))]
+use core::ptr::NonNull;
+
 use bilge::prelude::*;
-use volatile::{access::ReadOnly, VolatilePtr};
-use zerocopy::FromBytes;
+use volatile::{VolatilePtr, access::ReadOnly};
+use zerocopy::{FromBytes, Immutable, KnownLayout};
 
 // NOTE: Once upon a time, this was
 // `Volatile<RedistributorControl>,`
@@ -10,7 +12,7 @@ use zerocopy::FromBytes;
 // but this apparently can't just work.
 // Read more about it in the `volatile` crate and repo.
 
-#[derive(Debug, FromBytes)]
+#[derive(Debug)]
 struct Redistributor<'a> {
     control: VolatilePtr<'a, RedistributorControl>,
     // this is just an example, not how the real GIC is structured
@@ -19,7 +21,7 @@ struct Redistributor<'a> {
 
 #[bitsize(32)]
 // we only want this to be FromBytes if it is also FromBits, FromBytes just acts on the final bitstruct (so, on a u32)
-#[derive(Copy, Clone, DebugBits, FromBits, BinaryBits, FromBytes)]
+#[derive(Copy, Clone, DebugBits, FromBits, BinaryBits, FromBytes, Immutable, KnownLayout)]
 struct RedistributorControl {
     // padding is currently handled like reserved
     padding: u2,
@@ -37,21 +39,17 @@ struct RedistributorControl {
 }
 
 #[bitsize(32)]
-#[derive(Clone, Copy, DebugBits, FromBits, BinaryBits, FromBytes)]
+#[derive(Clone, Copy, DebugBits, FromBits, BinaryBits, FromBytes, Immutable, KnownLayout)]
 struct Group([bool; 32]);
 
 fn main() {
-    // let raw_memory: &[u8] = &[0u8, 1, 2, 3, 255, 255, 254, 255];
-    // The latest version of zerocopy does this, but in our case we use an older version.
-    // let redist = LPIRedistributor::read_from(raw_memory).unwrap();
-
-    let raw_memory = ([0u8, 1, 2, 3], [255u8, 255, 254, 255]);
-    let mut control: RedistributorControl = unsafe { core::mem::transmute(raw_memory.0) };
-    let mut group: Group = unsafe { core::mem::transmute(raw_memory.1) };
+    let raw_memory = [0u8, 1, 2, 3, 255, 255, 254, 255];
+    let mut control = RedistributorControl::read_from_bytes(&raw_memory[0..4]).unwrap();
+    let mut group = Group::read_from_bytes(&raw_memory[4..8]).unwrap();
 
     let redist = Redistributor {
-        control: unsafe { VolatilePtr::new((&mut control).into()) },
-        group: unsafe { VolatilePtr::new_read_only((&mut group).into()) },
+        control: unsafe { VolatilePtr::new(NonNull::from(&mut control)) },
+        group: unsafe { VolatilePtr::new_read_only(NonNull::from(&mut group)) },
     };
 
     // 0_0000_0_1_1_00000010000000010000_0_0_00
@@ -64,8 +62,8 @@ fn main() {
     let mut raw_memory: (RedistributorControl, Group) = (0b00000011000000100000000100000000u32.into(), 0b11111111111111101111111111111111u32.into());
 
     let redist = Redistributor {
-        control: unsafe { VolatilePtr::new((&mut raw_memory.0).into()) },
-        group: unsafe { VolatilePtr::new_read_only((&mut raw_memory.1).into()) },
+        control: unsafe { VolatilePtr::new(NonNull::from(&mut raw_memory.0)) },
+        group: unsafe { VolatilePtr::new_read_only(NonNull::from(&mut raw_memory.1)) },
     };
 
     // 0_0000_0_1_1_00000010000000010000_0_0_00
