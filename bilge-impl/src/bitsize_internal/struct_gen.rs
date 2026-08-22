@@ -163,7 +163,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     #elem_value
                     match <#ty>::try_from(elem_value) {
                         Ok(v) => v,
-                        Err(_) => panic!("unreachable"),
+                        Err(_) => ::core::panic!("unreachable"),
                     }
                 }
             } else {

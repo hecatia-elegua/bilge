@@ -145,7 +145,7 @@ pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> manyhow::Result
 
 #[inline]
 pub fn unreachable<T, U>(_: T) -> U {
-    unreachable!("should have already been validated")
+    ::core::unreachable!("should have already been validated")
 }
 
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
