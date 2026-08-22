@@ -1,6 +1,8 @@
 # Changelog
 
-## [0.4.0] - Unreleased
+## [Unreleased]
+
+## [0.4.0] - 2026-08-22
 
 ### Added
 - `schemars` feature and `JsonSchemaBits` derive, added by [widberg](https://github.com/widberg)
