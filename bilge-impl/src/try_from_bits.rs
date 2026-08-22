@@ -10,8 +10,8 @@ pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
     let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input)?;
     match derive_data {
-        Data::Struct(ref data) => Ok(codegen_struct(arb_int, name, &data.fields)),
-        Data::Enum(ref enum_data) => {
+        Data::Struct(data) => Ok(codegen_struct(arb_int, name, &data.fields)),
+        Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int)?;
             Ok(codegen_enum(arb_int, name, match_arms))
