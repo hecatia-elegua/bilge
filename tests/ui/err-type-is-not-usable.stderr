@@ -9,6 +9,6 @@ note: the unit struct `BitsError` is defined here
    |
    | #[non_exhaustive]
    | ----------------- cannot be constructed because it is `#[non_exhaustive]`
-   | #[derive(Debug, PartialEq)]
+   | #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
    | pub struct BitsError;
    | ^^^^^^^^^^^^^^^^^^^^
