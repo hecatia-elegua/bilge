@@ -1,0 +1,194 @@
+# Publish bilge + bilge-impl to crates.io.
+#
+# More info: .github/RELEASE.md
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Cargo 0.x: patch 0.3.1, minor 0.4.0, major 1.0.0"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: "If true, verify changelog + cargo publish --dry-run and stop (no git push, no crates.io)"
+        required: true
+        type: boolean
+        default: true
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: changelog, bump, dry-run
+    if: github.ref == 'refs/heads/main' && !github.event.repository.fork
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.prepare.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # pinned
+        with:
+          toolchain: "1.85.0"
+
+      - name: Bump version and check CHANGELOG.md
+        id: prepare
+        run: bash scripts/prepare-release.sh ${{ inputs.bump }}
+
+      - name: Commit locally so tests and dry-run see a clean tree
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Cargo.toml CHANGELOG.md
+          git commit -m "Release ${{ steps.prepare.outputs.version }}"
+
+      - name: Tests
+        run: cargo test --workspace --features "serde schemars"
+
+      - name: cargo publish --dry-run
+        run: |
+          cargo publish -p bilge-impl --dry-run
+          cargo publish -p bilge --dry-run
+
+      - name: Check crates.io
+        env:
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          version="${{ steps.prepare.outputs.version }}"
+          crate_status() {
+            local code
+            code="$(curl -sS -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/$1/$2")"
+            case "$code" in
+              200|404) printf '%s\n' "$code" ;;
+              *) echo "unexpected crates.io HTTP status $code for $1 $2" >&2; return 1 ;;
+            esac
+          }
+          impl_code="$(crate_status bilge-impl "$version")"
+          bilge_code="$(crate_status bilge "$version")"
+          if [[ "$impl_code" == "200" ]]; then
+            echo "bilge-impl ${version} is already on crates.io (publish will skip it; used for recovery)"
+          fi
+          if [[ "$bilge_code" == "200" ]]; then
+            echo "bilge ${version} is already on crates.io"
+            if [[ "$DRY_RUN" == "true" ]]; then
+              echo "refusing dry-run of a version that is already published" >&2
+              exit 1
+            fi
+            echo "real publish will skip crates.io and only try to finish git/GitHub Release"
+          fi
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-prep
+          path: |
+            Cargo.toml
+            CHANGELOG.md
+            target/release-notes.md
+          if-no-files-found: error
+
+  publish:
+    name: publish to crates.io
+    needs: prepare
+    if: github.ref == 'refs/heads/main' && !github.event.repository.fork && !inputs.dry_run
+    runs-on: ubuntu-latest
+    environment: crates-io
+    permissions:
+      id-token: write
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          token: ${{ secrets.RELEASE_PUSH_TOKEN || github.token }}
+
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-prep
+          path: .
+
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # pinned
+        with:
+          toolchain: "1.85.0"
+
+      - name: Commit, tag
+        run: |
+          version="${{ needs.prepare.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code origin "refs/tags/v${version}" >/dev/null; then
+            echo "tag v${version} already exists on origin; finish the GitHub Release by hand if needed" >&2
+            exit 1
+          fi
+          git add Cargo.toml CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "prepared files already match this commit"
+          else
+            git commit -m "Release ${version}"
+          fi
+          git tag -a "v${version}" -m "v${version}"
+
+      - name: Authenticate with crates.io (OIDC)
+        uses: rust-lang/crates-io-auth-action@c6f97d42243bad5fab37ca0427f495c86d5b1a18 # v1.0.5
+        id: auth
+
+      - name: Publish bilge-impl then bilge
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+        run: |
+          version="${{ needs.prepare.outputs.version }}"
+          crate_status() {
+            local code
+            code="$(curl -sS -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/$1/$2")"
+            case "$code" in
+              200|404) printf '%s\n' "$code" ;;
+              *) echo "unexpected crates.io HTTP status $code for $1 $2" >&2; return 1 ;;
+            esac
+          }
+          if [[ "$(crate_status bilge-impl "$version")" != "200" ]]; then
+            cargo publish -p bilge-impl
+          else
+            echo "bilge-impl ${version} already on crates.io, skipping"
+          fi
+          if [[ "$(crate_status bilge "$version")" == "200" ]]; then
+            echo "bilge ${version} already on crates.io, skipping"
+          else
+            published_bilge=false
+            for _ in 1 2 3 4 5 6 7 8; do
+              if cargo publish -p bilge; then
+                published_bilge=true
+                break
+              fi
+              echo "waiting for crates.io to index bilge-impl..."
+              sleep 20
+            done
+            if [[ "$published_bilge" != true ]]; then
+              echo "failed to publish bilge after 8 attempts" >&2
+              exit 1
+            fi
+          fi
+
+      - name: Push commit and tag
+        run: |
+          version="${{ needs.prepare.outputs.version }}"
+          git push origin HEAD:main
+          git push origin "v${version}"
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${{ needs.prepare.outputs.version }}"
+          if gh release view "v${version}" >/dev/null 2>&1; then
+            echo "GitHub Release v${version} already exists"
+          else
+            gh release create "v${version}" --title "v${version}" --notes-file target/release-notes.md --verify-tag
+          fi
