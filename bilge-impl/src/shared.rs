@@ -164,7 +164,7 @@ pub(crate) fn is_fallback_attribute(attr: &Attribute) -> bool {
     is_attribute(attr, "fallback")
 }
 
-/// attempts to extract the bitsize from an ident equal to `uN` or `bool`.
+/// attempts to extract the bitsize from an ident equal to `uN`, `iN` or `bool`.
 /// should return `Result` instead of `Option`, if we decide to add more descriptive error handling.
 pub fn bitsize_from_type_ident(type_name: &Ident) -> Option<BitSize> {
     let type_name = type_name.to_string();
@@ -177,6 +177,9 @@ pub fn bitsize_from_type_ident(type_name: &Ident) -> Option<BitSize> {
         let bitsize = suffix.parse().ok();
 
         // the namespace contains u2 up to u{MAX_STRUCT_BIT_SIZE}. can't make assumptions about larger values
+        bitsize.filter(|&n| n <= MAX_STRUCT_BIT_SIZE)
+    } else if let Some(suffix) = type_name.strip_prefix('i') {
+        let bitsize = suffix.parse().ok();
         bitsize.filter(|&n| n <= MAX_STRUCT_BIT_SIZE)
     } else {
         None

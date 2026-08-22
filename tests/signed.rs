@@ -24,6 +24,29 @@ fn bit_struct_signed() {
     assert_eq!(bits.y(), y);
 }
 
+#[bitsize(27)]
+#[derive(TryFromBits, PartialEq, DebugBits)]
+struct BitStructSignedTry {
+    x: i20,
+    y: i7,
+}
+
+#[test]
+fn bit_struct_signed2() {
+    let mut bits = BitStructSignedTry::try_from(u27::new(0b1010110_00110001000101000001)).unwrap();
+    let new = BitStructSignedTry::new(i20::new(201025), i7::new(-42));
+    let x = i20::new(201025);
+    let y = i7::new(-42);
+
+    assert_eq!(bits, new);
+    assert_eq!(bits.x(), x);
+    assert_eq!(bits.y(), y);
+
+    bits.set_y(i7::new(0b0101010));
+    let y = i7::new(42);
+    assert_eq!(bits.y(), y);
+}
+
 #[bitsize(32)]
 #[derive(DebugBits, FromBits)]
 struct TupleStructSigned(u2, i6, i7, u8, u8, i1);
