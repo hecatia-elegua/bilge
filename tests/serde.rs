@@ -2,7 +2,7 @@
 #![allow(clippy::unusual_byte_groupings)]
 
 use bilge::prelude::*;
-use serde_test::{Token, assert_de_tokens_error, assert_tokens};
+use serde_test::{Configure, Readable, Token, assert_de_tokens_error, assert_tokens};
 
 #[bitsize(17)]
 #[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]
@@ -20,7 +20,24 @@ fn serde_struct() {
     let bits = BitsStruct::from(u17::new(0b0_01001_0_00100011_0_0));
 
     assert_tokens(
-        &bits,
+        &bits.readable(),
+        &[
+            Token::Map { len: Some(2) },
+            Token::Str("field1"),
+            Token::U8(0b00100011),
+            Token::Str("field2"),
+            Token::U8(0b01001),
+            Token::MapEnd,
+        ],
+    );
+}
+
+#[test]
+fn serde_struct_compact() {
+    let bits = BitsStruct::from(u17::new(0b0_01001_0_00100011_0_0));
+
+    assert_tokens(
+        &bits.compact(),
         &[
             Token::Struct { name: "BitsStruct", len: 2 },
             Token::Str("field1"),
@@ -34,22 +51,17 @@ fn serde_struct() {
 
 #[test]
 fn serde_struct_missing_field() {
-    assert_de_tokens_error::<BitsStruct>(
-        &[
-            Token::Struct { name: "BitsStruct", len: 1 },
-            Token::Str("field1"),
-            Token::U8(0b00100011),
-            Token::StructEnd,
-        ],
+    assert_de_tokens_error::<Readable<BitsStruct>>(
+        &[Token::Map { len: Some(1) }, Token::Str("field1"), Token::U8(0b00100011), Token::MapEnd],
         "missing field `field2`",
     );
 }
 
 #[test]
 fn serde_struct_extra_field() {
-    assert_de_tokens_error::<BitsStruct>(
+    assert_de_tokens_error::<Readable<BitsStruct>>(
         &[
-            Token::Struct { name: "BitsStruct", len: 3 },
+            Token::Map { len: Some(3) },
             Token::Str("field1"),
             Token::U8(0b00100011),
             Token::Str("field2"),
@@ -112,45 +124,31 @@ fn serde_struct_signed() {
     let bits = BitsStructSigned::from(u17::new(0b0_01001_0_00100011_0_0));
 
     assert_tokens(
-        &bits,
+        &bits.readable(),
         &[
-            Token::Struct {
-                name: "BitsStructSigned",
-                len: 2,
-            },
+            Token::Map { len: Some(2) },
             Token::Str("field1"),
             Token::I8(0b00100011),
             Token::Str("field2"),
             Token::U8(0b01001),
-            Token::StructEnd,
+            Token::MapEnd,
         ],
     );
 }
 
 #[test]
 fn serde_struct_missing_field_signed() {
-    assert_de_tokens_error::<BitsStructSigned>(
-        &[
-            Token::Struct {
-                name: "BitsStructSigned",
-                len: 1,
-            },
-            Token::Str("field1"),
-            Token::U8(0b00100011),
-            Token::StructEnd,
-        ],
+    assert_de_tokens_error::<Readable<BitsStructSigned>>(
+        &[Token::Map { len: Some(1) }, Token::Str("field1"), Token::U8(0b00100011), Token::MapEnd],
         "missing field `field2`",
     );
 }
 
 #[test]
 fn serde_struct_extra_field_signed() {
-    assert_de_tokens_error::<BitsStructSigned>(
+    assert_de_tokens_error::<Readable<BitsStructSigned>>(
         &[
-            Token::Struct {
-                name: "BitsStructSigned",
-                len: 3,
-            },
+            Token::Map { len: Some(3) },
             Token::Str("field1"),
             Token::U8(0b00100011),
             Token::Str("field2"),

@@ -1,7 +1,7 @@
 use itertools::MultiUnzip;
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Data, Field, Fields};
 
 use crate::shared::{self, unreachable};
@@ -23,24 +23,36 @@ pub(super) fn serialize_bits(item: TokenStream) -> manyhow::Result {
 
     let serialize_impl = match struct_data.fields {
         Fields::Named(fields) => {
-            let calls = fields.named.iter().filter(filter_not_reserved_or_padding).map(|f| {
+            let struct_calls = fields.named.iter().filter(filter_not_reserved_or_padding).map(|f| {
                 // We can unwrap since this is a named field
                 let call = f.ident.as_ref().unwrap();
                 let name = call.to_string();
                 quote!(state.serialize_field(#name, &self.#call())?;)
             });
+            let map_calls = fields.named.iter().filter(filter_not_reserved_or_padding).map(|f| {
+                // We can unwrap since this is a named field
+                let call = f.ident.as_ref().unwrap();
+                let name = call.to_string();
+                quote!(state.serialize_entry(#name, &self.#call())?;)
+            });
             let len = fields.named.iter().filter(filter_not_reserved_or_padding).count();
             quote! {
-                use ::serde::ser::SerializeStruct;
-                let mut state = serializer.serialize_struct(#name_str, #len)?;
-                // state.serialize_field("field1", &self.field1())?; state.serialize_field("field2", &self.field2())?; state.serialize_field("field3", &self.field3())?; state.end()
-                #(#calls)*
-                state.end()
+                if serializer.is_human_readable() {
+                    use ::serde::ser::SerializeMap;
+                    let mut state = serializer.serialize_map(::core::option::Option::Some(#len))?;
+                    #(#map_calls)*
+                    state.end()
+                } else {
+                    use ::serde::ser::SerializeStruct;
+                    let mut state = serializer.serialize_struct(#name_str, #len)?;
+                    #(#struct_calls)*
+                    state.end()
+                }
             }
         }
         Fields::Unnamed(fields) => {
             let calls = fields.unnamed.iter().enumerate().map(|(i, _)| {
-                let call: Ident = syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable);
+                let call = format_ident!("val_{i}");
                 quote!(state.serialize_field(&self.#call())?;)
             });
             let len = fields.unnamed.len();
@@ -131,7 +143,7 @@ pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
             .unnamed
             .iter()
             .enumerate()
-            .map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable)))
+            .map(|(i, _)| deserialize_field_parts(i, &format_ident!("val_{i}")))
             .multiunzip(),
         Fields::Unit => bail!("unit structs are not supported"),
     };
@@ -157,6 +169,29 @@ pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
         })
     } else {
         quote!()
+    };
+
+    let visit_seq = quote!(
+        fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+        where
+            V: ::serde::de::SeqAccess<'de>,
+        {
+            #(#field_visit_seq)*
+            Ok(Self::Value::new(#(#field_names)*))
+        }
+    );
+
+    let deserialize = if should_have_visit_map {
+        quote!(
+            if deserializer.is_human_readable() {
+                deserializer.deserialize_map(Visitor)
+            } else {
+                deserializer.deserialize_struct(#name_str, FIELDS, Visitor)
+            }
+        )
+    } else {
+        let field_count = field_names.len();
+        quote!(deserializer.deserialize_tuple_struct(#name_str, #field_count, Visitor))
     };
 
     Ok(quote! {
@@ -205,19 +240,12 @@ pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
                         formatter.write_str(#struct_name_str)
                     }
 
-                    fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
-                    where
-                        V: ::serde::de::SeqAccess<'de>,
-                    {
-                        #(#field_visit_seq)*
-                        Ok(Self::Value::new(#(#field_names)*))
-                    }
-
+                    #visit_seq
                     #visit_map
                 }
 
                 const FIELDS: &'static [&'static str] = &[#(#field_name_strings)*];
-                deserializer.deserialize_struct(#name_str, FIELDS, Visitor)
+                #deserialize
             }
         }
     })
