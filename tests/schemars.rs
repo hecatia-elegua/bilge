@@ -1,11 +1,7 @@
 #![cfg(feature = "schemars")]
 
 use bilge::prelude::*;
-use schemars::{
-    JsonSchema,
-    schema::{InstanceType, SingleOrVec},
-    schema_for,
-};
+use schemars::{JsonSchema, schema_for};
 
 #[bitsize(17)]
 #[derive(JsonSchemaBits)]
@@ -21,19 +17,41 @@ struct BitsStruct {
 #[test]
 fn schemars_struct() {
     let schema = schema_for!(BitsStruct);
-    let object = schema.schema.object.expect("named bitfield should generate object schema");
-    assert_eq!(schema.schema.instance_type, Some(InstanceType::Object.into()));
+    assert_eq!(schema.get("type").and_then(|value| value.as_str()), Some("object"));
+    let object = schema
+        .get("properties")
+        .and_then(|value| value.as_object())
+        .expect("named bitfield should generate object schema");
 
-    assert_eq!(object.properties.len(), 2);
-    assert!(object.properties.contains_key("field1"));
-    assert!(object.properties.contains_key("field2"));
-    assert!(!object.properties.contains_key("padding_i"));
-    assert!(!object.properties.contains_key("reserved_i"));
+    assert_eq!(object.len(), 2);
+    assert!(object.contains_key("field1"));
+    assert!(object.contains_key("field2"));
+    assert!(!object.contains_key("padding_i"));
+    assert!(!object.contains_key("reserved_i"));
 
-    assert_eq!(object.required.len(), 2);
-    assert!(object.required.contains("field1"));
-    assert!(object.required.contains("field2"));
-    assert_eq!(object.additional_properties, Some(Box::new(false.into())));
+    let required = schema
+        .get("required")
+        .and_then(|value| value.as_array())
+        .expect("named bitfield should require its fields");
+    assert_eq!(required.len(), 2);
+    assert!(required.iter().any(|value| value.as_str() == Some("field1")));
+    assert!(required.iter().any(|value| value.as_str() == Some("field2")));
+    assert_eq!(schema.get("additionalProperties").and_then(|value| value.as_bool()), Some(false));
+}
+
+#[bitsize(8)]
+#[derive(JsonSchemaBits)]
+struct BitsStructWithOnlyPadding {
+    padding: u8,
+}
+
+#[test]
+fn schemars_struct_with_only_padding() {
+    let schema = schema_for!(BitsStructWithOnlyPadding);
+    assert_eq!(schema.get("type").and_then(|value| value.as_str()), Some("object"));
+    assert_eq!(schema.get("additionalProperties").and_then(|value| value.as_bool()), Some(false));
+    assert_eq!(schema.get("properties"), None);
+    assert_eq!(schema.get("required"), None);
 }
 
 #[bitsize(13)]
@@ -43,17 +61,16 @@ struct BitsTupleStruct(u8, u5);
 #[test]
 fn schemars_tuple_struct() {
     let schema = schema_for!(BitsTupleStruct);
-    let array = schema.schema.array.expect("tuple bitfield should generate array schema");
-    assert_eq!(schema.schema.instance_type, Some(InstanceType::Array.into()));
+    assert_eq!(schema.get("type").and_then(|value| value.as_str()), Some("array"));
 
-    assert_eq!(array.min_items, Some(2));
-    assert_eq!(array.max_items, Some(2));
+    assert_eq!(schema.get("minItems").and_then(|value| value.as_u64()), Some(2));
+    assert_eq!(schema.get("maxItems").and_then(|value| value.as_u64()), Some(2));
 
-    let items = array.items.expect("tuple bitfield should define tuple items");
-    match items {
-        SingleOrVec::Single(_) => panic!("tuple bitfield should have one schema per element"),
-        SingleOrVec::Vec(items) => assert_eq!(items.len(), 2),
-    }
+    let items = schema
+        .get("prefixItems")
+        .and_then(|value| value.as_array())
+        .expect("tuple bitfield should define tuple items");
+    assert_eq!(items.len(), 2);
 }
 
 #[bitsize(8)]

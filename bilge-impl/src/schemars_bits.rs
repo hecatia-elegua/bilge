@@ -22,27 +22,35 @@ pub(super) fn json_schema_bits(item: TokenStream) -> manyhow::Result {
 
     let json_schema_impl = match struct_data.fields {
         Fields::Named(fields) => {
-            let calls = fields.named.iter().filter(filter_not_reserved_or_padding).map(|f| {
+            let fields = fields.named.iter().filter(filter_not_reserved_or_padding).collect::<Vec<_>>();
+            let properties = fields.iter().map(|f| {
                 // We can unwrap since this is a named field
                 let field_name = f.ident.as_ref().unwrap().to_string();
                 let ty = &f.ty;
-                quote! {
-                    object_validation
-                        .properties
-                        .insert(<str as ::std::borrow::ToOwned>::to_owned(#field_name), generator.subschema_for::<#ty>());
-                    object_validation.required.insert(<str as ::std::borrow::ToOwned>::to_owned(#field_name));
-                }
+                quote!(#field_name: generator.subschema_for::<#ty>())
             });
-            quote! {
-                let mut schema_object = ::schemars::schema::SchemaObject {
-                    instance_type: ::core::option::Option::Some(::schemars::schema::SingleOrVec::Single(::std::boxed::Box::new(::schemars::schema::InstanceType::Object))),
-                    ..::core::default::Default::default()
-                };
-                let object_validation = schema_object.object();
-                object_validation.additional_properties =
-                    ::core::option::Option::Some(::std::boxed::Box::new(::schemars::schema::Schema::Bool(false)));
-                #(#calls)*
-                ::schemars::schema::Schema::Object(schema_object)
+            let required = fields.iter().map(|f| {
+                // We can unwrap since this is a named field
+                let field_name = f.ident.as_ref().unwrap().to_string();
+                quote!(#field_name)
+            });
+
+            if fields.is_empty() {
+                quote! {
+                    ::schemars::json_schema!({
+                        "type": "object",
+                        "additionalProperties": false,
+                    })
+                }
+            } else {
+                quote! {
+                    ::schemars::json_schema!({
+                        "type": "object",
+                        "properties": { #(#properties),* },
+                        "required": [#(#required),*],
+                        "additionalProperties": false,
+                    })
+                }
             }
         }
         Fields::Unnamed(fields) => {
@@ -52,15 +60,11 @@ pub(super) fn json_schema_bits(item: TokenStream) -> manyhow::Result {
                 quote!(generator.subschema_for::<#ty>())
             });
             quote! {
-                ::schemars::schema::Schema::Object(::schemars::schema::SchemaObject {
-                    instance_type: ::core::option::Option::Some(::schemars::schema::SingleOrVec::Single(::std::boxed::Box::new(::schemars::schema::InstanceType::Array))),
-                    array: ::core::option::Option::Some(::std::boxed::Box::new(::schemars::schema::ArrayValidation {
-                        items: ::core::option::Option::Some(::schemars::schema::SingleOrVec::Vec(::std::vec![#(#calls),*])),
-                        max_items: ::core::option::Option::Some(#len),
-                        min_items: ::core::option::Option::Some(#len),
-                        ..::core::default::Default::default()
-                    })),
-                    ..::core::default::Default::default()
+                ::schemars::json_schema!({
+                    "type": "array",
+                    "prefixItems": [#(#calls),*],
+                    "maxItems": #len,
+                    "minItems": #len,
                 })
             }
         }
@@ -69,15 +73,15 @@ pub(super) fn json_schema_bits(item: TokenStream) -> manyhow::Result {
 
     Ok(quote! {
         impl ::schemars::JsonSchema for #name {
-            fn schema_name() -> ::std::string::String {
-                <str as ::std::borrow::ToOwned>::to_owned(#name_str)
+            fn schema_name() -> ::std::borrow::Cow<'static, str> {
+                ::std::borrow::Cow::Borrowed(#name_str)
             }
 
             fn schema_id() -> ::std::borrow::Cow<'static, str> {
                 ::std::borrow::Cow::Borrowed(concat!(module_path!(), "::", #name_str))
             }
 
-            fn json_schema(generator: &mut ::schemars::r#gen::SchemaGenerator) -> ::schemars::schema::Schema {
+            fn json_schema(generator: &mut ::schemars::SchemaGenerator) -> ::schemars::Schema {
                 #json_schema_impl
             }
         }
