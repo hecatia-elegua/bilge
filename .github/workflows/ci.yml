@@ -16,27 +16,30 @@ jobs:
       matrix:
         toolchain:
           - stable
+          # keep in sync with rust-version in Cargo.toml
+          - "1.83.0"
           # - beta
           # - nightly
           # (this was arbitrary-int with const I think, probably won't matter later)
           # - nightly-2023-04-01
           # keep this fixed to the version in rust-toolchain.toml and below
           # - nightly-2022-11-03 # NOTE: gave up on supporting this, let's wait for rust const support
-          # - 1.31.0  # find out MSRV
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
 
     - name: Update toolchain
       run: |
         rustup default ${{ matrix.toolchain }}
         rustup override set ${{ matrix.toolchain }}
-        rustup component add clippy
+
+    - name: Add clippy
+      if: ${{ matrix.toolchain == 'stable' }}
+      run: rustup component add clippy
 
     - name: Show toolchain info
       run: |
         cargo --version --verbose
         rustc --version
-        cargo clippy --version
 
     - name: Lint stable
       if: ${{ matrix.toolchain == 'stable' }}
@@ -52,6 +55,11 @@ jobs:
       if: ${{ matrix.toolchain == 'stable' }}
       run: |
         cargo test --workspace --features "serde schemars"
+
+    - name: Test MSRV
+      if: ${{ matrix.toolchain == '1.83.0' }}
+      run: |
+        cargo test --workspace --features "serde schemars" -- --skip ui
 
     # - name: Test nightly
     #   if: ${{ matrix.toolchain == 'nightly-2022-11-03' }}

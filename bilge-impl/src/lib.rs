@@ -31,6 +31,7 @@ pub fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {
 
 /// This is internally used, not to be used by anything besides `bitsize`.
 /// No guarantees are given.
+#[doc(hidden)]
 #[manyhow]
 #[proc_macro_attribute]
 pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result {

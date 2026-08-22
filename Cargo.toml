@@ -11,6 +11,10 @@ readme.workspace = true
 repository.workspace = true
 include = ["src/lib.rs", "LICENSE-*", "README.md"]
 
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
 [workspace]
 members = ["bilge-impl"]
 

@@ -1,3 +1,4 @@
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![cfg_attr(not(doctest), doc = include_str!("../README.md"))]
 #![no_std]
 
@@ -6,9 +7,13 @@ use core::fmt;
 #[doc(no_inline)]
 pub use arbitrary_int;
 #[cfg(feature = "schemars")]
+#[cfg_attr(docsrs, doc(cfg(feature = "schemars")))]
 pub use bilge_impl::JsonSchemaBits;
-pub use bilge_impl::{bitsize, bitsize_internal, BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits};
+pub use bilge_impl::{bitsize, BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits};
+#[doc(hidden)]
+pub use bilge_impl::bitsize_internal;
 #[cfg(feature = "serde")]
+#[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 pub use bilge_impl::{DeserializeBits, SerializeBits};
 
 /// used for `use bilge::prelude::*;`
@@ -22,12 +27,14 @@ pub mod prelude {
         arbitrary_int::prelude::*,
     };
     #[cfg(feature = "schemars")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "schemars")))]
     pub use super::JsonSchemaBits;
     #[cfg(feature = "serde")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
     pub use super::{DeserializeBits, SerializeBits};
 }
 
-/// This is internally used, but might be useful. No guarantees are given (for now).
+/// Used by generated code to talk about a bitfield's backing integer.
 pub trait Bitsized {
     /// The arbitrary_int type, used internally to 'generically' access its methods.
     type ArbitraryInt;
@@ -38,18 +45,22 @@ pub trait Bitsized {
 }
 
 /// Internally used marker trait.
+///
 /// # Safety
 ///
 /// Avoid implementing this for your types. Implementing this trait could break invariants.
+#[doc(hidden)]
 pub unsafe trait Filled: Bitsized {}
+#[doc(hidden)]
 unsafe impl<T> Filled for T where T: Bitsized + From<<T as Bitsized>::ArbitraryInt> {}
 
 /// This is generated to statically validate that a type implements `FromBits`.
+#[doc(hidden)]
 pub const fn assume_filled<T: Filled>() {}
 
 /// The error type used for `TryFromBits`.
 #[non_exhaustive]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BitsError;
 
 impl fmt::Display for BitsError {
@@ -58,10 +69,13 @@ impl fmt::Display for BitsError {
     }
 }
 
+impl core::error::Error for BitsError {}
+
 /// Internally used for generating the `Result::Err` type in `TryFrom`.
 ///
 /// This is needed since we don't want users to be able to create `BitsError` right now.
 /// We'll be able to turn `BitsError` into an enum later, or anything else really.
+#[doc(hidden)]
 pub const fn give_me_error() -> BitsError {
     BitsError
 }
