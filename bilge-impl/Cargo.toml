@@ -17,13 +17,14 @@ proc-macro = true
 default = []
 # Enables constness, see README.md for the specific nightly version
 nightly = []
+schemars = []
 serde = []
 
 [dependencies]
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"
-proc-macro-error2 = { version = "2.0", default-features = false }
+manyhow = { version = "0.13", default-features = false, features = ["macros", "syn2"] }
 itertools = ">=0.11.0, <=0.14"
 
 [dev-dependencies]

@@ -1,18 +1,18 @@
+use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error2::abort_call_site;
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type};
 
 use crate::shared::{self, fallback::Fallback, unreachable, BitSize};
 
-pub(crate) fn default_bits(item: TokenStream) -> TokenStream {
+pub(crate) fn default_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
     //TODO: does fallback need handling?
-    let (derive_data, _, name, ..) = analyze(&derive_input);
+    let (derive_data, _, name, ..) = analyze(&derive_input)?;
 
     match derive_data {
-        Data::Struct(data) => generate_struct_default_impl(name, &data.fields),
-        Data::Enum(_) => abort_call_site!("use derive(Default) for enums"),
+        Data::Struct(data) => Ok(generate_struct_default_impl(name, &data.fields)),
+        Data::Enum(_) => bail!("use derive(Default) for enums"),
         _ => unreachable(()),
     }
 }
@@ -87,6 +87,6 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
     shared::analyze_derive(derive_input, false)
 }

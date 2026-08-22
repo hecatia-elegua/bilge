@@ -1,46 +1,46 @@
 use itertools::Itertools;
+use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error2::{abort, abort_call_site};
 use quote::quote;
 use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
 
 use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
 
-pub(super) fn from_bits(item: TokenStream) -> TokenStream {
+pub(super) fn from_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
-    let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input);
+    let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input)?;
     let expanded = match &derive_data {
         Data::Struct(struct_data) => generate_struct(arb_int, name, &struct_data.fields),
         Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int);
+            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int)?;
             generate_enum(arb_int, name, match_arms, fallback)
         }
         _ => unreachable(()),
     };
-    generate_common(expanded)
+    Ok(generate_common(expanded))
 }
 
 fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
     shared::analyze_derive(derive_input, false)
 }
 
 fn analyze_enum(
     variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, fallback: Option<&Fallback>, arb_int: &TokenStream,
-) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    validate_enum_variants(variants.clone(), fallback);
+) -> manyhow::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
+    validate_enum_variants(variants.clone(), fallback)?;
 
-    let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len());
+    let enum_is_filled = enum_fills_bitsize(internal_bitsize, variants.len())?;
     if !enum_is_filled && fallback.is_none() {
-        abort_call_site!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
+        bail!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
     }
     if enum_is_filled && fallback.is_some() {
         // NOTE: I've shortly tried pointing to `#[fallback]` here but it wasn't easy enough
-        abort_call_site!("enum already has {} variants", variants.len(); help = "remove the `#[fallback]` attribute")
+        bail!("enum already has {} variants", variants.len(); help = "remove the `#[fallback]` attribute")
     }
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
@@ -62,9 +62,9 @@ fn analyze_enum(
     };
 
     variants
-        .map(|variant| {
+        .map(|variant| -> manyhow::Result<(TokenStream, TokenStream)> {
             let variant_name = &variant.ident;
-            let variant_value = assigner.assign_unsuffixed(variant);
+            let variant_value = assigner.assign_unsuffixed(variant)?;
 
             let from_int_match_arm = if is_fallback(variant_name) {
                 // this value will be handled by the catch-all arm
@@ -79,9 +79,10 @@ fn analyze_enum(
                 shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
             };
 
-            (from_int_match_arm, to_int_match_arm)
+            Ok((from_int_match_arm, to_int_match_arm))
         })
-        .unzip()
+        .collect::<manyhow::Result<Vec<_>>>()
+        .map(|arms| arms.into_iter().unzip())
 }
 
 fn generate_enum(
@@ -173,7 +174,7 @@ fn generate_common(expanded: TokenStream) -> TokenStream {
     }
 }
 
-fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) {
+fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) -> manyhow::Result<()> {
     for variant in variants {
         // we've already validated the correctness of the fallback variant, and that there's at most one such variant.
         // this means we can safely skip a fallback variant if we find one.
@@ -189,7 +190,8 @@ fn validate_enum_variants(variants: Iter<Variant>, fallback: Option<&Fallback>) 
             } else {
                 "add a fallback variant or change this variant to a unit"
             };
-            abort!(variant, "FromBits only supports unit variants for variants without `#[fallback]`"; help = help_message);
+            bail!(variant, "FromBits only supports unit variants for variants without `#[fallback]`"; help = "{}", help_message);
         }
     }
+    Ok(())
 }

@@ -1,4 +1,4 @@
-use proc_macro_error2::{abort, abort_call_site};
+use manyhow::bail;
 use quote::ToTokens;
 use syn::{meta::ParseNestedMeta, parse_quote, Attribute, Item, Meta, Path};
 
@@ -51,14 +51,12 @@ impl SplitAttributes {
     ///
     /// Any derives with suffix `Bits` will be able to access field information.
     /// This way, users of `bilge` can define their own derives working on the uncompressed bitfield.
-    pub fn from_item(item: &Item) -> SplitAttributes {
+    pub fn from_item(item: &Item) -> manyhow::Result<SplitAttributes> {
         let attrs = match item {
             Item::Enum(item) => &item.attrs,
             Item::Struct(item) => &item.attrs,
-            _ => abort_call_site!("item is not a struct or enum"; help = "`#[bitsize]` can only be used on structs and enums"),
+            _ => bail!("item is not a struct or enum"; help = "`#[bitsize]` can only be used on structs and enums"),
         };
-
-        let parsed = attrs.iter().map(parse_attribute);
 
         let is_struct = matches!(item, Item::Struct(..));
 
@@ -68,8 +66,8 @@ impl SplitAttributes {
         let mut before_compression = vec![];
         let mut after_compression = vec![];
 
-        for parsed_attr in parsed {
-            match parsed_attr {
+        for attr in attrs {
+            match parse_attribute(attr)? {
                 ParsedAttribute::DeriveList(derives) => {
                     for mut derive in derives {
                         if derive.matches(&["zerocopy", "FromBytes"]) {
@@ -77,7 +75,7 @@ impl SplitAttributes {
                         } else if derive.matches(&["bilge", "FromBits"]) {
                             has_frombits = true;
                         } else if derive.matches_core_or_std(&["fmt", "Debug"]) && is_struct {
-                            abort!(derive.0, "use derive(DebugBits) for structs")
+                            bail!(derive.0, "use derive(DebugBits) for structs")
                         } else if derive.matches_core_or_std(&["default", "Default"]) && is_struct {
                             // emit_warning!(derive.0, "use derive(DefaultBits) for structs")
                             derive.0 = syn::parse_quote!(::bilge::DefaultBits);
@@ -93,7 +91,7 @@ impl SplitAttributes {
                 }
 
                 ParsedAttribute::BitsizeInternal(attr) => {
-                    abort!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
+                    bail!(attr, "remove bitsize_internal"; help = "attribute bitsize_internal can only be applied internally by the bitsize macros")
                 }
 
                 ParsedAttribute::Other(attr) => {
@@ -106,7 +104,7 @@ impl SplitAttributes {
 
         if let Some(from_bytes) = from_bytes {
             if !has_frombits {
-                abort!(from_bytes.0, "a bitfield with zerocopy::FromBytes also needs to have FromBits")
+                bail!(from_bytes.0, "a bitfield with zerocopy::FromBytes also needs to have FromBits")
             }
         }
 
@@ -115,15 +113,15 @@ impl SplitAttributes {
             before_compression.append(&mut after_compression)
         }
 
-        SplitAttributes {
+        Ok(SplitAttributes {
             before_compression,
             after_compression,
-        }
+        })
     }
 }
 
-fn parse_attribute(attribute: &Attribute) -> ParsedAttribute<'_> {
-    match &attribute.meta {
+fn parse_attribute(attribute: &Attribute) -> manyhow::Result<ParsedAttribute<'_>> {
+    Ok(match &attribute.meta {
         Meta::List(list) if list.path.is_ident("derive") => {
             let mut derives = Vec::new();
             let add_derive = |meta: ParseNestedMeta| {
@@ -133,8 +131,9 @@ fn parse_attribute(attribute: &Attribute) -> ParsedAttribute<'_> {
                 Ok(())
             };
 
-            list.parse_nested_meta(add_derive)
-                .unwrap_or_else(|e| abort!(list.tokens, "failed to parse derive: {}", e));
+            if let Err(e) = list.parse_nested_meta(add_derive) {
+                bail!(list.tokens, "failed to parse derive: {}", e);
+            }
 
             ParsedAttribute::DeriveList(derives)
         }
@@ -142,7 +141,7 @@ fn parse_attribute(attribute: &Attribute) -> ParsedAttribute<'_> {
         meta if contains_anywhere(meta, "bitsize_internal") => ParsedAttribute::BitsizeInternal(attribute),
 
         _ => ParsedAttribute::Other(attribute),
-    }
+    })
 }
 
 /// a crude approximation of things we currently consider in item attributes

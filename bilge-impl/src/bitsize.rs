@@ -1,7 +1,7 @@
 mod split;
 
+use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error2::{abort, abort_call_site};
 use quote::quote;
 use split::SplitAttributes;
 use syn::{punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant};
@@ -14,42 +14,42 @@ struct ItemIr {
     expanded: TokenStream,
 }
 
-pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> TokenStream {
-    let (item, declared_bitsize) = parse(item, args);
-    let attrs = SplitAttributes::from_item(&item);
+pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {
+    let (item, declared_bitsize) = parse(item, args)?;
+    let attrs = SplitAttributes::from_item(&item)?;
     let ir = match item {
         Item::Struct(mut item) => {
             modify_special_field_names(&mut item.fields);
-            analyze_struct(&item.fields);
+            analyze_struct(&item.fields)?;
             let expanded = generate_struct(&item, declared_bitsize);
             ItemIr { expanded }
         }
         Item::Enum(item) => {
-            analyze_enum(declared_bitsize, item.variants.iter());
+            analyze_enum(declared_bitsize, item.variants.iter())?;
             let expanded = generate_enum(&item);
             ItemIr { expanded }
         }
         _ => unreachable(()),
     };
-    generate_common(ir, attrs, declared_bitsize)
+    Ok(generate_common(ir, attrs, declared_bitsize))
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> (Item, BitSize) {
+fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, BitSize)> {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
 
     if args.is_empty() {
-        abort_call_site!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
+        bail!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
     }
 
-    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args);
-    (item, declared_bitsize)
+    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args)?;
+    Ok((item, declared_bitsize))
 }
 
-fn check_type_is_supported(ty: &Type) {
+fn check_type_is_supported(ty: &Type) -> manyhow::Result<()> {
     use Type::*;
     match ty {
-        Tuple(tuple) => tuple.elems.iter().for_each(check_type_is_supported),
-        Array(array) => check_type_is_supported(&array.elem),
+        Tuple(tuple) => tuple.elems.iter().try_for_each(check_type_is_supported)?,
+        Array(array) => check_type_is_supported(&array.elem)?,
         // Probably okay (compilation would validate that this type is also Bitsized)
         Path(_) => (),
         // These don't work with structs or aren't useful in bitfields.
@@ -61,9 +61,10 @@ fn check_type_is_supported(ty: &Type) {
         // Something to investigate, but doesn't seem useful/usable here either.
         TraitObject(_) |
         // I have no idea where this is used.
-        Verbatim(_) | Paren(_) => abort!(ty, "This field type is not supported"),
-        _ => abort!(ty, "This field type is currently not supported"),
+        Verbatim(_) | Paren(_) => bail!(ty, "This field type is not supported"),
+        _ => bail!(ty, "This field type is currently not supported"),
     }
+    Ok(())
 }
 
 /// Allows you to give multiple fields the name `reserved` or `padding`
@@ -90,34 +91,36 @@ fn modify_special_field_names(fields: &mut Fields) {
     }
 }
 
-fn analyze_struct(fields: &Fields) {
+fn analyze_struct(fields: &Fields) -> manyhow::Result<()> {
     if fields.is_empty() {
-        abort_call_site!("structs without fields are not supported")
+        bail!("structs without fields are not supported")
     }
 
     // don't move this. we validate all nested field types here as well
     // and later assume this was checked.
     for field in fields {
-        check_type_is_supported(&field.ty)
+        check_type_is_supported(&field.ty)?
     }
+    Ok(())
 }
 
-fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) {
+fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> manyhow::Result<()> {
     if bitsize > MAX_ENUM_BIT_SIZE {
-        abort_call_site!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
+        bail!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
     }
 
     let variant_count = variants.clone().count();
     if variant_count == 0 {
-        abort_call_site!("empty enums are not supported");
+        bail!("empty enums are not supported");
     }
 
     let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
 
     if !has_fallback {
         // this has a side-effect of validating the enum count
-        let _ = enum_fills_bitsize(bitsize, variant_count);
+        let _ = enum_fills_bitsize(bitsize, variant_count)?;
     }
+    Ok(())
 }
 
 fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {

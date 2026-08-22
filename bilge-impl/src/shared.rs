@@ -3,8 +3,8 @@ pub mod fallback;
 pub mod util;
 
 use fallback::{fallback_variant, Fallback};
+use manyhow::{bail, ensure};
 use proc_macro2::{Ident, Literal, TokenStream};
-use proc_macro_error2::{abort, abort_call_site};
 use quote::quote;
 use syn::{Attribute, DeriveInput, LitInt, Meta, Type};
 use util::PathExt;
@@ -23,7 +23,9 @@ pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
 
 // allow since we want `if try_from` blocks to stand out
 #[allow(clippy::collapsible_if)]
-pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+pub(crate) fn analyze_derive(
+    derive_input: &DeriveInput, try_from: bool,
+) -> manyhow::Result<(&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
     let DeriveInput {
         attrs,
         ident,
@@ -34,44 +36,45 @@ pub(crate) fn analyze_derive(derive_input: &DeriveInput, try_from: bool) -> (&sy
 
     if !try_from {
         if attrs.iter().any(is_non_exhaustive_attribute) {
-            abort_call_site!("Item can't be FromBits and non_exhaustive"; help = "remove #[non_exhaustive] or derive(FromBits) here")
+            bail!("Item can't be FromBits and non_exhaustive"; help = "remove #[non_exhaustive] or derive(FromBits) here")
         }
     } else {
         // currently not allowed, would need some thinking:
         if let syn::Data::Struct(_) = data {
             if attrs.iter().any(is_non_exhaustive_attribute) {
-                abort_call_site!("Using #[non_exhaustive] on structs is currently not supported"; help = "open an issue on our repository if needed")
+                bail!("Using #[non_exhaustive] on structs is currently not supported"; help = "open an issue on our repository if needed")
             }
         }
     }
 
     // parsing the #[bitsize_internal(num)] attribute macro
-    let args = attrs
-        .iter()
-        .find_map(bitsize_internal_arg)
-        .unwrap_or_else(|| abort_call_site!("add #[bitsize] attribute above your derive attribute"));
-    let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args);
+    ensure!(
+        let Some(args) = attrs.iter().find_map(bitsize_internal_arg),
+        "add #[bitsize] attribute above your derive attribute"
+    );
+    let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args)?;
 
-    let fallback = fallback_variant(data, bitsize);
+    let fallback = fallback_variant(data, bitsize)?;
     if fallback.is_some() && try_from {
-        abort_call_site!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
+        bail!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
     }
 
-    (data, arb_int, ident, bitsize, fallback)
+    Ok((data, arb_int, ident, bitsize, fallback))
 }
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.
-pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> (BitSize, TokenStream) {
-    let bitsize: LitInt = syn::parse2(bitsize_arg.clone())
-        .unwrap_or_else(|_| abort!(bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`"));
+pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> manyhow::Result<(BitSize, TokenStream)> {
+    ensure!(
+        let Ok(bitsize) = syn::parse2::<LitInt>(bitsize_arg.clone()),
+        bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`"
+    );
     // without postfix
-    let bitsize = bitsize
-        .base10_parse()
-        .ok()
-        .filter(|&n| n != 0 && n <= MAX_STRUCT_BIT_SIZE)
-        .unwrap_or_else(|| abort!(bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE));
+    ensure!(
+        let Some(bitsize) = bitsize.base10_parse().ok().filter(|&n| n != 0 && n <= MAX_STRUCT_BIT_SIZE),
+        bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE
+    );
     let arb_int = syn::parse_str(&format!("u{bitsize}")).unwrap_or_else(unreachable);
-    (bitsize, arb_int)
+    Ok((bitsize, arb_int))
 }
 
 pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
@@ -132,12 +135,12 @@ pub fn last_ident_of_path(ty: &Type) -> Option<&Ident> {
 
 /// in enums, internal_bitsize <= 64; u64::MAX + 1 = u128
 /// therefore the bitshift would not overflow.
-pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> bool {
+pub fn enum_fills_bitsize(bitsize: u8, variants_count: usize) -> manyhow::Result<bool> {
     let max_variants_count = 1u128 << bitsize;
     if variants_count as u128 > max_variants_count {
-        abort_call_site!("enum overflows its bitsize"; help = "there should only be at most {} variants defined", max_variants_count);
+        bail!("enum overflows its bitsize"; help = "there should only be at most {} variants defined", max_variants_count);
     }
-    variants_count as u128 == max_variants_count
+    Ok(variants_count as u128 == max_variants_count)
 }
 
 #[inline]

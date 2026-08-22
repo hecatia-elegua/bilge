@@ -1,20 +1,20 @@
+use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use proc_macro_error2::{abort, emit_call_site_warning};
 use quote::quote;
 use syn::{punctuated::Iter, Data, DeriveInput, Fields, Type, Variant};
 
 use crate::shared::{self, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable, BitSize};
 use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
-pub(super) fn try_from_bits(item: TokenStream) -> TokenStream {
+pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
-    let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input);
+    let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input)?;
     match derive_data {
-        Data::Struct(ref data) => codegen_struct(arb_int, name, &data.fields),
+        Data::Struct(ref data) => Ok(codegen_struct(arb_int, name, &data.fields)),
         Data::Enum(ref enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int);
-            codegen_enum(arb_int, name, match_arms)
+            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int)?;
+            Ok(codegen_enum(arb_int, name, match_arms))
         }
         _ => unreachable(()),
     }
@@ -24,23 +24,29 @@ fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
 }
 
-fn analyze(derive_input: &DeriveInput) -> (&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>) {
+fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
     shared::analyze_derive(derive_input, true)
 }
 
-fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, arb_int: &TokenStream) -> (Vec<TokenStream>, Vec<TokenStream>) {
-    validate_enum_variants(variants.clone());
+fn analyze_enum(
+    variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, arb_int: &TokenStream,
+) -> manyhow::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
+    validate_enum_variants(variants.clone())?;
 
-    if enum_fills_bitsize(internal_bitsize, variants.len()) {
-        emit_call_site_warning!("enum fills its bitsize"; help = "you can use `#[derive(FromBits)]` instead, rust will provide `TryFrom` for you (so you don't necessarily have to update call-sites)");
-    }
+    // The previous `emit_call_site_warning!("enum fills its bitsize"; ...)` is dropped here.
+    // A standalone, non-fatal warning needs the nightly-only `proc_macro::Diagnostic`, so it was
+    // already a no-op under `proc-macro-error2` on stable (this crate is stable-only). `manyhow`
+    // has no equivalent: `Emitter`, `ErrorMessage::warning` and `ResultExt::warning` are all just
+    // `= warning:` attachments on an `Err` that still expands to `compile_error!`, which would turn
+    // this valid "filled enum" case into a hard error (see tests/single_filled_enum.rs).
+    let _ = enum_fills_bitsize(internal_bitsize, variants.len())?;
 
     let mut assigner = DiscriminantAssigner::new(internal_bitsize);
 
     variants
-        .map(|variant| {
+        .map(|variant| -> manyhow::Result<(TokenStream, TokenStream)> {
             let variant_name = &variant.ident;
-            let variant_value = assigner.assign_unsuffixed(variant);
+            let variant_value = assigner.assign_unsuffixed(variant)?;
 
             let from_int_match_arm = quote! {
                 #variant_value => Ok(Self::#variant_name),
@@ -48,9 +54,10 @@ fn analyze_enum(variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize
 
             let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
 
-            (from_int_match_arm, to_int_match_arm)
+            Ok((from_int_match_arm, to_int_match_arm))
         })
-        .unzip()
+        .collect::<manyhow::Result<Vec<_>>>()
+        .map(|arms| arms.into_iter().unzip())
 }
 
 fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
@@ -134,10 +141,11 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
     }
 }
 
-fn validate_enum_variants(variants: Iter<Variant>) {
+fn validate_enum_variants(variants: Iter<Variant>) -> manyhow::Result<()> {
     for variant in variants {
         if !matches!(variant.fields, Fields::Unit) {
-            abort!(variant, "TryFromBits only supports unit variants in enums"; help = "change this variant to a unit");
+            bail!(variant, "TryFromBits only supports unit variants in enums"; help = "change this variant to a unit");
         }
     }
+    Ok(())
 }
