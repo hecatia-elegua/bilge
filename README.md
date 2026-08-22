@@ -2,7 +2,12 @@
 
 [![crates.io](https://img.shields.io/crates/v/bilge.svg)](https://crates.io/crates/bilge)
 [![docs.rs](https://docs.rs/bilge/badge.svg)](https://docs.rs/bilge)
-[![loc](https://tokei.rs/b1/github/hecatia-elegua/bilge?category=code)](https://github.com/Aaronepower/tokei#badges)
+![loc](https://img.shields.io/badge/Lines%20of%20Code-4325-blue)
+
+> [!NOTE]
+>
+> Special Thanks to all contributors and especially long-term maintainers [widberg](https://github.com/widberg) and [pickx](https://github.com/pickx).
+
 
 _Y e s_, this is yet another bitfield crate, but hear me out:
 
@@ -22,12 +27,6 @@ I wanted a design fitting rust:
 The lib is **no-std** (and will be `const` again when rust [const-trait-impl](https://github.com/rust-lang/rust/issues/110395) works again).
 
 For some more explanations on the "why" and "how": [blog post](https://hecatia-elegua.github.io/blog/no-more-bit-fiddling/) and [reddit comments](https://www.reddit.com/r/rust/comments/13ic0mf/no_more_bit_fiddling_and_introducing_bilge/).
-
-## WARNING
-
-Our current version is still pre 1.0, which means nothing is completely stable.
-
-However, constructors, getters, setters and From/TryFrom should stay the same, since their semantics are very clear.
 
 ## Usage
 
@@ -243,6 +242,7 @@ For some more examples and an overview of functionality, take a look at `/exampl
 
 First of all, [basic benchmarking](https://github.com/hecatia-elegua/bilge/blob/main/benches/compared/main.rs) reveals that all alternatives mentioned here (besides deku) have about the same performance and line count. This includes a handwritten version.
 
+<!--
 ### build-time
 
 (outdated)
@@ -257,7 +257,7 @@ Measuring build time of the crate inself (both with its dependencies and without
 
 This was measured with `cargo clean && cargo build [--release] --quiet --timings`.
 Of course, the actual codegen time on an example project needs to be measured, too.
-
+-->
 
 ### handwritten implementation
 
@@ -324,5 +324,3 @@ This also opens up some possibilities for calculation and conversion on those pr
 Something similar can be said about `bitflags`, which, under this model, can be turned into simple structs with bools and enums.
 
 Basically, `bilge` tries to convert bit fiddling, shifting and masking into more widely known concepts like struct access.
-
-About the name: a bilge is one of the "lowest" parts of a ship, nothing else to it :)
