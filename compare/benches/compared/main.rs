@@ -1,4 +1,4 @@
-//! Comparison benches: bilge vs bitbybit, modular-bitfield, deku, and a handwritten baseline.
+//! Comparison benches: bilge vs bitbybit, bitfield-struct, modular-bitfield, deku, and a handwritten baseline.
 //!
 //! Each library implements the same GIC redistributor registers, including a 2-bit
 //! `CommonLpiAffinity` enum. Timed paths do not `assert!` (that would dominate nanosecond measurements).
@@ -16,6 +16,7 @@ use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 
 mod bilge;
 mod bitbybit;
+mod bitfield_struct;
 mod deku;
 mod handmade;
 mod modular;
@@ -37,6 +38,7 @@ const INPUT: Input = (
 fn bitfields_compared(c: &mut Criterion) {
     crate::bilge::check(INPUT);
     crate::bitbybit::check(INPUT);
+    crate::bitfield_struct::check(INPUT);
     crate::modular::check(INPUT);
     crate::handmade::check(INPUT);
     crate::deku::check(INPUT);
@@ -47,6 +49,9 @@ fn bitfields_compared(c: &mut Criterion) {
     });
     from.bench_with_input(BenchmarkId::from_parameter("bitbybit"), &INPUT, |b, i| {
         b.iter(|| black_box(crate::bitbybit::from_raw(black_box(*i))))
+    });
+    from.bench_with_input(BenchmarkId::from_parameter("bitfield-struct"), &INPUT, |b, i| {
+        b.iter(|| black_box(crate::bitfield_struct::from_raw(black_box(*i))))
     });
     from.bench_with_input(BenchmarkId::from_parameter("modular"), &INPUT, |b, i| {
         b.iter(|| black_box(crate::modular::from_raw(black_box(*i))))
@@ -67,6 +72,10 @@ fn bitfields_compared(c: &mut Criterion) {
     get.bench_function("bitbybit", |b| {
         let lpi = crate::bitbybit::from_raw(INPUT);
         b.iter(|| black_box(crate::bitbybit::getters(black_box(&lpi))))
+    });
+    get.bench_function("bitfield-struct", |b| {
+        let lpi = crate::bitfield_struct::from_raw(INPUT);
+        b.iter(|| black_box(crate::bitfield_struct::getters(black_box(&lpi))))
     });
     get.bench_function("modular", |b| {
         let lpi = crate::modular::from_raw(INPUT);
@@ -94,6 +103,13 @@ fn bitfields_compared(c: &mut Criterion) {
         let mut lpi = crate::bitbybit::from_raw(INPUT);
         b.iter(|| {
             crate::bitbybit::set_jep106(black_box(&mut lpi), black_box(INPUT.3));
+            black_box(&lpi);
+        })
+    });
+    set.bench_function("bitfield-struct", |b| {
+        let mut lpi = crate::bitfield_struct::from_raw(INPUT);
+        b.iter(|| {
+            crate::bitfield_struct::set_jep106(black_box(&mut lpi), black_box(INPUT.3));
             black_box(&lpi);
         })
     });
@@ -127,6 +143,9 @@ fn bitfields_compared(c: &mut Criterion) {
     });
     combined.bench_with_input(BenchmarkId::from_parameter("bitbybit"), &INPUT, |b, i| {
         b.iter(|| black_box(crate::bitbybit::combined(black_box(*i))))
+    });
+    combined.bench_with_input(BenchmarkId::from_parameter("bitfield-struct"), &INPUT, |b, i| {
+        b.iter(|| black_box(crate::bitfield_struct::combined(black_box(*i))))
     });
     combined.bench_with_input(BenchmarkId::from_parameter("modular"), &INPUT, |b, i| {
         b.iter(|| black_box(crate::modular::combined(black_box(*i))))
