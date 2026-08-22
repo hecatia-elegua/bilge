@@ -58,33 +58,6 @@ jobs:
       - name: cargo publish --dry-run
         run: cargo publish -p bilge-impl --dry-run
 
-      - name: Check crates.io
-        env:
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          version="${{ steps.prepare.outputs.version }}"
-          crate_status() {
-            local code
-            code="$(curl -sS -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/$1/$2")"
-            case "$code" in
-              200|404) printf '%s\n' "$code" ;;
-              *) echo "unexpected crates.io HTTP status $code for $1 $2" >&2; return 1 ;;
-            esac
-          }
-          impl_code="$(crate_status bilge-impl "$version")"
-          bilge_code="$(crate_status bilge "$version")"
-          if [[ "$impl_code" == "200" ]]; then
-            echo "bilge-impl ${version} is already on crates.io (publish will skip it; used for recovery)"
-          fi
-          if [[ "$bilge_code" == "200" ]]; then
-            echo "bilge ${version} is already on crates.io"
-            if [[ "$DRY_RUN" == "true" ]]; then
-              echo "refusing dry-run of a version that is already published" >&2
-              exit 1
-            fi
-            echo "real publish will skip crates.io and only try to finish git/GitHub Release"
-          fi
-
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: release-prep
@@ -145,7 +118,7 @@ jobs:
           version="${{ needs.prepare.outputs.version }}"
           crate_status() {
             local code
-            code="$(curl -sS -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/$1/$2")"
+            code="$(curl -sS -A "bilge-release (https://github.com/hecatia-elegua/bilge)" -o /dev/null -w '%{http_code}' "https://crates.io/api/v1/crates/$1/$2")"
             case "$code" in
               200|404) printf '%s\n' "$code" ;;
               *) echo "unexpected crates.io HTTP status $code for $1 $2" >&2; return 1 ;;

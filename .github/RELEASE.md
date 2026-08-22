@@ -24,6 +24,6 @@ No crates.io API tokens. Publishing uses [trusted publishing](https://crates.io/
 2. Github/Actions/Release/Run → `bump: patch/minor/major`, `dry_run: true`.
 3. If that is green, run again with `dry_run: false`. Approve the `crates-io` environment prompt.
 
-The workflow prepares once, tests and dry-runs that tree, then publishes those same files. `bilge-impl` already on crates.io is allowed (the job skips it). Dry-run fails if `bilge` itself is already published.
+The workflow prepares once, tests and dry-runs that tree, then publishes those same files. If a crate version is already on crates.io, the publish job skips it (recovery after a partial run).
 
 If crates.io succeeds but `git push` fails, re-run the same bump with `dry_run: false`. Already-published crates are skipped so the job can finish the git tag and GitHub Release. If git also succeeded and only the GitHub Release step failed, create that release by hand rather than re-running (a second run would bump again).
