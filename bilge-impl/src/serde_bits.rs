@@ -45,14 +45,14 @@ pub(super) fn serialize_bits(item: TokenStream) -> manyhow::Result {
             });
             let len = fields.unnamed.len();
             quote! {
-                use serde::ser::SerializeTupleStruct;
+                use ::serde::ser::SerializeTupleStruct;
                 let mut state = serializer.serialize_tuple_struct(#name_str, #len)?;
                 // state.serialize_field(&self.val0())?; state.serialize_field(&self.val1())?; state.end()
                 #(#calls)*
                 state.end()
             }
         }
-        Fields::Unit => ::core::todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => bail!("unit structs are not supported"),
     };
 
     Ok(quote! {
@@ -104,7 +104,7 @@ pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
     let struct_name_str = format!("struct {}", name_str);
     let struct_data = match derive_input.data {
         Data::Struct(s) => s,
-        Data::Enum(_) => bail!("use derive(Serialize) for enums"),
+        Data::Enum(_) => bail!("use derive(Deserialize) for enums"),
         Data::Union(_) => unreachable(()),
     };
 
@@ -133,7 +133,7 @@ pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
             .enumerate()
             .map(|(i, _)| deserialize_field_parts(i, &syn::parse_str(&format!("val_{}", i)).unwrap_or_else(unreachable)))
             .multiunzip(),
-        Fields::Unit => ::core::todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => bail!("unit structs are not supported"),
     };
 
     if field_expecting.len() > 1 {
