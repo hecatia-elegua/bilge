@@ -1,0 +1,17 @@
+error[E0624]: associated function `new` is private
+  --> tests/ui/new-private-is-respected.rs:22:39
+   |
+ 6 |     #[bitsize(8)]
+   |     ------------- private associated function defined here
+...
+22 |     let _ = inner::DefaultPrivateNew::new(u4::new(0), u4::new(0));
+   |                                       ^^^ private associated function
+
+error[E0624]: associated function `new` is private
+  --> tests/ui/new-private-is-respected.rs:23:37
+   |
+13 |     #[bitsize(8, new = pub(self))]
+   |     ------------------------------ private associated function defined here
+...
+23 |     let _ = inner::ExplicitSelfNew::new(u4::new(0), u4::new(0));
+   |                                     ^^^ private associated function

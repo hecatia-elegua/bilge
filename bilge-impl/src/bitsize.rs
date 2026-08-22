@@ -2,47 +2,72 @@ mod split;
 
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use split::SplitAttributes;
-use syn::{punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant};
+use syn::{parse_quote, punctuated::Iter, spanned::Spanned, Fields, Item, ItemEnum, ItemStruct, Type, Variant, Visibility};
 
-use crate::shared::{self, enum_fills_bitsize, is_fallback_attribute, unreachable, BitSize, MAX_ENUM_BIT_SIZE};
+use crate::shared::{
+    self, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_fallback_attribute, unreachable, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE,
+};
 
 /// Intermediate Representation, just for bundling these together
 struct ItemIr {
     /// generated item (and size check)
     expanded: TokenStream,
+    ident: Ident,
+    vis: Visibility,
 }
 
 pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {
-    let (item, declared_bitsize) = parse(item, args)?;
+    let (item, mut args) = parse(item, args)?;
     let attrs = SplitAttributes::from_item(&item)?;
     let ir = match item {
         Item::Struct(mut item) => {
+            args.resolve_new_vis();
+            let original_vis = item.vis.clone();
+            if args.hide_value {
+                // Re-exported from a private module; the inner type must be `pub`.
+                item.vis = parse_quote!(pub);
+                shift_field_vis_out_one_module(&mut item.fields);
+            }
             modify_special_field_names(&mut item.fields);
             analyze_struct(&item.fields)?;
-            let expanded = generate_struct(&item, declared_bitsize);
-            ItemIr { expanded }
+            let expanded = generate_struct(&item, args.bitsize);
+            ItemIr {
+                expanded,
+                ident: item.ident,
+                vis: original_vis,
+            }
         }
         Item::Enum(item) => {
-            analyze_enum(declared_bitsize, item.variants.iter())?;
+            if args.hide_value {
+                bail!("`hide_value` is only supported on structs"; help = "enums do not have a `value` field")
+            }
+            if !args.is_default_new_vis() {
+                bail!("`new` is only supported on structs"; help = "enums do not generate a `new` constructor")
+            }
+            analyze_enum(args.bitsize, item.variants.iter())?;
             let expanded = generate_enum(&item);
-            ItemIr { expanded }
+            ItemIr {
+                expanded,
+                ident: item.ident,
+                vis: item.vis,
+            }
         }
         _ => unreachable(()),
     };
-    Ok(generate_common(ir, attrs, declared_bitsize))
+    Ok(generate_common(ir, attrs, &args))
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, BitSize)> {
+fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, BitsizeArgs)> {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
 
     if args.is_empty() {
         bail!("missing attribute value"; help = "you need to define the size like this: `#[bitsize(32)]`")
     }
 
-    let (declared_bitsize, _arb_int) = shared::bitsize_and_arbitrary_int_from(args)?;
-    Ok((item, declared_bitsize))
+    let args = shared::parse_bitsize_args(args)?;
+    Ok((item, args))
 }
 
 fn check_type_is_supported(ty: &Type) -> manyhow::Result<()> {
@@ -65,6 +90,14 @@ fn check_type_is_supported(ty: &Type) -> manyhow::Result<()> {
         _ => bail!(ty, "This field type is currently not supported"),
     }
     Ok(())
+}
+
+/// `hide_value` puts the struct one module deeper. Relative field vis is
+/// shifted so it still means what the user wrote in their module.
+fn shift_field_vis_out_one_module(fields: &mut Fields) {
+    for field in fields.iter_mut() {
+        field.vis = shift_vis_out_one_module(field.vis.clone());
+    }
 }
 
 /// Allows you to give multiple fields the name `reserved` or `padding`
@@ -172,19 +205,36 @@ fn generate_enum(item: &ItemEnum) -> TokenStream {
 
 /// we have _one_ generate_common function, which holds everything that struct and enum have _in common_.
 /// Everything else has its own generate_ functions.
-fn generate_common(ir: ItemIr, attrs: SplitAttributes, declared_bitsize: u8) -> TokenStream {
-    let ItemIr { expanded } = ir;
+fn generate_common(ir: ItemIr, attrs: SplitAttributes, args: &BitsizeArgs) -> TokenStream {
+    let ItemIr { expanded, ident, vis } = ir;
     let SplitAttributes {
         before_compression,
         after_compression,
     } = attrs;
 
-    let bitsize_internal_attr = quote! {#[::bilge::bitsize_internal(#declared_bitsize)]};
+    let bitsize = args.bitsize;
+    let extra = shared::internal_attr_options(args);
+    let bitsize_internal_attr = quote! {#[::bilge::bitsize_internal(#bitsize #extra)]};
 
-    quote! {
+    let item = quote! {
         #(#before_compression)*
         #bitsize_internal_attr
         #(#after_compression)*
         #expanded
+    };
+
+    if args.hide_value {
+        let mod_name = format_ident!("__bilge_{}", ident);
+        quote! {
+            #[doc(hidden)]
+            #[allow(non_snake_case, unused_imports)]
+            mod #mod_name {
+                use super::*;
+                #item
+            }
+            #vis use #mod_name::#ident;
+        }
+    } else {
+        item
     }
 }

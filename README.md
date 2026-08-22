@@ -230,9 +230,30 @@ After all attribute expansions, our generated bitfield contains a single field, 
 struct Register { value: u14 }
 ```
 
-This means you _could_ modify the inner value directly, but it breaks type safety guarantees (e.g. unfilled or read-only fields).
-So if you need to modify the whole field, instead use the type-safe conversions `u14::from(register)` and `Register::from(u14)`.
-It is possible that this inner type will be made private in the future (possibly configurable).
+This means you _could_ modify the inner value directly, but it can break type safety invariants (e.g. unfilled or read-only fields). Prefer setting `hide_value` and using the type-safe conversions `u14::from(register)` and `Register::from(u14)` when you need to work with the whole value.
+
+On structs, `#[bitsize]` accepts:
+- `hide_value`: make `value` completely inaccessible. The item is generated one module deeper, so relative visibility (`pub(super)`, `pub(self)`, inherited) is shifted one `super` up so the visibility you specify works like usual.
+- `new = pub` or `new = pub(crate)`: the generated constructor is private by default but you can overwrite it like that
+
+```rust
+#[bitsize(14, hide_value, new = pub)]
+#[derive(FromBits)]
+struct Register {
+    header: u4,
+    body: u7,
+    footer: Footer,
+}
+
+let mut reg = Register::new(
+    u4::new(0b1010),
+    u7::new(0b010_1010),
+    Footer::new(true, Code::GoodExample)
+);
+let raw = u14::from(reg);
+let _reg = Register::from(raw);
+// reg.value = raw; // does not compile
+```
 
 For some more examples and an overview of functionality, take a look at `/examples` and `/tests`.
 

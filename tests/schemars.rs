@@ -3,7 +3,7 @@
 use bilge::prelude::*;
 use schemars::{
     schema::{InstanceType, SingleOrVec},
-    schema_for,
+    schema_for, JsonSchema,
 };
 
 #[bitsize(17)]
@@ -53,4 +53,35 @@ fn schemars_tuple_struct() {
         SingleOrVec::Single(_) => panic!("tuple bitfield should have one schema per element"),
         SingleOrVec::Vec(items) => assert_eq!(items.len(), 2),
     }
+}
+
+#[bitsize(8)]
+#[derive(JsonSchemaBits)]
+struct SchemaIdVisible {
+    field: u8,
+}
+
+#[bitsize(8, hide_value)]
+#[derive(JsonSchemaBits)]
+struct SchemaIdHidden {
+    field: u8,
+}
+
+#[test]
+fn json_schema_id_without_hide_value_uses_user_module() {
+    assert_eq!(
+        SchemaIdVisible::schema_id().as_ref(),
+        concat!(module_path!(), "::SchemaIdVisible"),
+    );
+}
+
+// Known issue: `hide_value` wraps the type in `__bilge_*`, so `module_path!()`
+// inside `JsonSchemaBits` is not the user's module.
+#[test]
+#[should_panic(expected = "__bilge_SchemaIdHidden")]
+fn json_schema_id_with_hide_value_does_not_use_user_module() {
+    assert_eq!(
+        SchemaIdHidden::schema_id().as_ref(),
+        concat!(module_path!(), "::SchemaIdHidden"),
+    );
 }

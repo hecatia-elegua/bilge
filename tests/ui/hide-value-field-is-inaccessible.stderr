@@ -1,0 +1,5 @@
+error[E0616]: field `value` of struct `Hidden` is private
+  --> tests/ui/hide-value-field-is-inaccessible.rs:12:12
+   |
+12 |     hidden.value = u8::new(1);
+   |            ^^^^^ private field

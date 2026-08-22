@@ -1,0 +1,8 @@
+error[E0624]: method `a` is private
+  --> tests/ui/hide-value-pub-super-is-module-local.rs:25:17
+   |
+ 6 |     #[bitsize(8, hide_value, new = pub(super))]
+   |     ------------------------------------------- private method defined here
+...
+25 |     let _ = foo.a();
+   |                 ^ private method
