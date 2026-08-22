@@ -23,6 +23,19 @@ mod shared;
 /// The size of structs is currently limited to 128 bits.
 /// The size of enums is limited to 64 bits.
 /// Please open an issue if you have a usecase for bigger bitfields.
+///
+/// After the size, structs may take extra options:
+/// - `hide_value`: place the generated struct in a private module so the raw
+///   `value` field cannot be read or written. To write the whole value, use `From`/`TryFrom` instead, which is more type-safe.
+///   Relative visibility (`pub(super)`, `pub(self)`, inherited) is shifted one `super`
+///   so it works like you wrote it.
+/// - `new = <vis>`: visibility of `new` (private by default, like other Rust items).
+/// Examples: `new = pub`, `new = pub(crate)`.
+///
+/// ```ignore
+/// #[bitsize(8, hide_value, new = pub(crate))]
+/// struct Register { ... }
+/// ```
 #[manyhow]
 #[proc_macro_attribute]
 pub fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {

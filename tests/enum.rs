@@ -43,3 +43,17 @@ fn conversions() {
         }
     }
 }
+
+#[test]
+fn bits_error_impls_common_traits() {
+    fn assert_impls<T: Clone + Copy + Eq + core::hash::Hash + core::error::Error>() {}
+    assert_impls::<bilge::BitsError>();
+
+    let err = match Activity::try_from(u2::new(3)) {
+        Ok(_) => panic!("3 is not a valid Activity"),
+        Err(e) => e,
+    };
+    let err2 = err;
+    assert_eq!(err, err2);
+    assert_eq!(format!("{err}"), "unable to parse bit pattern");
+}

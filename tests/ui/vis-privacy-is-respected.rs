@@ -2,7 +2,7 @@ use bilge::prelude::*;
 
 mod hidden {
     use super::*;
-    #[bitsize(96)]
+    #[bitsize(96, new = pub)]
     #[derive(FromBits)]
     pub struct Diary(u48, pub u48);
 

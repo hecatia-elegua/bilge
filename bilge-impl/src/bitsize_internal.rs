@@ -1,8 +1,8 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type};
+use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type, Visibility};
 
-use crate::shared::{self, unreachable};
+use crate::shared::{self, unreachable, BitsizeArgs};
 
 pub(crate) mod struct_gen;
 
@@ -15,10 +15,10 @@ struct ItemIr<'a> {
 }
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result {
-    let (item, arb_int) = parse(item, args)?;
+    let (item, args) = parse(item, args)?;
     let ir = match item {
         Item::Struct(ref item) => {
-            let expanded = generate_struct(item, &arb_int);
+            let expanded = generate_struct(item, &args.arb_int, &args.new_vis);
             let attrs = &item.attrs;
             let name = &item.ident;
             ItemIr { attrs, name, expanded }
@@ -31,16 +31,16 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow:
         }
         _ => unreachable(()),
     };
-    Ok(generate_common(ir, &arb_int))
+    Ok(generate_common(ir, &args.arb_int))
 }
 
-fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, TokenStream)> {
+fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, BitsizeArgs)> {
     let item = syn::parse2(item).unwrap_or_else(unreachable);
-    let (_declared_bitsize, arb_int) = shared::bitsize_and_arbitrary_int_from(args)?;
-    Ok((item, arb_int))
+    let args = shared::parse_bitsize_args(args)?;
+    Ok((item, args))
 }
 
-fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStream {
+fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Visibility) -> TokenStream {
     let ItemStruct { vis, ident, fields, .. } = struct_data;
 
     let mut previous_field_sizes = vec![];
@@ -75,7 +75,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream) -> TokenStre
         impl #ident {
             // #[inline]
             #[allow(clippy::too_many_arguments, clippy::type_complexity, missing_docs, unused_parens)]
-            pub #const_ fn new(#( #constructor_args )*) -> Self {
+            #new_vis #const_ fn new(#( #constructor_args )*) -> Self {
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
                 type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
 

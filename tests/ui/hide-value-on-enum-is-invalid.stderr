@@ -1,0 +1,10 @@
+error: `hide_value` is only supported on structs
+
+         = help: enums do not have a `value` field
+
+ --> tests/ui/hide-value-on-enum-is-invalid.rs:3:1
+  |
+3 | #[bitsize(2, hide_value)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: this error originates in the attribute macro `bitsize` (in Nightly builds, run with -Z macro-backtrace for more info)

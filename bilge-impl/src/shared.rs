@@ -1,12 +1,15 @@
+pub mod bitsize_args;
 pub mod discriminant_assigner;
 pub mod fallback;
 pub mod util;
+
+pub use bitsize_args::{internal_attr_options, parse_bitsize_args, BitsizeArgs};
 
 use fallback::{fallback_variant, Fallback};
 use manyhow::{bail, ensure};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
-use syn::{Attribute, DeriveInput, LitInt, Meta, Type};
+use syn::{Attribute, DeriveInput, Meta, Type};
 use util::PathExt;
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -64,17 +67,8 @@ pub(crate) fn analyze_derive(
 
 // If we want to support bitsize(u4) besides bitsize(4), do that here.
 pub fn bitsize_and_arbitrary_int_from(bitsize_arg: TokenStream) -> manyhow::Result<(BitSize, TokenStream)> {
-    ensure!(
-        let Ok(bitsize) = syn::parse2::<LitInt>(bitsize_arg.clone()),
-        bitsize_arg, "attribute value is not a number"; help = "you need to define the size like this: `#[bitsize(32)]`"
-    );
-    // without postfix
-    ensure!(
-        let Some(bitsize) = bitsize.base10_parse().ok().filter(|&n| n != 0 && n <= MAX_STRUCT_BIT_SIZE),
-        bitsize_arg, "attribute value is not a valid number"; help = "currently, numbers from 1 to {} are allowed", MAX_STRUCT_BIT_SIZE
-    );
-    let arb_int = syn::parse_str(&format!("u{bitsize}")).unwrap_or_else(unreachable);
-    Ok((bitsize, arb_int))
+    let args = parse_bitsize_args(bitsize_arg)?;
+    Ok((args.bitsize, args.arb_int))
 }
 
 pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
