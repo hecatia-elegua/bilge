@@ -64,7 +64,7 @@ pub(super) fn json_schema_bits(item: TokenStream) -> manyhow::Result {
                 })
             }
         }
-        Fields::Unit => todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => bail!("unit structs are not supported"),
     };
 
     Ok(quote! {

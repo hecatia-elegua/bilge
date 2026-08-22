@@ -3,12 +3,11 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type};
 
-use crate::shared::{self, fallback::Fallback, unreachable, BitSize};
+use crate::shared::{self, unreachable};
 
 pub(crate) fn default_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
-    //TODO: does fallback need handling?
-    let (derive_data, _, name, ..) = analyze(&derive_input)?;
+    let (derive_data, _, name, ..) = shared::analyze_derive(&derive_input, false)?;
 
     match derive_data {
         Data::Struct(data) => Ok(generate_struct_default_impl(name, &data.fields)),
@@ -85,8 +84,4 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
 
 fn parse(item: TokenStream) -> DeriveInput {
     shared::parse_derive(item)
-}
-
-fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
-    shared::analyze_derive(derive_input, false)
 }

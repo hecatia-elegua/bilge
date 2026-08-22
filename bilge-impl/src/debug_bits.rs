@@ -40,7 +40,7 @@ pub(super) fn debug_bits(item: TokenStream) -> manyhow::Result {
                 #(#calls)*.finish()
             }
         }
-        Fields::Unit => ::core::todo!("this is a unit struct, which is not supported right now"),
+        Fields::Unit => bail!("unit structs are not supported"),
     };
 
     Ok(quote! {

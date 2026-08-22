@@ -70,14 +70,14 @@ pub fn debug_bits(item: TokenStream) -> manyhow::Result {
 
 /// Generate an `impl core::fmt::Binary` for bitfields.
 #[manyhow]
-#[proc_macro_derive(BinaryBits)]
+#[proc_macro_derive(BinaryBits, attributes(bitsize_internal, fallback))]
 pub fn derive_binary_bits(item: TokenStream) -> manyhow::Result {
     fmt_bits::binary(item)
 }
 
 /// Generate an `impl core::default::Default` for bitfield structs.
 #[manyhow]
-#[proc_macro_derive(DefaultBits)]
+#[proc_macro_derive(DefaultBits, attributes(bitsize_internal))]
 pub fn derive_default_bits(item: TokenStream) -> manyhow::Result {
     default_bits::default_bits(item)
 }
