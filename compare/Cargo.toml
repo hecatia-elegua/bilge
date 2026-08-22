@@ -11,6 +11,7 @@ bilge = { path = ".." }
 criterion = "0.8"
 modular-bitfield = "0.13"
 bitbybit = "2.0"
+bitfield-struct = "0.13"
 deku = "0.20"
 arbitrary-int = "2.2"
 

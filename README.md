@@ -261,7 +261,7 @@ For some more examples and an overview of functionality, take a look at `/exampl
 
 ### benchmarks, performance, asm line count
 
-[Comparison benches](https://github.com/hecatia-elegua/bilge/blob/main/compare/benches/compared/main.rs) (`cargo bench --manifest-path compare/Cargo.toml`) time construction from a host integer, field getters, a setter, and a combined MMIO-style round trip against modular-bitfield, bitbybit, deku, and a handwritten baseline. Integer-backed crates (bilge, bitbybit, handmade) are in the same ballpark; deku is a bit-stream parser and is much slower by design.
+[Comparison benches](https://github.com/hecatia-elegua/bilge/blob/main/compare/benches/compared/main.rs) (`cargo bench --manifest-path compare/Cargo.toml`) time construction from a host integer, field getters, a setter, and a combined MMIO-style round trip against modular-bitfield, bitbybit, bitfield-struct, deku, and a handwritten baseline. Integer-backed crates (bilge, bitbybit, bitfield-struct, handmade) are in the same ballpark; deku is a bit-stream parser and is much slower by design.
 
 ### build-time
 
@@ -269,11 +269,12 @@ Measured on rustc 1.96, using `cargo clean && cargo build --lib [--release] --qu
 
 |                       | debug | debug crate | release | release crate |
 |-----------------------|------:|------------:|--------:|--------------:|
-| bilge 0.3             |   3.6 |         0.8 |     3.6 |           0.7 |
-| bitbybit 2.0          |   5.6 |         0.5 |     3.0 |           0.6 |
-| modular-bitfield 0.13 |   3.1 |         0.7 |     3.0 |           0.7 |
+| bilge 0.3             |   3.0 |         0.7 |     3.0 |           0.5 |
+| bitbybit 2.0          |   2.7 |         0.5 |     2.8 |           0.5 |
+| bitfield-struct 0.13  |   2.8 |         0.3 |     3.0 |           0.4 |
+| modular-bitfield 0.13 |   2.9 |         0.7 |     2.9 |           0.7 |
 
-Totals are dominated by `syn`, not by the bitfield crate itself. bitbybit 2's debug total is higher because it uses syn 3 (about 3.7s here vs ~1.7–2.1s for syn 2). Macro expansion of one 8-bit struct is ~0.04s in all three cases.
+Totals are dominated by `syn`, not by the bitfield crate itself. All four use syn 2 here. Macro expansion of one 8-bit struct is ~0.04s.
 
 ### handwritten implementation
 
@@ -322,6 +323,15 @@ implementation differences (as of 26.04.23):
     - bilge: these will be added the moment someone needs it and I or somebody else has time
 - redundant bit-offset specification, which can help or annoy, the same way bilge's `reserved` fields can help or annoy
     - idea: [Optionally support specifying the bit-range of a field instead](https://github.com/hecatia-elegua/bilge/issues/28)
+
+### bitfield-struct
+
+[`bitfield-struct`](https://github.com/wrenger/bitfield-struct-rs) (crates.io name `bitfield-struct`) is another integer-backed register crate, in the same runtime ballpark as bilge and bitbybit.
+
+implementation differences:
+- field widths are `#[bits(n)]` on primitive types (`u8`, `usize`, …), not `uN` aliases
+- no fallible conversions (`TryFrom`); invalid bit patterns are mapped through `from_bits` instead
+- has read/write-only fields (`access = RO`/`WO`), padding as `__`, optional `defmt`/`binrw`/`Hash`, and a custom endian `repr`
 
 ### deku
 
