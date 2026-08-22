@@ -17,6 +17,8 @@ No crates.io API tokens. Publishing uses [trusted publishing](https://crates.io/
    - workflow filename: `release.yml`
    - environment: `crates-io`
    - enable **Trusted Publishing Only**
+3. `main` requires pull requests, so `GITHUB_TOKEN` cannot push the release commit.
+   Add repo secret `RELEASE_PUSH_TOKEN` with the value being a PAT (configured in Profile/Developer-Settings/Fine-grained-token with Repository Content > Read/Write access on default branch).
 
 ## Releasing the next version
 
