@@ -9,9 +9,9 @@ pub use arbitrary_int;
 #[cfg(feature = "schemars")]
 #[cfg_attr(docsrs, doc(cfg(feature = "schemars")))]
 pub use bilge_impl::JsonSchemaBits;
-pub use bilge_impl::{bitsize, BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits};
 #[doc(hidden)]
 pub use bilge_impl::bitsize_internal;
+pub use bilge_impl::{BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits, bitsize};
 #[cfg(feature = "serde")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 pub use bilge_impl::{DeserializeBits, SerializeBits};

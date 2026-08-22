@@ -18,12 +18,12 @@ fn generate(ast: &syn::DeriveInput) -> TokenStream {
         syn::Data::Enum(d) => d.variants.len(),
         syn::Data::Union(d) => d.fields.named.len(),
     };
-    let gen = quote! {
+    let generated = quote! {
         impl FieldsInBits for #name {
             fn field_count() -> usize {
                 #count
             }
         }
     };
-    gen.into()
+    generated.into()
 }

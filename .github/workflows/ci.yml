@@ -17,7 +17,7 @@ jobs:
         toolchain:
           - stable
           # keep in sync with rust-version in Cargo.toml
-          - "1.83.0"
+          - "1.85.0"
           # - beta
           # - nightly
           # (this was arbitrary-int with const I think, probably won't matter later)
@@ -57,7 +57,7 @@ jobs:
         cargo test --workspace --features "serde schemars"
 
     - name: Test MSRV
-      if: ${{ matrix.toolchain == '1.83.0' }}
+      if: ${{ matrix.toolchain == '1.85.0' }}
       run: |
         cargo test --workspace --features "serde schemars" -- --skip ui
 
