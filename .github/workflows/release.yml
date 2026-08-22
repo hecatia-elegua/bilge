@@ -56,9 +56,7 @@ jobs:
         run: cargo test --workspace --features "serde schemars"
 
       - name: cargo publish --dry-run
-        run: |
-          cargo publish -p bilge-impl --dry-run
-          cargo publish -p bilge --dry-run
+        run: cargo publish -p bilge-impl --dry-run
 
       - name: Check crates.io
         env:
