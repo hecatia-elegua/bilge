@@ -1,10 +1,10 @@
 use manyhow::{bail, ensure};
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::parse::{Parse, ParseStream, Parser};
-use syn::{parse_quote, Ident, LitInt, PathSegment, Token, VisRestricted, Visibility};
+use syn::{Ident, LitInt, PathSegment, Token, VisRestricted, Visibility, parse_quote};
 
-use super::{unreachable, BitSize, MAX_STRUCT_BIT_SIZE};
+use super::{BitSize, MAX_STRUCT_BIT_SIZE, unreachable};
 
 /// Parsed `#[bitsize(...)]` / `#[bitsize_internal(...)]` arguments.
 pub struct BitsizeArgs {

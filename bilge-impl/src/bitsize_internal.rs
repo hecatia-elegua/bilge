@@ -2,7 +2,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type, Visibility};
 
-use crate::shared::{self, unreachable, BitsizeArgs};
+use crate::shared::{self, BitsizeArgs, unreachable};
 
 pub(crate) mod struct_gen;
 
@@ -68,6 +68,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Vi
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     quote! {
+        #[repr(transparent)]
         #vis struct #ident {
             /// WARNING: modifying this value directly can break invariants
             value: #arb_int,

@@ -11,3 +11,5 @@
 - Generated `new` is private by default (BREAKING if you called it from another module -> add `new = pub`)
 - Edition 2024; MSRV is 1.85
 - Internal helpers are `#[doc(hidden)]` (these should not be used), `Bitsized` is now part of the API
+- Generated bitstructs are `#[repr(transparent)]` over the backing integer (needed for zerocopy 0.8 `FromBytes`)
+- Dependencies: `arbitrary-int` 2.2, `itertools` 0.15

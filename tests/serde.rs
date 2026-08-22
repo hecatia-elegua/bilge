@@ -2,7 +2,7 @@
 #![allow(clippy::unusual_byte_groupings)]
 
 use bilge::prelude::*;
-use serde_test::{assert_de_tokens_error, assert_tokens, Token};
+use serde_test::{Token, assert_de_tokens_error, assert_tokens};
 
 #[bitsize(17)]
 #[derive(FromBits, PartialEq, SerializeBits, DeserializeBits, DebugBits)]

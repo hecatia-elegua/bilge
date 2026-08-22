@@ -3,7 +3,7 @@ use manyhow::bail;
 use proc_macro2::Ident;
 use syn::{Data, Variant};
 
-use super::{bitsize_from_type_ident, is_fallback_attribute, last_ident_of_path, unreachable, BitSize};
+use super::{BitSize, bitsize_from_type_ident, is_fallback_attribute, last_ident_of_path, unreachable};
 
 pub enum Fallback {
     Unit(Ident),

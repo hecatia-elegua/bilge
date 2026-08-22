@@ -1,6 +1,6 @@
 use manyhow::bail;
 use quote::ToTokens;
-use syn::{meta::ParseNestedMeta, parse_quote, Attribute, Item, Meta, Path};
+use syn::{Attribute, Item, Meta, Path, meta::ParseNestedMeta, parse_quote};
 
 use crate::shared::{unreachable, util::PathExt};
 

@@ -2,8 +2,9 @@
 
 use bilge::prelude::*;
 use schemars::{
+    JsonSchema,
     schema::{InstanceType, SingleOrVec},
-    schema_for, JsonSchema,
+    schema_for,
 };
 
 #[bitsize(17)]
@@ -69,10 +70,7 @@ struct SchemaIdHidden {
 
 #[test]
 fn json_schema_id_without_hide_value_uses_user_module() {
-    assert_eq!(
-        SchemaIdVisible::schema_id().as_ref(),
-        concat!(module_path!(), "::SchemaIdVisible"),
-    );
+    assert_eq!(SchemaIdVisible::schema_id().as_ref(), concat!(module_path!(), "::SchemaIdVisible"),);
 }
 
 // Known issue: `hide_value` wraps the type in `__bilge_*`, so `module_path!()`
@@ -80,8 +78,5 @@ fn json_schema_id_without_hide_value_uses_user_module() {
 #[test]
 #[should_panic(expected = "__bilge_SchemaIdHidden")]
 fn json_schema_id_with_hide_value_does_not_use_user_module() {
-    assert_eq!(
-        SchemaIdHidden::schema_id().as_ref(),
-        concat!(module_path!(), "::SchemaIdHidden"),
-    );
+    assert_eq!(SchemaIdHidden::schema_id().as_ref(), concat!(module_path!(), "::SchemaIdHidden"),);
 }

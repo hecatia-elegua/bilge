@@ -1,22 +1,72 @@
 #![allow(dead_code)]
+use super::Input;
 
-//TODO: version with arbints or range checking? (to just get its benefits)
-#[inline(never)]
-pub(crate) fn handmade(input: (u32, u32, u64, u16)) {
-    let mut lpi = GicRedistributorLpi {
+#[repr(u8)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CommonLpiAffinity {
+    All = 0,
+    Core = 1,
+    Cluster = 2,
+    Reserved = 3,
+}
+
+fn construct(input: Input) -> GicRedistributorLpi {
+    GicRedistributorLpi {
         control: RedistributorControl(input.0),
         implementer_identification: RedistributorImplementerIdentification(input.1),
         redistributor_type: RedistributorType(input.2),
-    };
+    }
+}
+
+pub fn from_raw(input: Input) -> GicRedistributorLpi {
+    construct(input)
+}
+
+pub fn getters(lpi: &GicRedistributorLpi) -> (bool, u16, u16, CommonLpiAffinity) {
+    (
+        lpi.control.clear_enable_supported(),
+        lpi.implementer_identification.implementer_jep106(),
+        lpi.redistributor_type.processor_number(),
+        lpi.redistributor_type.common_lpi_affinity(),
+    )
+}
+
+pub fn set_jep106(lpi: &mut GicRedistributorLpi, value: u16) {
+    lpi.implementer_identification.set_implementer_jep106(value);
+}
+
+#[inline(never)]
+pub fn combined(input: Input) -> (u32, u32, u64, bool, u16, u16, CommonLpiAffinity) {
+    let mut lpi = construct(input);
+    let clear = lpi.control.clear_enable_supported();
+    let affinity = lpi.redistributor_type.common_lpi_affinity();
+    let processor_number = lpi.redistributor_type.processor_number();
+    lpi.implementer_identification.set_implementer_jep106(input.3);
+    let jep106 = lpi.implementer_identification.implementer_jep106();
+    (
+        lpi.control.0,
+        lpi.implementer_identification.0,
+        lpi.redistributor_type.0,
+        clear,
+        jep106,
+        processor_number,
+        affinity,
+    )
+}
+
+pub fn check(input: Input) {
+    let lpi = from_raw(input);
     assert_eq!(lpi.control.0, input.0);
     assert_eq!(lpi.implementer_identification.0, input.1);
     assert_eq!(lpi.redistributor_type.0, input.2);
-
     assert!(lpi.control.clear_enable_supported());
     assert_eq!(lpi.implementer_identification.implementer_jep106(), 2054);
-    lpi.implementer_identification.set_implementer_jep106(input.3);
-    assert_eq!(lpi.implementer_identification.implementer_jep106(), input.3);
     assert_eq!(lpi.redistributor_type.processor_number(), 63872);
+    let _ = lpi.redistributor_type.common_lpi_affinity();
+
+    let mut lpi = lpi;
+    set_jep106(&mut lpi, input.3);
+    assert_eq!(lpi.implementer_identification.implementer_jep106(), input.3);
 }
 
 #[derive(Debug)]
@@ -56,16 +106,16 @@ impl RedistributorControl {
         (self.0 >> 8) & 0b1111_1111_1111_1111_1111
     }
     const fn register_write_pending(&self) -> bool {
-        (self.0 >> 27) & 1 != 0
-    }
-    const fn lpi_invalidate_registers_supported(&self) -> bool {
         (self.0 >> 28) & 1 != 0
     }
-    const fn clear_enable_supported(&self) -> bool {
+    const fn lpi_invalidate_registers_supported(&self) -> bool {
         (self.0 >> 29) & 1 != 0
     }
-    const fn enable_lpis(&self) -> bool {
+    const fn clear_enable_supported(&self) -> bool {
         (self.0 >> 30) & 1 != 0
+    }
+    const fn enable_lpis(&self) -> bool {
+        (self.0 >> 31) & 1 != 0
     }
 }
 
@@ -117,9 +167,14 @@ impl RedistributorType {
     const fn virtual_sgi_supported(&self) -> bool {
         (self.0 >> 37) & 1 != 0
     }
-    //u2
-    const fn common_lpi_affinity(&self) -> u8 {
-        (self.0 >> 38) as u8 & 0b11
+    const fn common_lpi_affinity(&self) -> CommonLpiAffinity {
+        match (self.0 >> 38) as u8 & 0b11 {
+            0 => CommonLpiAffinity::All,
+            1 => CommonLpiAffinity::Core,
+            2 => CommonLpiAffinity::Cluster,
+            3 => CommonLpiAffinity::Reserved,
+            _ => unreachable!(),
+        }
     }
     const fn processor_number(&self) -> u16 {
         (self.0 >> 40) as u16
@@ -145,7 +200,7 @@ impl RedistributorType {
     const fn virtual_lpi_supported(&self) -> bool {
         (self.0 >> 62) & 1 != 0
     }
-    const fn physial_lpi_supported(&self) -> bool {
+    const fn physical_lpi_supported(&self) -> bool {
         (self.0 >> 63) & 1 != 0
     }
 }

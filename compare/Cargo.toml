@@ -1,0 +1,23 @@
+[package]
+name = "bilge-compare"
+version = "0.0.0"
+edition = "2024"
+publish = false
+# criterion 0.8 needs rustc 1.86; this package is not part of bilge's MSRV CI
+rust-version = "1.86"
+
+[dependencies]
+bilge = { path = ".." }
+criterion = "0.8"
+modular-bitfield = "0.13"
+bitbybit = "2.0"
+deku = "0.20"
+arbitrary-int = "2.2"
+
+[lib]
+bench = false
+
+[[bench]]
+name = "compared"
+path = "benches/compared/main.rs"
+harness = false

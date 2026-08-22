@@ -3,9 +3,8 @@ pub mod discriminant_assigner;
 pub mod fallback;
 pub mod util;
 
-pub use bitsize_args::{internal_attr_options, parse_bitsize_args, BitsizeArgs};
-
-use fallback::{fallback_variant, Fallback};
+pub use bitsize_args::{BitsizeArgs, internal_attr_options, parse_bitsize_args};
+use fallback::{Fallback, fallback_variant};
 use manyhow::{bail, ensure};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
@@ -143,11 +142,7 @@ pub fn unreachable<T, U>(_: T) -> U {
 }
 
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
-    if let Meta::Path(path) = &attr.meta {
-        path.is_ident(name)
-    } else {
-        false
-    }
+    if let Meta::Path(path) = &attr.meta { path.is_ident(name) } else { false }
 }
 
 fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {

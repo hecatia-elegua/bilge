@@ -17,6 +17,9 @@ rustdoc-args = ["--cfg", "docsrs"]
 
 [workspace]
 members = ["bilge-impl"]
+# Comparison benches live here so `cargo test --workspace` does not compile
+# criterion / competitor crates. Run with: cargo bench --manifest-path compare/Cargo.toml
+exclude = ["compare"]
 
 [workspace.package]
 version = "0.3.0"
@@ -51,7 +54,7 @@ serde = ["bilge-impl/serde", "arbitrary-int/serde"]
 
 [dependencies]
 # cargo clippy workaround, we can't add `path = "../arbitrary-int"` as well
-arbitrary-int = "2.0.0"
+arbitrary-int = "2.2.0"
 bilge-impl = { version = "=0.3.0", path = "bilge-impl" }
 
 [dev-dependencies]
@@ -63,31 +66,11 @@ assert_matches = "1.5.0"
 schemars = "0.8"
 serde = "1.0"
 serde_test = "1.0"
-defmt = "1.0.1"
+defmt = "1.0"
 
 # examples
-# volatile = { git = "https://github.com/theseus-os/volatile" }
-volatile = "0.5.1"
-zerocopy = "0.5.0"
-
-# benches - commented out due to build times, also nightly-only
-# criterion = "0.3"
-# modular-bitfield = "0.11.2"
-# bitbybit = "1.1.4"
-# TODO: test again, might inline/const more things now:
-# deku = "0.16"
-
-# criterion workaround to make `cargo bench -- --verbose` work
-[lib]
-bench = false
-
-[[bench]]
-name = "compared"
-# cargo publish workaround "can't find `compared` bench at ... `benches\compared\main.rs`"
-path = "benches/compared/main.rs"
-harness = false
-# REMOVE this when benchmarking
-bench = false
+volatile = "0.6"
+zerocopy = { version = "0.8", features = ["derive"] }
 
 [workspace.lints.rust]
 unexpected_cfgs = "allow"
