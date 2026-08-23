@@ -2,48 +2,48 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
 
-use crate::shared::{self, BitSize, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, unreachable};
+use crate::shared::{
+    self, BitSize, binary_segments, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, place_struct_fields, unreachable,
+};
 
 pub(crate) fn binary(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
     let (derive_data, arb_int, name, bitsize, fallback) = analyze(&derive_input)?;
 
     match derive_data {
-        Data::Struct(data) => Ok(generate_struct_binary_impl(name, &data.fields)),
+        Data::Struct(data) => Ok(generate_struct_binary_impl(name, &data.fields, bitsize)),
         Data::Enum(data) => generate_enum_binary_impl(name, data.variants.iter(), arb_int, bitsize, fallback),
         _ => unreachable(()),
     }
 }
 
-fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields) -> TokenStream {
-    let write_underscore = quote! { ::core::write!(f, "_")?; };
+fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields, declared_bitsize: BitSize) -> TokenStream {
+    let layout = place_struct_fields(fields, declared_bitsize as usize).unwrap_or_else(|_| unreachable(()));
+    let declared = declared_bitsize as usize;
 
-    // fields are printed from most significant to least significant, separated by an underscore
-    let writes = fields
-        .iter()
-        .rev()
-        .map(|field| {
-            let field_size = shared::generate_type_bitsize(&field.ty);
-
-            // `extracted` is `field_size` bits of `value`, starting from index `first_bit_pos` (counting from LSB)
-            quote! {
-                let field_size = #field_size;
+    // fields (and holes) are printed from most significant to least significant
+    let writes = binary_segments(&layout, declared).into_iter().rev().map(|(offset, width)| {
+        quote! {
+            let field_size = #width;
+            if field_size != 0 {
+                if started {
+                    ::core::write!(f, "_")?;
+                }
+                started = true;
                 let field_mask = mask >> (struct_size - field_size);
-                let first_bit_pos = last_bit_pos - field_size;
-                last_bit_pos -= field_size;
-                let extracted = field_mask & (self.value >> first_bit_pos);
+                let extracted = field_mask & (self.value >> #offset);
                 ::core::write!(f, "{:0width$b}", extracted, width = field_size)?;
             }
-        })
-        .reduce(|acc, next| quote!(#acc #write_underscore #next));
+        }
+    });
 
     quote! {
         impl ::core::fmt::Binary for #struct_name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 let struct_size = <#struct_name as Bitsized>::BITS;
-                let mut last_bit_pos = struct_size;
                 let mask = <#struct_name as Bitsized>::MAX;
-                #writes
+                let mut started = false;
+                #(#writes)*
                 Ok(())
             }
         }

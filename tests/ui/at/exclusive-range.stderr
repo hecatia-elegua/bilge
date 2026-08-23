@@ -1,0 +1,5 @@
+error: use an inclusive range: `#[at(n..=m)]`
+ --> tests/ui/at/exclusive-range.rs:5:11
+  |
+5 |     #[at(4..8)]
+  |           ^

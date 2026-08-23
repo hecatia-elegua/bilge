@@ -32,6 +32,11 @@ mod shared;
 /// - `new = <vis>`: visibility of `new` (private by default, like other Rust items).
 /// Examples: `new = pub`, `new = pub(crate)`.
 ///
+/// Struct fields may use `#[at(n)]` or `#[at(n..=m)]` to place a field at backing-integer
+/// bit `n` (0 = LSB). Width comes from the field type; a range is checked against that width.
+/// Fields without `#[at]` fill sequentially from the end of the previous
+/// field. Skipped bits are implicit padding. Overlap or reordering is a compile error.
+///
 /// ```ignore
 /// #[bitsize(8, hide_value, new = pub(crate))]
 /// struct Register { ... }
@@ -56,7 +61,7 @@ pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result
 /// This should be used when your enum or enums nested in
 /// a struct don't fill their given `bitsize`.
 #[manyhow]
-#[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback))]
+#[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback, at))]
 pub fn derive_try_from_bits(item: TokenStream) -> manyhow::Result {
     try_from_bits::try_from_bits(item)
 }
@@ -67,7 +72,7 @@ pub fn derive_try_from_bits(item: TokenStream) -> manyhow::Result {
 /// a struct fill their given `bitsize` or if you're not
 /// using enums.
 #[manyhow]
-#[proc_macro_derive(FromBits, attributes(bitsize_internal, fallback))]
+#[proc_macro_derive(FromBits, attributes(bitsize_internal, fallback, at))]
 pub fn derive_from_bits(item: TokenStream) -> manyhow::Result {
     from_bits::from_bits(item)
 }
@@ -76,21 +81,21 @@ pub fn derive_from_bits(item: TokenStream) -> manyhow::Result {
 ///
 /// Please use normal #[derive(Debug)] for enums.
 #[manyhow]
-#[proc_macro_derive(DebugBits, attributes(bitsize_internal))]
+#[proc_macro_derive(DebugBits, attributes(bitsize_internal, at))]
 pub fn debug_bits(item: TokenStream) -> manyhow::Result {
     debug_bits::debug_bits(item)
 }
 
 /// Generate an `impl core::fmt::Binary` for bitfields.
 #[manyhow]
-#[proc_macro_derive(BinaryBits, attributes(bitsize_internal, fallback))]
+#[proc_macro_derive(BinaryBits, attributes(bitsize_internal, fallback, at))]
 pub fn derive_binary_bits(item: TokenStream) -> manyhow::Result {
     fmt_bits::binary(item)
 }
 
 /// Generate an `impl core::default::Default` for bitfield structs.
 #[manyhow]
-#[proc_macro_derive(DefaultBits, attributes(bitsize_internal))]
+#[proc_macro_derive(DefaultBits, attributes(bitsize_internal, at))]
 pub fn derive_default_bits(item: TokenStream) -> manyhow::Result {
     default_bits::default_bits(item)
 }
@@ -100,7 +105,7 @@ pub fn derive_default_bits(item: TokenStream) -> manyhow::Result {
 /// Please use normal #[derive(JsonSchema)] for enums.
 #[cfg(feature = "schemars")]
 #[manyhow]
-#[proc_macro_derive(JsonSchemaBits, attributes(bitsize_internal))]
+#[proc_macro_derive(JsonSchemaBits, attributes(bitsize_internal, at))]
 pub fn json_schema_bits(item: TokenStream) -> manyhow::Result {
     schemars_bits::json_schema_bits(item)
 }
@@ -110,7 +115,7 @@ pub fn json_schema_bits(item: TokenStream) -> manyhow::Result {
 /// Please use normal #[derive(Serialize)] for enums.
 #[cfg(feature = "serde")]
 #[manyhow]
-#[proc_macro_derive(SerializeBits, attributes(bitsize_internal))]
+#[proc_macro_derive(SerializeBits, attributes(bitsize_internal, at))]
 pub fn serialize_bits(item: TokenStream) -> manyhow::Result {
     serde_bits::serialize_bits(item)
 }
@@ -120,7 +125,7 @@ pub fn serialize_bits(item: TokenStream) -> manyhow::Result {
 /// Please use normal #[derive(Deserialize)] for enums.
 #[cfg(feature = "serde")]
 #[manyhow]
-#[proc_macro_derive(DeserializeBits, attributes(bitsize_internal))]
+#[proc_macro_derive(DeserializeBits, attributes(bitsize_internal, at))]
 pub fn deserialize_bits(item: TokenStream) -> manyhow::Result {
     serde_bits::deserialize_bits(item)
 }

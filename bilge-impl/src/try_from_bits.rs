@@ -3,14 +3,16 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
-use crate::shared::{self, BitSize, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, unreachable};
+use crate::shared::{
+    self, BitSize, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, place_struct_fields, unreachable,
+};
 use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
 pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
     let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input)?;
     match derive_data {
-        Data::Struct(data) => Ok(codegen_struct(arb_int, name, &data.fields)),
+        Data::Struct(data) => Ok(codegen_struct(arb_int, name, &data.fields, internal_bitsize)),
         Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
             let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int)?;
@@ -88,13 +90,16 @@ fn generate_field_check(ty: &Type) -> TokenStream {
     crate::bitsize_internal::struct_gen::generate_getter_inner(ty, false)
 }
 
-fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) -> TokenStream {
+fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, declared_bitsize: BitSize) -> TokenStream {
+    let layout = place_struct_fields(fields, declared_bitsize as usize).unwrap_or_else(|_| unreachable(()));
     let is_ok: TokenStream = fields
         .iter()
-        .map(|field| {
+        .zip(layout.fields.iter())
+        .map(|(field, place)| {
             let ty = &field.ty;
+            let offset = &place.offset;
             let size_from_type = last_ident_of_path(ty).and_then(bitsize_from_type_ident);
-            if let Some(size) = size_from_type {
+            let check = if let Some(size) = size_from_type {
                 quote! { {
                     // we still need to shift by the element's size
                     let size = #size;
@@ -103,7 +108,12 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields) ->
                 } }
             } else {
                 generate_field_check(ty)
-            }
+            };
+            quote! { {
+                cursor = value.value();
+                cursor >>= #offset;
+                #check
+            } }
         })
         .reduce(|acc, next| quote!((#acc && #next)))
         // `Struct {}` would be handled like this:

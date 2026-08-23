@@ -1,8 +1,10 @@
+pub mod at;
 pub mod bitsize_args;
 pub mod discriminant_assigner;
 pub mod fallback;
 pub mod util;
 
+pub use at::{attrs_without_at, binary_segments, is_at_attribute, place_struct_fields};
 pub use bitsize_args::{BitsizeArgs, internal_attr_options, parse_bitsize_args};
 use fallback::{Fallback, fallback_variant};
 use manyhow::{bail, ensure};

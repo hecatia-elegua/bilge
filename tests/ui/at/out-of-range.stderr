@@ -1,0 +1,20 @@
+error: field `a` starts at bit 8 but the struct is only 8 bits
+ --> tests/ui/at/out-of-range.rs:5:10
+  |
+5 |     #[at(8)]
+  |          ^
+
+error: field `a` ends at bit 8 but the struct is only 8 bits
+  --> tests/ui/at/out-of-range.rs:11:10
+   |
+11 |     #[at(6..=8)]
+   |          ^
+
+error: field `a` extends past the declared bitsize of 8
+
+         = help: it occupies bits 6..10
+
+  --> tests/ui/at/out-of-range.rs:17:10
+   |
+17 |     #[at(6)]
+   |          ^

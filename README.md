@@ -255,6 +255,25 @@ let _reg = Register::from(raw);
 // reg.value = raw; // does not compile
 ```
 
+### Placing fields with `#[at]`
+
+Fields fill from bit 0 (LSB) in source order. `#[at(n)]` starts a field at bit `n` instead;
+`#[at(n..=m)]` does the same and checks that the range width matches the field type.
+Skipped bits are implicit padding. Overlap or going backwards is a compile error.
+
+```rust
+#[bitsize(16)]
+struct Status {
+    #[at(3)]
+    ready: bool,   // bit 3
+    #[at(8..=11)]
+    nack: u4,      // bits 8..=11
+}
+```
+
+The next field without `#[at]` continues after the previous one.
+`#[bitsize(N)]` is still the total width: named fields may use fewer than `N` bits when `#[at]` is used.
+
 For some more examples and an overview of functionality, take a look at `/examples` and `/tests`.
 
 ## Alternatives

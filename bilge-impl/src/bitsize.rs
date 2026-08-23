@@ -7,7 +7,8 @@ use split::SplitAttributes;
 use syn::{Fields, Item, ItemEnum, ItemStruct, Type, Variant, Visibility, parse_quote, punctuated::Iter, spanned::Spanned};
 
 use crate::shared::{
-    self, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_fallback_attribute, unreachable,
+    self, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_at_attribute,
+    is_fallback_attribute, place_struct_fields, unreachable,
 };
 
 /// Intermediate Representation, just for bundling these together
@@ -20,6 +21,7 @@ struct ItemIr {
 
 pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {
     let (item, mut args) = parse(item, args)?;
+    forbid_item_at(&item)?;
     let attrs = SplitAttributes::from_item(&item)?;
     let ir = match item {
         Item::Struct(mut item) => {
@@ -32,7 +34,7 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {
             }
             modify_special_field_names(&mut item.fields);
             analyze_struct(&item.fields)?;
-            let expanded = generate_struct(&item, args.bitsize);
+            let expanded = generate_struct(&item, args.bitsize)?;
             ItemIr {
                 expanded,
                 ident: item.ident,
@@ -124,6 +126,20 @@ fn modify_special_field_names(fields: &mut Fields) {
     }
 }
 
+fn forbid_item_at(item: &Item) -> manyhow::Result<()> {
+    let attrs = match item {
+        Item::Struct(item) => &item.attrs,
+        Item::Enum(item) => &item.attrs,
+        _ => return Ok(()),
+    };
+    for attr in attrs {
+        if is_at_attribute(attr) {
+            bail!(attr, "`#[at]` is only supported on struct fields");
+        }
+    }
+    Ok(())
+}
+
 fn analyze_struct(fields: &Fields) -> manyhow::Result<()> {
     if fields.is_empty() {
         bail!("structs without fields are not supported")
@@ -147,6 +163,14 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> manyhow::Result<()
         bail!("empty enums are not supported");
     }
 
+    for variant in variants.clone() {
+        for attr in &variant.attrs {
+            if is_at_attribute(attr) {
+                bail!(attr, "`#[at]` is only supported on struct fields");
+            }
+        }
+    }
+
     let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
 
     if !has_fallback {
@@ -156,14 +180,34 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> manyhow::Result<()
     Ok(())
 }
 
-fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
+fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> manyhow::Result<TokenStream> {
     let ItemStruct { vis, ident, fields, .. } = item;
     let declared_bitsize = declared_bitsize as usize;
+    let layout = place_struct_fields(fields, declared_bitsize)?;
 
-    let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
-        let field_size = shared::generate_type_bitsize(&next.ty);
-        quote!(#acc + #field_size)
-    });
+    let size_check = if layout.uses_at {
+        let asserts = &layout.asserts;
+        quote! {
+            const _: () = {
+                #asserts
+            };
+        }
+    } else {
+        let computed_bitsize = fields.iter().fold(quote!(0), |acc, next| {
+            let field_size = shared::generate_type_bitsize(&next.ty);
+            quote!(#acc + #field_size)
+        });
+        quote! {
+            // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
+            const _: () = ::core::assert!(
+                (#computed_bitsize) == (#declared_bitsize),
+                concat!("struct size and declared bit size differ: ",
+                // stringify!(#computed_bitsize),
+                " != ",
+                stringify!(#declared_bitsize))
+            );
+        }
+    };
 
     // we could remove this if the whole struct gets passed
     let is_tuple_struct = fields.iter().any(|field| field.ident.is_none());
@@ -179,18 +223,11 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> TokenStream {
         }
     };
 
-    quote! {
+    Ok(quote! {
         #vis struct #ident #fields_def
 
-        // constness: when we get const blocks evaluated at compile time, add a const computed_bitsize
-        const _: () = ::core::assert!(
-            (#computed_bitsize) == (#declared_bitsize),
-            concat!("struct size and declared bit size differ: ",
-            // stringify!(#computed_bitsize),
-            " != ",
-            stringify!(#declared_bitsize))
-        );
-    }
+        #size_check
+    })
 }
 
 // attributes are handled in `generate_common`

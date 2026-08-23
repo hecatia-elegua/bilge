@@ -1,0 +1,5 @@
+error: range start is greater than end
+ --> tests/ui/at/inverted-range.rs:5:10
+  |
+5 |     #[at(4..=1)]
+  |          ^

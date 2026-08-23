@@ -1,0 +1,5 @@
+error: duplicate `#[at]`
+ --> tests/ui/at/duplicate.rs:6:5
+  |
+6 |     #[at(1)]
+  |     ^^^^^^^^

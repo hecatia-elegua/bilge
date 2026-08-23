@@ -3,29 +3,38 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type};
 
-use crate::shared::{self, unreachable};
+use crate::shared::{self, place_struct_fields, unreachable};
 
 pub(crate) fn default_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
-    let (derive_data, _, name, ..) = shared::analyze_derive(&derive_input, false)?;
+    let (derive_data, _, name, bitsize, ..) = shared::analyze_derive(&derive_input, false)?;
 
     match derive_data {
-        Data::Struct(data) => Ok(generate_struct_default_impl(name, &data.fields)),
+        Data::Struct(data) => Ok(generate_struct_default_impl(name, &data.fields, bitsize)),
         Data::Enum(_) => bail!("use derive(Default) for enums"),
         _ => unreachable(()),
     }
 }
 
-fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields) -> TokenStream {
+fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields, declared_bitsize: shared::BitSize) -> TokenStream {
+    let layout = place_struct_fields(fields, declared_bitsize as usize).unwrap_or_else(|_| unreachable(()));
     let default_value = fields
         .iter()
-        .map(|field| generate_default_inner(&field.ty))
+        .zip(layout.fields.iter())
+        .map(|(field, place)| {
+            let inner = generate_default_inner(&field.ty);
+            let offset = &place.offset;
+            quote! {{
+                let mut offset = #offset;
+                let shifted = #inner;
+                shifted
+            }}
+        })
         .reduce(|acc, next| quote!(#acc | #next));
 
     quote! {
         impl ::core::default::Default for #struct_name {
             fn default() -> Self {
-                let mut offset = 0;
                 let value = #default_value;
                 let value = <#struct_name as Bitsized>::ArbitraryInt::new(value);
                 Self { value }
