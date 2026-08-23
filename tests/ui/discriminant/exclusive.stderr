@@ -1,0 +1,8 @@
+error: `#[discriminant]` and `#[discriminant_at]` cannot be used together
+
+         = help: `#[discriminant_at(n..=m)]` places the tag in this integer; `#[discriminant(Type)]` uses a separate tag value
+
+ --> tests/ui/discriminant/exclusive.rs:5:16
+  |
+5 | #[discriminant(u8)]
+  |                ^^

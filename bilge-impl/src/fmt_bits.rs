@@ -2,9 +2,10 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
 
+use crate::shared::discriminant::EnumDiscriminant;
 use crate::shared::{
-    self, BitSize, binary_segments, discriminant_assigner::DiscriminantAssigner, discriminant_at, fallback::Fallback, parse_discriminant_at,
-    place_struct_fields, unreachable,
+    self, BitSize, binary_segments, discriminant, discriminant_assigner::DiscriminantAssigner, discriminant_at, fallback::Fallback,
+    parse_enum_discriminant, place_struct_fields, unreachable,
 };
 
 pub(crate) fn binary(item: TokenStream) -> manyhow::Result {
@@ -13,13 +14,19 @@ pub(crate) fn binary(item: TokenStream) -> manyhow::Result {
 
     match derive_data {
         Data::Struct(data) => Ok(generate_struct_binary_impl(name, &data.fields, bitsize)),
-        Data::Enum(data) => {
-            let disc = parse_discriminant_at(&derive_input.attrs)?;
-            if let Some(disc) = &disc {
-                disc.validate(bitsize as usize)?;
+        Data::Enum(data) => match parse_enum_discriminant(&derive_input.attrs)? {
+            Some(EnumDiscriminant::Type(disc)) => generate_external_binary_impl(name, data.variants.iter(), arb_int, &disc),
+            tag => {
+                let disc = match tag {
+                    Some(EnumDiscriminant::At(disc)) => {
+                        disc.validate(bitsize as usize)?;
+                        Some(disc)
+                    }
+                    _ => None,
+                };
+                generate_enum_binary_impl(name, data.variants.iter(), arb_int, bitsize, fallback, disc.as_ref())
             }
-            generate_enum_binary_impl(name, data.variants.iter(), arb_int, bitsize, fallback, disc.as_ref())
-        }
+        },
         _ => unreachable(()),
     }
 }
@@ -55,6 +62,37 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields, declared_bi
             }
         }
     }
+}
+
+fn generate_external_binary_impl(
+    enum_name: &Ident, variants: Iter<Variant>, arb_int: TokenStream, disc: &discriminant::Discriminant,
+) -> manyhow::Result<TokenStream> {
+    let mut assigner = DiscriminantAssigner::new(disc.assigner_width());
+    let mut arms = Vec::new();
+    for variant in variants {
+        let _ = assigner.assign_unsuffixed(variant)?;
+        let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+        arms.push(discriminant::payload_only_to_int_arm(enum_name, &variant.ident, payload_ty, &arb_int));
+    }
+
+    let body = if arms.is_empty() {
+        quote! { Ok(()) }
+    } else {
+        quote! {
+            let value = match self {
+                #( #arms )*
+            };
+            ::core::write!(f, "{:0width$b}", value, width = <#enum_name as Bitsized>::BITS)
+        }
+    };
+
+    Ok(quote! {
+        impl ::core::fmt::Binary for #enum_name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
+                #body
+            }
+        }
+    })
 }
 
 fn generate_enum_binary_impl(

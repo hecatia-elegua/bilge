@@ -3,9 +3,10 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
+use crate::shared::discriminant::EnumDiscriminant;
 use crate::shared::{
-    self, BitSize, discriminant_assigner::DiscriminantAssigner, discriminant_at, enum_fills_bitsize, fallback::Fallback, parse_discriminant_at,
-    place_struct_fields, unreachable,
+    self, BitSize, discriminant, discriminant_assigner::DiscriminantAssigner, discriminant_at, enum_fills_bitsize, fallback::Fallback,
+    parse_enum_discriminant, place_struct_fields, unreachable,
 };
 use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
@@ -14,15 +15,20 @@ pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {
     let (derive_data, arb_int, name, internal_bitsize, ..) = analyze(&derive_input)?;
     match derive_data {
         Data::Struct(data) => Ok(codegen_struct(arb_int, name, &data.fields, internal_bitsize)),
-        Data::Enum(enum_data) => {
-            let variants = enum_data.variants.iter();
-            let disc = parse_discriminant_at(&derive_input.attrs)?;
-            if let Some(disc) = &disc {
-                disc.validate(internal_bitsize as usize)?;
+        Data::Enum(enum_data) => match parse_enum_discriminant(&derive_input.attrs)? {
+            Some(EnumDiscriminant::Type(disc)) => Ok(generate_external_enum(enum_data.variants.iter(), name, &arb_int, &disc)?),
+            tag => {
+                let disc = match tag {
+                    Some(EnumDiscriminant::At(disc)) => {
+                        disc.validate(internal_bitsize as usize)?;
+                        Some(disc)
+                    }
+                    _ => None,
+                };
+                let match_arms = analyze_enum(enum_data.variants.iter(), name, internal_bitsize, &arb_int, disc.as_ref())?;
+                Ok(codegen_enum(arb_int, name, match_arms, disc.as_ref(), internal_bitsize))
             }
-            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int, disc.as_ref())?;
-            Ok(codegen_enum(arb_int, name, match_arms, disc.as_ref(), internal_bitsize))
-        }
+        },
         _ => unreachable(()),
     }
 }
@@ -67,6 +73,40 @@ fn analyze_enum(
         })
         .collect::<manyhow::Result<Vec<_>>>()
         .map(|arms| arms.into_iter().unzip())
+}
+
+fn generate_external_enum(
+    variants: Iter<Variant>, name: &Ident, arb_int: &TokenStream, disc: &discriminant::Discriminant,
+) -> manyhow::Result<TokenStream> {
+    if let Some(width) = disc.known_width() {
+        let _ = enum_fills_bitsize(width, variants.clone().count())?;
+    }
+
+    let tag_ty = &disc.ty;
+    let mut assigner = DiscriminantAssigner::new(disc.assigner_width());
+    let mut from_arms = Vec::new();
+    let mut to_arms = Vec::new();
+    for variant in variants {
+        let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+        let variant_value = assigner.assign_unsuffixed(variant)?;
+        from_arms.push(discriminant::from_pair_arm(&variant.ident, payload_ty, &variant_value, true));
+        to_arms.push(discriminant::to_pair_arm(
+            name,
+            &variant.ident,
+            payload_ty,
+            &variant_value,
+            tag_ty,
+            arb_int,
+        ));
+    }
+
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+    let try_from = discriminant::generate_try_from_pair(name, tag_ty, arb_int, &from_arms, &const_);
+    let to_pair = discriminant::generate_pair_from_enum(name, tag_ty, arb_int, &to_arms, &const_);
+    Ok(quote! {
+        #try_from
+        #to_pair
+    })
 }
 
 fn codegen_enum(

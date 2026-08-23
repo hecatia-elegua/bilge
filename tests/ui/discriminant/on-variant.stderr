@@ -1,0 +1,5 @@
+error: `#[discriminant]` belongs on the enum, not on variants
+ --> tests/ui/discriminant/on-variant.rs:5:5
+  |
+5 |     #[discriminant(u8)]
+  |     ^^^^^^^^^^^^^^^^^^^

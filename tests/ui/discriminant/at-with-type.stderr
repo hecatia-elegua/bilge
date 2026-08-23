@@ -1,0 +1,5 @@
+error: use `#[discriminant(Type)]` for a tag that lives in a different value, not `#[discriminant_at]`
+ --> tests/ui/discriminant/at-with-type.rs:4:19
+  |
+4 | #[discriminant_at(CrtcIndex)]
+  |                   ^^^^^^^^^

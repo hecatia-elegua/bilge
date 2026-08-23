@@ -274,6 +274,30 @@ struct Status {
 The next field without `#[at]` continues after the previous one.
 `#[bitsize(N)]` is still the total width: named fields may use fewer than `N` bits when `#[at]` is used.
 
+### Tagged enums
+
+`#[discriminant_at]` puts the tag in the same integer. `#[discriminant]` uses a separate tag value.
+
+```rust
+#[bitsize(32)]
+#[discriminant_at(0..=6)]
+enum Instr {
+    R(RTypeRest) = 0b0110011,
+    I(ITypeRest) = 0b0010011,
+}
+
+#[bitsize(8)]
+#[discriminant(CrtcIndex)]
+#[derive(TryFromBits)]
+enum CrtcReg {
+    Horiz(HorizontalDisplayEnd) = 0x01,
+    MaxScan(MaxScanLine) = 0x09,
+}
+
+let reg = CrtcReg::try_from((index, data))?;
+let (index, data) = reg.to_tag_and_data();
+```
+
 For some more examples and an overview of functionality, take a look at `/examples` and `/tests`.
 
 ## Alternatives
