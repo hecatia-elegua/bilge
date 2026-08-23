@@ -4,7 +4,8 @@ use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
 use crate::shared::{
-    self, BitSize, discriminant_assigner::DiscriminantAssigner, enum_fills_bitsize, fallback::Fallback, place_struct_fields, unreachable,
+    self, BitSize, discriminant_assigner::DiscriminantAssigner, discriminant_at, enum_fills_bitsize, fallback::Fallback, parse_discriminant_at,
+    place_struct_fields, unreachable,
 };
 use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
@@ -15,8 +16,12 @@ pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {
         Data::Struct(data) => Ok(codegen_struct(arb_int, name, &data.fields, internal_bitsize)),
         Data::Enum(enum_data) => {
             let variants = enum_data.variants.iter();
-            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int)?;
-            Ok(codegen_enum(arb_int, name, match_arms))
+            let disc = parse_discriminant_at(&derive_input.attrs)?;
+            if let Some(disc) = &disc {
+                disc.validate(internal_bitsize as usize)?;
+            }
+            let match_arms = analyze_enum(variants, name, internal_bitsize, &arb_int, disc.as_ref())?;
+            Ok(codegen_enum(arb_int, name, match_arms, disc.as_ref(), internal_bitsize))
         }
         _ => unreachable(()),
     }
@@ -31,52 +36,74 @@ fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&syn::Data, TokenStre
 }
 
 fn analyze_enum(
-    variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, arb_int: &TokenStream,
+    variants: Iter<Variant>, name: &Ident, internal_bitsize: BitSize, arb_int: &TokenStream, disc: Option<&discriminant_at::DiscriminantAt>,
 ) -> manyhow::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
-    validate_enum_variants(variants.clone())?;
+    validate_enum_variants(variants.clone(), disc)?;
 
-    // The previous `emit_call_site_warning!("enum fills its bitsize"; ...)` is dropped here.
-    // A standalone, non-fatal warning needs the nightly-only `proc_macro::Diagnostic`, so it was
-    // already a no-op under `proc-macro-error2` on stable (this crate is stable-only). `manyhow`
-    // has no equivalent: `Emitter`, `ErrorMessage::warning` and `ResultExt::warning` are all just
-    // `= warning:` attachments on an `Err` that still expands to `compile_error!`, which would turn
-    // this valid "filled enum" case into a hard error (see tests/single_filled_enum.rs).
-    let _ = enum_fills_bitsize(internal_bitsize, variants.len())?;
+    let fill_width = disc.map(|d| d.width as u8).unwrap_or(internal_bitsize);
+    let _ = enum_fills_bitsize(fill_width, variants.len())?;
 
-    let mut assigner = DiscriminantAssigner::new(internal_bitsize);
+    let mut assigner = DiscriminantAssigner::new(fill_width);
 
     variants
         .map(|variant| -> manyhow::Result<(TokenStream, TokenStream)> {
             let variant_name = &variant.ident;
             let variant_value = assigner.assign_unsuffixed(variant)?;
 
-            let from_int_match_arm = quote! {
-                #variant_value => Ok(Self::#variant_name),
-            };
-
-            let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
-
-            Ok((from_int_match_arm, to_int_match_arm))
+            if let Some(disc) = disc {
+                let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+                let from_int_match_arm =
+                    discriminant_at::payload_from_int_arm(disc, internal_bitsize as usize, variant_name, payload_ty, &variant_value, true);
+                let to_int_match_arm =
+                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, payload_ty, &variant_value, arb_int);
+                Ok((from_int_match_arm, to_int_match_arm))
+            } else {
+                let from_int_match_arm = quote! {
+                    #variant_value => Ok(Self::#variant_name),
+                };
+                let to_int_match_arm = shared::to_int_match_arm(name, variant_name, arb_int, variant_value);
+                Ok((from_int_match_arm, to_int_match_arm))
+            }
         })
         .collect::<manyhow::Result<Vec<_>>>()
         .map(|arms| arms.into_iter().unzip())
 }
 
-fn codegen_enum(arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>)) -> TokenStream {
+fn codegen_enum(
+    arb_int: TokenStream, enum_type: &Ident, match_arms: (Vec<TokenStream>, Vec<TokenStream>), disc: Option<&discriminant_at::DiscriminantAt>,
+    bitsize: BitSize,
+) -> TokenStream {
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
+
+    let try_body = if let Some(disc) = disc {
+        let tag = disc.extract_tag(bitsize as usize);
+        quote! {
+            let raw = number.value();
+            let tag = #tag;
+            match tag {
+                #( #from_int_match_arms )*
+                _ => Err(::bilge::give_me_error()),
+            }
+        }
+    } else {
+        quote! {
+            match number.value() {
+                #( #from_int_match_arms )*
+                i => Err(::bilge::give_me_error()),
+            }
+        }
+    };
+
     quote! {
         impl #const_ ::core::convert::TryFrom<#arb_int> for #enum_type {
             type Error = ::bilge::BitsError;
 
             fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
-                match number.value() {
-                    #( #from_int_match_arms )*
-                    i => Err(::bilge::give_me_error()),
-                }
+                #try_body
             }
         }
 
@@ -151,8 +178,12 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, de
     }
 }
 
-fn validate_enum_variants(variants: Iter<Variant>) -> manyhow::Result<()> {
+fn validate_enum_variants(variants: Iter<Variant>, disc: Option<&discriminant_at::DiscriminantAt>) -> manyhow::Result<()> {
     for variant in variants {
+        if disc.is_some() {
+            discriminant_at::variant_payload_ty(variant)?;
+            continue;
+        }
         if !matches!(variant.fields, Fields::Unit) {
             bail!(variant, "TryFromBits only supports unit variants in enums"; help = "change this variant to a unit");
         }

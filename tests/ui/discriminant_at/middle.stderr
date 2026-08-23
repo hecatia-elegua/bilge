@@ -1,0 +1,8 @@
+error: discriminant in the middle is not supported
+
+         = help: place it at the LSB (`#[discriminant_at(0..=k)]`) or the MSB (`#[discriminant_at(k..=7)]`)
+
+ --> tests/ui/discriminant_at/middle.rs:4:19
+  |
+4 | #[discriminant_at(2..=4)]
+  |                   ^

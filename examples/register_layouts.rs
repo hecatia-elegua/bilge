@@ -17,22 +17,11 @@ struct Status {
     pub nack: u4, // bits 8..=11; bits 4..=7 and 12..=15 implicit padding
 }
 
-/// RISC-V base instruction formats share a 32-bit word, with Opcode being the tag.
-/// Today: one struct per format, then match on opcode.
-///
-/// Desired: payload enum; tag location on the enum, values on the variants:
-/// ```ignore
-/// #[bitsize(32)]
-/// #[discriminant_at(0..=6)]
-/// enum Instr {
-///     R(RTypeRest) = 0b0110011, // payload is the other 25 bits
-///     I(ITypeRest) = 0b0010011,
-/// }
-/// ```
-#[bitsize(32)]
-#[derive(Clone, Copy, DebugBits, FromBits)]
-struct RType {
-    pub opcode: u7,
+/// RISC-V base instruction formats share a 32-bit word. Opcode (bits 0..=6) is the tag
+/// *in the same integer*. Payload is the other 25 bits.
+#[bitsize(25)]
+#[derive(Clone, Copy, DebugBits, FromBits, PartialEq)]
+struct RTypeRest {
     pub rd: u5,
     pub funct3: u3,
     pub rs1: u5,
@@ -40,32 +29,21 @@ struct RType {
     pub funct7: u7,
 }
 
-#[bitsize(32)]
-#[derive(Clone, Copy, DebugBits, FromBits)]
-struct IType {
-    pub opcode: u7,
+#[bitsize(25)]
+#[derive(Clone, Copy, DebugBits, FromBits, PartialEq)]
+struct ITypeRest {
     pub rd: u5,
     pub funct3: u3,
     pub rs1: u5,
     pub imm: u12,
 }
 
-const OP_OP: u8 = 0b011_0011;
-const OP_OP_IMM: u8 = 0b001_0011;
-
-#[derive(Debug)]
-#[allow(dead_code)]
+#[bitsize(32)]
+#[discriminant_at(0..=6)]
+#[derive(Clone, Copy, Debug, PartialEq, TryFromBits)]
 enum Instr {
-    R(RType),
-    I(IType),
-}
-
-fn decode_instr(raw: u32) -> Option<Instr> {
-    match (raw & 0x7f) as u8 {
-        OP_OP => Some(Instr::R(RType::from(raw))),
-        OP_OP_IMM => Some(Instr::I(IType::from(raw))),
-        _ => None,
-    }
+    R(RTypeRest) = 0b0110011,
+    I(ITypeRest) = 0b0010011,
 }
 
 // TODO: `reg.value()` instead of `u8::from(reg)` if we do decide on adding that method for all enums
@@ -139,14 +117,12 @@ fn main() {
 
     // addi x1, x0, 5 - opcode OP-IMM, rd=1, funct3=0, rs1=0, imm=5
     let addi = 0x0050_0093;
-    match decode_instr(addi) {
-        Some(Instr::I(i)) => {
-            assert_eq!(i.opcode().value(), OP_OP_IMM);
-            assert_eq!(i.rd().value(), 1);
-            assert_eq!(i.imm().value(), 5);
-        }
-        other => panic!("expected I-type, got {other:?}"),
-    }
+    let Instr::I(i) = Instr::try_from(u32::new(addi)).unwrap() else {
+        panic!("expected I-type");
+    };
+    assert_eq!(i.rd().value(), 1);
+    assert_eq!(i.imm().value(), 5);
+    assert_eq!(u32::from(Instr::I(i)).value(), addi);
 
     let reg = crtc_from_tag(CrtcIndex::from(0x01), 79).unwrap();
     assert_eq!(reg, CrtcReg::Horiz(HorizontalDisplayEnd::from(79)));

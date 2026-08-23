@@ -1,0 +1,5 @@
+error: use an inclusive range: `#[discriminant_at(n..=m)]`
+ --> tests/ui/discriminant_at/exclusive-range.rs:4:20
+  |
+4 | #[discriminant_at(0..3)]
+  |                    ^
