@@ -1,0 +1,8 @@
+error: fields overlap or are reordered
+
+         = help: field `b` starts at bit 4, but the next unused bit is 8
+
+ --> tests/ui/at/overlap.rs:6:10
+  |
+6 |     #[at(4)]
+  |          ^

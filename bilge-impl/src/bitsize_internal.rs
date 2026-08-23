@@ -2,7 +2,7 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type, Visibility};
 
-use crate::shared::{self, BitsizeArgs, unreachable};
+use crate::shared::{self, BitsizeArgs, attrs_without_at, place_struct_fields, unreachable};
 
 pub(crate) mod struct_gen;
 
@@ -18,7 +18,7 @@ pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow:
     let (item, args) = parse(item, args)?;
     let ir = match item {
         Item::Struct(ref item) => {
-            let expanded = generate_struct(item, &args.arb_int, &args.new_vis);
+            let expanded = generate_struct(item, &args.arb_int, &args.new_vis, args.bitsize)?;
             let attrs = &item.attrs;
             let name = &item.ident;
             ItemIr { attrs, name, expanded }
@@ -40,34 +40,21 @@ fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, Bitsize
     Ok((item, args))
 }
 
-fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Visibility) -> TokenStream {
+fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Visibility, declared_bitsize: u8) -> manyhow::Result<TokenStream> {
     let ItemStruct { vis, ident, fields, .. } = struct_data;
+    let layout = place_struct_fields(fields, declared_bitsize as usize)?;
 
-    let mut previous_field_sizes = vec![];
     type TokenVec = Vec<TokenStream>;
     let (accessors, (constructor_args, (constructor_parts, shifted_names))): (TokenVec, (TokenVec, (TokenVec, Vec<Ident>))) = fields
         .iter()
+        .zip(layout.fields.iter())
         .enumerate()
-        .map(|(i, field)| {
-            // offset is needed for bit-shifting
-            // struct Example { field1: u8, field2: u4, field3: u4 }
-            // previous_field_sizes = []     -> unwrap_or_else -> field_offset = 0
-            // previous_field_sizes = [8]    -> reduce         -> field_offset = 0 + 8     =  8
-            // previous_field_sizes = [8, 4] -> reduce         -> field_offset = 0 + 8 + 4 = 12
-            let field_offset = previous_field_sizes
-                .iter()
-                .cloned()
-                .reduce(|acc, next| quote!(#acc + #next))
-                .unwrap_or_else(|| quote!(0));
-            let field_size = shared::generate_type_bitsize(&field.ty);
-            previous_field_sizes.push(field_size);
-            generate_field(field, &field_offset, i)
-        })
+        .map(|(i, (field, place))| generate_field(field, &place.offset, i))
         .unzip();
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
-    quote! {
+    Ok(quote! {
         #[repr(transparent)]
         #vis struct #ident {
             /// WARNING: modifying this value directly can break invariants
@@ -80,7 +67,6 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Vi
                 type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
                 type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
 
-                let mut offset = 0;
                 #( #constructor_parts )*
                 let raw_value = #( #shifted_names )|*;
                 let value = #arb_int::new(raw_value);
@@ -88,7 +74,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Vi
             }
             #( #accessors )*
         }
-    }
+    })
 }
 
 fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (TokenStream, (TokenStream, (TokenStream, Ident))) {
@@ -105,24 +91,20 @@ fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (Token
     if name_str.contains("reserved_") || name_str.contains("padding_") {
         // needed for `DebugBits`
         let getter = generate_getter(field, field_offset, &name);
-        let size = shared::generate_type_bitsize(ty);
         let accessors = quote!(#getter);
         let constructor_arg = quote!();
         let shifted_name = format!("shifted_{name}");
         let shifted_name: Ident = syn::parse_str(&shifted_name).unwrap_or_else(unreachable);
+        // holes / reserved bits stay 0
         let constructor_part = quote! {
-            let #shifted_name = {
-                // we still need to shift by the element's size
-                offset += #size;
-                0
-            };
+            let #shifted_name = 0;
         };
         return (accessors, (constructor_arg, (constructor_part, shifted_name)));
     }
 
     let getter = generate_getter(field, field_offset, &name);
     let setter = generate_setter(field, field_offset, &name);
-    let (constructor_arg, constructor_part, shifted_name) = generate_constructor_stuff(ty, &name);
+    let (constructor_arg, constructor_part, shifted_name) = generate_constructor_stuff(ty, &name, field_offset);
 
     let accessors = quote! {
         #getter
@@ -134,6 +116,7 @@ fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (Token
 
 fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenStream {
     let Field { attrs, vis, ty, .. } = field;
+    let attrs = attrs_without_at(attrs);
 
     let getter_value = struct_gen::generate_getter_value(ty, offset, false);
 
@@ -171,6 +154,7 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
 
 fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenStream {
     let Field { attrs, vis, ty, .. } = field;
+    let attrs = attrs_without_at(attrs);
     let setter_value = struct_gen::generate_setter_value(ty, offset, false);
 
     let name: Ident = syn::parse_str(&format!("set_{name}")).unwrap_or_else(unreachable);
@@ -207,7 +191,7 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     }
 }
 
-fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStream, Ident) {
+fn generate_constructor_stuff(ty: &Type, name: &Ident, offset: &TokenStream) -> (TokenStream, TokenStream, Ident) {
     let name = format!("arg_{name}");
     let name: Ident = syn::parse_str(&name).unwrap_or_else(unreachable);
     let constructor_arg = quote! {
@@ -216,7 +200,7 @@ fn generate_constructor_stuff(ty: &Type, name: &Ident) -> (TokenStream, TokenStr
     let shifted_name = format!("shifted_{name}");
     let shifted_name: Ident = syn::parse_str(&shifted_name).unwrap_or_else(unreachable);
 
-    let constructor_part = struct_gen::generate_constructor_part(ty, &name, &shifted_name);
+    let constructor_part = struct_gen::generate_constructor_part(ty, &name, &shifted_name, offset);
     (constructor_arg, constructor_part, shifted_name)
 }
 

@@ -1,0 +1,5 @@
+error: `#[at(8..=11)]` is 4 bits, but field `nack` is 3 bits
+ --> tests/ui/at/range-mismatch.rs:5:10
+  |
+5 |     #[at(8..=11)]
+  |          ^
