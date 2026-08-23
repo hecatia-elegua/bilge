@@ -1,0 +1,5 @@
+error: `#[discriminant]` is only supported on enums
+ --> tests/ui/discriminant/on-struct.rs:4:1
+  |
+4 | #[discriminant(u8)]
+  | ^^^^^^^^^^^^^^^^^^^

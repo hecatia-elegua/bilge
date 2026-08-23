@@ -46,7 +46,6 @@ enum Instr {
     I(ITypeRest) = 0b0010011,
 }
 
-// TODO: `reg.value()` instead of `u8::from(reg)` if we do decide on adding that method for all enums
 /// The tag is a different MMIO register, not bits inside the data byte.
 /// VGA CRTC: write an index to 0x3D4, then 0x3D5 is that register's byte.
 ///
@@ -54,21 +53,8 @@ enum Instr {
 /// `#[bitsize]` is the payload only; variant `= n` is the tag.
 /// Contrast `#[discriminant_at(0..=6)]`, where the tag is bits *in* the integer.
 ///
-/// This is basically `TryFrom<(tag, bits)>` because unused index values exist;
+/// Unused index values exist, so this is `TryFrom<(tag, bits)>`;
 /// the write direction is always `From`.
-/// ```ignore
-/// #[bitsize(8)]
-/// #[discriminant(CrtcIndex)]
-/// enum CrtcReg {
-///     Horiz(HorizontalDisplayEnd) = 0x01,
-///     MaxScan(MaxScanLine) = 0x09,
-/// }
-///
-/// let reg = CrtcReg::try_from((index, data))?;        // read: 0x3D4 then 0x3D5
-/// let (index, data) = <(CrtcIndex, u8)>::from(reg);   // write
-/// mmio.index.write(index);
-/// mmio.data.write(data);
-/// ```
 #[bitsize(8)]
 #[derive(Clone, Copy, DebugBits, FromBits)]
 struct CrtcIndex {
@@ -88,26 +74,12 @@ struct MaxScanLine {
     padding: u3,
 }
 
-/// Today's stand-in for the generated enum: tag is *next to* the payload.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[bitsize(8)]
+#[discriminant(CrtcIndex)]
+#[derive(Clone, Copy, Debug, PartialEq, TryFromBits)]
 enum CrtcReg {
-    Horiz(HorizontalDisplayEnd),
-    MaxScan(MaxScanLine),
-}
-
-fn crtc_from_tag(index: CrtcIndex, data: u8) -> Result<CrtcReg, ()> {
-    match index.index() {
-        0x01 => Ok(CrtcReg::Horiz(HorizontalDisplayEnd::from(data))),
-        0x09 => Ok(CrtcReg::MaxScan(MaxScanLine::from(data))),
-        _ => Err(()),
-    }
-}
-
-fn crtc_to_tag(reg: CrtcReg) -> (CrtcIndex, u8) {
-    match reg {
-        CrtcReg::Horiz(h) => (CrtcIndex::from(0x01), u8::from(h)),
-        CrtcReg::MaxScan(m) => (CrtcIndex::from(0x09), u8::from(m)),
-    }
+    Horiz(HorizontalDisplayEnd) = 0x01,
+    MaxScan(MaxScanLine) = 0x09,
 }
 
 fn main() {
@@ -124,13 +96,13 @@ fn main() {
     assert_eq!(i.imm().value(), 5);
     assert_eq!(u32::from(Instr::I(i)).value(), addi);
 
-    let reg = crtc_from_tag(CrtcIndex::from(0x01), 79).unwrap();
+    let reg = CrtcReg::try_from((CrtcIndex::from(0x01), 79)).unwrap();
     assert_eq!(reg, CrtcReg::Horiz(HorizontalDisplayEnd::from(79)));
-    let (index, data) = crtc_to_tag(reg);
+    let (index, data) = reg.to_tag_and_data();
     assert_eq!(index.index(), 0x01);
     assert_eq!(data, 79);
 
     let reg = CrtcReg::MaxScan(MaxScanLine::from(0b000_01111));
-    let (index, data) = crtc_to_tag(reg);
-    assert_eq!(crtc_from_tag(index, data).unwrap(), reg);
+    let (index, data) = reg.to_tag_and_data();
+    assert_eq!(CrtcReg::try_from((index, data)).unwrap(), reg);
 }

@@ -96,6 +96,10 @@ impl DiscriminantAt {
 
 impl Parse for DiscriminantAt {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(syn::Ident) {
+            return Err(input.error("use `#[discriminant(Type)]` for a tag that lives in a different value, not `#[discriminant_at]`"));
+        }
+
         let start_lit: LitInt = input.parse()?;
         let start: usize = start_lit.base10_parse()?;
         let start_span = start_lit.span();

@@ -4,9 +4,10 @@ use proc_macro2::{Ident, TokenStream};
 use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
+use crate::shared::discriminant::EnumDiscriminant;
 use crate::shared::{
-    self, BitSize, discriminant_assigner::DiscriminantAssigner, discriminant_at, enum_fills_bitsize, fallback::Fallback, parse_discriminant_at,
-    unreachable,
+    self, BitSize, discriminant, discriminant_assigner::DiscriminantAssigner, discriminant_at, enum_fills_bitsize, fallback::Fallback,
+    parse_enum_discriminant, unreachable,
 };
 
 pub(super) fn from_bits(item: TokenStream) -> manyhow::Result {
@@ -14,23 +15,35 @@ pub(super) fn from_bits(item: TokenStream) -> manyhow::Result {
     let (derive_data, arb_int, name, internal_bitsize, fallback) = analyze(&derive_input)?;
     let expanded = match &derive_data {
         Data::Struct(struct_data) => generate_struct(arb_int, name, &struct_data.fields),
-        Data::Enum(enum_data) => {
-            let variants = enum_data.variants.iter();
-            let disc = parse_discriminant_at(&derive_input.attrs)?;
-            if let Some(disc) = &disc {
-                disc.validate(internal_bitsize as usize)?;
-            }
-            let match_arms = analyze_enum(variants, name, internal_bitsize, fallback.as_ref(), &arb_int, disc.as_ref())?;
-            let mut assumes = Vec::new();
-            if disc.is_some() {
-                for variant in enum_data.variants.iter() {
-                    if let Ok(Some(ty)) = discriminant_at::variant_payload_ty(variant) {
-                        generate_filled_check_for(ty, &mut assumes);
+        Data::Enum(enum_data) => match parse_enum_discriminant(&derive_input.attrs)? {
+            Some(EnumDiscriminant::Type(disc)) => generate_external_enum(enum_data.variants.iter(), name, &arb_int, &disc, fallback.as_ref())?,
+            tag => {
+                let disc = match tag {
+                    Some(EnumDiscriminant::At(disc)) => {
+                        disc.validate(internal_bitsize as usize)?;
+                        Some(disc)
+                    }
+                    _ => None,
+                };
+                let match_arms = analyze_enum(
+                    enum_data.variants.iter(),
+                    name,
+                    internal_bitsize,
+                    fallback.as_ref(),
+                    &arb_int,
+                    disc.as_ref(),
+                )?;
+                let mut assumes = Vec::new();
+                if disc.is_some() {
+                    for variant in enum_data.variants.iter() {
+                        if let Ok(Some(ty)) = discriminant_at::variant_payload_ty(variant) {
+                            generate_filled_check_for(ty, &mut assumes);
+                        }
                     }
                 }
+                generate_enum(arb_int, name, match_arms, fallback, disc.as_ref(), internal_bitsize, assumes)
             }
-            generate_enum(arb_int, name, match_arms, fallback, disc.as_ref(), internal_bitsize, assumes)
-        }
+        },
         _ => unreachable(()),
     };
     Ok(generate_common(expanded))
@@ -108,6 +121,68 @@ fn analyze_enum(
         })
         .collect::<manyhow::Result<Vec<_>>>()
         .map(|arms| arms.into_iter().unzip())
+}
+
+fn generate_external_enum(
+    variants: Iter<Variant>, name: &Ident, arb_int: &TokenStream, disc: &discriminant::Discriminant, fallback: Option<&Fallback>,
+) -> manyhow::Result<TokenStream> {
+    if fallback.is_some() {
+        bail!(
+            "fallback is not supported with `#[discriminant]`";
+            help = "unused tag values are handled by `TryFromBits`"
+        );
+    }
+
+    let tag_ty = &disc.ty;
+    let variant_count = variants.clone().count();
+    let fill_check = if let Some(width) = disc.known_width() {
+        let enum_is_filled = enum_fills_bitsize(width, variant_count)?;
+        if !enum_is_filled {
+            bail!(
+                "enum doesn't fill its tag type";
+                help = "you need to use `#[derive(TryFromBits)]` instead"
+            );
+        }
+        quote!()
+    } else {
+        quote! {
+            const _: () = {
+                if (#variant_count as u128) != (1u128 << <#tag_ty as Bitsized>::BITS) {
+                    ::core::panic!("enum doesn't fill its tag type; use TryFromBits");
+                }
+            };
+        }
+    };
+
+    let mut assigner = DiscriminantAssigner::new(disc.assigner_width());
+    let mut from_arms = Vec::new();
+    let mut to_arms = Vec::new();
+    let mut assumes = Vec::new();
+    for variant in variants {
+        let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+        let variant_value = assigner.assign_unsuffixed(variant)?;
+        from_arms.push(discriminant::from_pair_arm(&variant.ident, payload_ty, &variant_value, false));
+        to_arms.push(discriminant::to_pair_arm(
+            name,
+            &variant.ident,
+            payload_ty,
+            &variant_value,
+            tag_ty,
+            arb_int,
+        ));
+        if let Some(ty) = payload_ty {
+            generate_filled_check_for(ty, &mut assumes);
+        }
+    }
+    let assumes: Vec<_> = assumes.into_iter().unique_by(TokenStream::to_string).collect();
+
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+    let from_pair = discriminant::generate_from_pair(name, tag_ty, arb_int, &from_arms, &const_, fill_check, &assumes);
+    let to_pair = discriminant::generate_pair_from_enum(name, tag_ty, arb_int, &to_arms, &const_);
+    Ok(quote! {
+        #from_pair
+        #to_pair
+    })
 }
 
 fn generate_enum(

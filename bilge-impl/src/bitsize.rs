@@ -7,8 +7,9 @@ use split::SplitAttributes;
 use syn::{Fields, Item, ItemEnum, ItemStruct, Type, Visibility, parse_quote, spanned::Spanned};
 
 use crate::shared::{
-    self, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_at_attribute,
-    is_discriminant_at_attribute, is_fallback_attribute, parse_discriminant_at, place_struct_fields, unreachable,
+    self, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE, bitsize_args::shift_vis_out_one_module, discriminant::EnumDiscriminant, enum_fills_bitsize,
+    is_at_attribute, is_discriminant_at_attribute, is_discriminant_attribute, is_fallback_attribute, parse_enum_discriminant, place_struct_fields,
+    unreachable,
 };
 
 /// Intermediate Representation, just for bundling these together
@@ -141,6 +142,11 @@ fn forbid_item_at(item: &Item) -> manyhow::Result<()> {
                 bail!(attr, "`#[discriminant_at]` is only supported on enums");
             }
         }
+        if is_discriminant_attribute(attr) {
+            if !matches!(item, Item::Enum(_)) {
+                bail!(attr, "`#[discriminant]` is only supported on enums");
+            }
+        }
     }
     Ok(())
 }
@@ -177,20 +183,34 @@ fn analyze_enum(bitsize: BitSize, item: &ItemEnum) -> manyhow::Result<()> {
             if is_discriminant_at_attribute(attr) {
                 bail!(attr, "`#[discriminant_at]` belongs on the enum, not on variants");
             }
+            if is_discriminant_attribute(attr) {
+                bail!(attr, "`#[discriminant]` belongs on the enum, not on variants");
+            }
         }
     }
 
-    let disc = parse_discriminant_at(&item.attrs)?;
-    if let Some(disc) = &disc {
-        disc.validate(bitsize as usize)?;
-        for variant in variants.clone() {
-            crate::shared::discriminant_at::variant_payload_ty(variant)?;
+    match parse_enum_discriminant(&item.attrs)? {
+        Some(EnumDiscriminant::At(disc)) => {
+            disc.validate(bitsize as usize)?;
+            for variant in variants.clone() {
+                crate::shared::discriminant_at::variant_payload_ty(variant)?;
+            }
+            let _ = enum_fills_bitsize(disc.width as u8, variant_count)?;
         }
-        let _ = enum_fills_bitsize(disc.width as u8, variant_count)?;
-    } else {
-        let has_fallback = variants.clone().flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
-        if !has_fallback {
-            let _ = enum_fills_bitsize(bitsize, variant_count)?;
+        Some(EnumDiscriminant::Type(disc)) => {
+            for variant in variants.clone() {
+                crate::shared::discriminant_at::variant_payload_ty(variant)?;
+            }
+            // Variant count is checked against the tag type, not the payload bitsize.
+            if let Some(width) = disc.known_width() {
+                let _ = enum_fills_bitsize(width, variant_count)?;
+            }
+        }
+        None => {
+            let has_fallback = variants.clone().flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+            if !has_fallback {
+                let _ = enum_fills_bitsize(bitsize, variant_count)?;
+            }
         }
     }
 
@@ -254,20 +274,47 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
     } = item;
     let mut asserts = TokenStream::new();
     let mut uses_disc = false;
-    if let Some(disc) = parse_discriminant_at(attrs)? {
-        uses_disc = true;
-        let payload_w = disc.payload_width(bitsize as usize);
-        for variant in variants {
-            if let Some(ty) = crate::shared::discriminant_at::variant_payload_ty(variant)? {
-                let width = shared::generate_type_bitsize(ty);
-                asserts.extend(quote! {
-                    const _: () = ::core::assert!(
-                        (#width) == (#payload_w),
-                        "payload bitsize does not match the bits left by #[discriminant_at]"
-                    );
-                });
+    match parse_enum_discriminant(attrs)? {
+        Some(EnumDiscriminant::At(disc)) => {
+            uses_disc = true;
+            let payload_w = disc.payload_width(bitsize as usize);
+            for variant in variants {
+                if let Some(ty) = crate::shared::discriminant_at::variant_payload_ty(variant)? {
+                    let width = shared::generate_type_bitsize(ty);
+                    asserts.extend(quote! {
+                        const _: () = ::core::assert!(
+                            (#width) == (#payload_w),
+                            "payload bitsize does not match the bits left by #[discriminant_at]"
+                        );
+                    });
+                }
             }
         }
+        Some(EnumDiscriminant::Type(disc)) => {
+            uses_disc = true;
+            let tag_ty = &disc.ty;
+            let payload_w = bitsize as usize;
+            let mut assigner = crate::shared::discriminant_assigner::DiscriminantAssigner::new(disc.assigner_width());
+            for variant in variants {
+                let tag_val = assigner.assign_unsuffixed(variant)?;
+                asserts.extend(quote! {
+                    const _: () = ::core::assert!(
+                        (#tag_val as u128) < (1u128 << <#tag_ty as Bitsized>::BITS),
+                        "discriminant exceeds the tag type's bitsize"
+                    );
+                });
+                if let Some(ty) = crate::shared::discriminant_at::variant_payload_ty(variant)? {
+                    let width = shared::generate_type_bitsize(ty);
+                    asserts.extend(quote! {
+                        const _: () = ::core::assert!(
+                            (#width) == (#payload_w),
+                            "payload bitsize does not match #[bitsize]; the tag is a separate value"
+                        );
+                    });
+                }
+            }
+        }
+        None => {}
     }
     let repr = if uses_disc { quote!(#[repr(u64)]) } else { quote!() };
     Ok(quote! {
