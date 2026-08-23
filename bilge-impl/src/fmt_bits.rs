@@ -3,7 +3,8 @@ use quote::quote;
 use syn::{Data, DeriveInput, Fields, Variant, punctuated::Iter};
 
 use crate::shared::{
-    self, BitSize, binary_segments, discriminant_assigner::DiscriminantAssigner, fallback::Fallback, place_struct_fields, unreachable,
+    self, BitSize, binary_segments, discriminant_assigner::DiscriminantAssigner, discriminant_at, fallback::Fallback, parse_discriminant_at,
+    place_struct_fields, unreachable,
 };
 
 pub(crate) fn binary(item: TokenStream) -> manyhow::Result {
@@ -12,7 +13,13 @@ pub(crate) fn binary(item: TokenStream) -> manyhow::Result {
 
     match derive_data {
         Data::Struct(data) => Ok(generate_struct_binary_impl(name, &data.fields, bitsize)),
-        Data::Enum(data) => generate_enum_binary_impl(name, data.variants.iter(), arb_int, bitsize, fallback),
+        Data::Enum(data) => {
+            let disc = parse_discriminant_at(&derive_input.attrs)?;
+            if let Some(disc) = &disc {
+                disc.validate(bitsize as usize)?;
+            }
+            generate_enum_binary_impl(name, data.variants.iter(), arb_int, bitsize, fallback, disc.as_ref())
+        }
         _ => unreachable(()),
     }
 }
@@ -52,8 +59,9 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields, declared_bi
 
 fn generate_enum_binary_impl(
     enum_name: &Ident, variants: Iter<Variant>, arb_int: TokenStream, bitsize: BitSize, fallback: Option<Fallback>,
+    disc: Option<&discriminant_at::DiscriminantAt>,
 ) -> manyhow::Result {
-    let to_int_match_arms = generate_to_int_match_arms(variants, enum_name, bitsize, arb_int, fallback)?;
+    let to_int_match_arms = generate_to_int_match_arms(variants, enum_name, bitsize, arb_int, fallback, disc)?;
 
     let body = if to_int_match_arms.is_empty() {
         quote! { Ok(()) }
@@ -78,6 +86,7 @@ fn generate_enum_binary_impl(
 /// generates the arms for an (infallible) conversion from an enum to the enum's underlying arbitrary_int
 fn generate_to_int_match_arms(
     variants: Iter<Variant>, enum_name: &Ident, bitsize: BitSize, arb_int: TokenStream, fallback: Option<Fallback>,
+    disc: Option<&discriminant_at::DiscriminantAt>,
 ) -> manyhow::Result<Vec<TokenStream>> {
     let is_value_fallback = |variant_name| {
         if let Some(Fallback::WithValue(name)) = &fallback {
@@ -87,7 +96,8 @@ fn generate_to_int_match_arms(
         }
     };
 
-    let mut assigner = DiscriminantAssigner::new(bitsize);
+    let fill_width = disc.map(|d| d.width as u8).unwrap_or(bitsize);
+    let mut assigner = DiscriminantAssigner::new(fill_width);
 
     variants
         .map(|variant| -> manyhow::Result<TokenStream> {
@@ -96,6 +106,9 @@ fn generate_to_int_match_arms(
 
             Ok(if is_value_fallback(variant_name) {
                 quote! { #enum_name::#variant_name(number) => *number, }
+            } else if let Some(disc) = disc {
+                let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+                discriminant_at::payload_to_int_arm(disc, bitsize as usize, enum_name, variant_name, payload_ty, &variant_value, &arb_int)
             } else {
                 shared::to_int_match_arm(enum_name, variant_name, &arb_int, variant_value)
             })

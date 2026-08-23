@@ -1,0 +1,5 @@
+error: duplicate `#[discriminant_at]`
+ --> tests/ui/discriminant_at/duplicate.rs:5:1
+  |
+5 | #[discriminant_at(0..=1)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^

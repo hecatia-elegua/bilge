@@ -4,11 +4,11 @@ use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
 use split::SplitAttributes;
-use syn::{Fields, Item, ItemEnum, ItemStruct, Type, Variant, Visibility, parse_quote, punctuated::Iter, spanned::Spanned};
+use syn::{Fields, Item, ItemEnum, ItemStruct, Type, Visibility, parse_quote, spanned::Spanned};
 
 use crate::shared::{
     self, BitSize, BitsizeArgs, MAX_ENUM_BIT_SIZE, bitsize_args::shift_vis_out_one_module, enum_fills_bitsize, is_at_attribute,
-    is_fallback_attribute, place_struct_fields, unreachable,
+    is_discriminant_at_attribute, is_fallback_attribute, parse_discriminant_at, place_struct_fields, unreachable,
 };
 
 /// Intermediate Representation, just for bundling these together
@@ -48,8 +48,8 @@ pub(super) fn bitsize(args: TokenStream, item: TokenStream) -> manyhow::Result {
             if !args.is_default_new_vis() {
                 bail!("`new` is only supported on structs"; help = "enums do not generate a `new` constructor")
             }
-            analyze_enum(args.bitsize, item.variants.iter())?;
-            let expanded = generate_enum(&item);
+            analyze_enum(args.bitsize, &item)?;
+            let expanded = generate_enum(&item, args.bitsize)?;
             ItemIr {
                 expanded,
                 ident: item.ident,
@@ -136,6 +136,11 @@ fn forbid_item_at(item: &Item) -> manyhow::Result<()> {
         if is_at_attribute(attr) {
             bail!(attr, "`#[at]` is only supported on struct fields");
         }
+        if is_discriminant_at_attribute(attr) {
+            if !matches!(item, Item::Enum(_)) {
+                bail!(attr, "`#[discriminant_at]` is only supported on enums");
+            }
+        }
     }
     Ok(())
 }
@@ -153,11 +158,12 @@ fn analyze_struct(fields: &Fields) -> manyhow::Result<()> {
     Ok(())
 }
 
-fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> manyhow::Result<()> {
+fn analyze_enum(bitsize: BitSize, item: &ItemEnum) -> manyhow::Result<()> {
     if bitsize > MAX_ENUM_BIT_SIZE {
         bail!("enum bitsize is limited to {}", MAX_ENUM_BIT_SIZE)
     }
 
+    let variants = item.variants.iter();
     let variant_count = variants.clone().count();
     if variant_count == 0 {
         bail!("empty enums are not supported");
@@ -168,15 +174,26 @@ fn analyze_enum(bitsize: BitSize, variants: Iter<Variant>) -> manyhow::Result<()
             if is_at_attribute(attr) {
                 bail!(attr, "`#[at]` is only supported on struct fields");
             }
+            if is_discriminant_at_attribute(attr) {
+                bail!(attr, "`#[discriminant_at]` belongs on the enum, not on variants");
+            }
         }
     }
 
-    let has_fallback = variants.flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
-
-    if !has_fallback {
-        // this has a side-effect of validating the enum count
-        let _ = enum_fills_bitsize(bitsize, variant_count)?;
+    let disc = parse_discriminant_at(&item.attrs)?;
+    if let Some(disc) = &disc {
+        disc.validate(bitsize as usize)?;
+        for variant in variants.clone() {
+            crate::shared::discriminant_at::variant_payload_ty(variant)?;
+        }
+        let _ = enum_fills_bitsize(disc.width as u8, variant_count)?;
+    } else {
+        let has_fallback = variants.clone().flat_map(|variant| &variant.attrs).any(is_fallback_attribute);
+        if !has_fallback {
+            let _ = enum_fills_bitsize(bitsize, variant_count)?;
+        }
     }
+
     Ok(())
 }
 
@@ -231,13 +248,35 @@ fn generate_struct(item: &ItemStruct, declared_bitsize: u8) -> manyhow::Result<T
 }
 
 // attributes are handled in `generate_common`
-fn generate_enum(item: &ItemEnum) -> TokenStream {
-    let ItemEnum { vis, ident, variants, .. } = item;
-    quote! {
+fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
+    let ItemEnum {
+        vis, ident, variants, attrs, ..
+    } = item;
+    let mut asserts = TokenStream::new();
+    let mut uses_disc = false;
+    if let Some(disc) = parse_discriminant_at(attrs)? {
+        uses_disc = true;
+        let payload_w = disc.payload_width(bitsize as usize);
+        for variant in variants {
+            if let Some(ty) = crate::shared::discriminant_at::variant_payload_ty(variant)? {
+                let width = shared::generate_type_bitsize(ty);
+                asserts.extend(quote! {
+                    const _: () = ::core::assert!(
+                        (#width) == (#payload_w),
+                        "payload bitsize does not match the bits left by #[discriminant_at]"
+                    );
+                });
+            }
+        }
+    }
+    let repr = if uses_disc { quote!(#[repr(u64)]) } else { quote!() };
+    Ok(quote! {
+        #repr
         #vis enum #ident {
             #variants
         }
-    }
+        #asserts
+    })
 }
 
 /// we have _one_ generate_common function, which holds everything that struct and enum have _in common_.

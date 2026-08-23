@@ -37,6 +37,10 @@ mod shared;
 /// Fields without `#[at]` fill sequentially from the end of the previous
 /// field. Skipped bits are implicit padding. Overlap or reordering is a compile error.
 ///
+/// Enums may use `#[discriminant_at(n)]` or `#[discriminant_at(n..=m)]` to place the tag in
+/// the same integer (LSB `0..=k` or MSB `k..=N-1`). Remaining bits are a payload on each
+/// variant: `Variant(Payload) = tag`. Use `TryFromBits` when not every tag value is used.
+///
 /// ```ignore
 /// #[bitsize(8, hide_value, new = pub(crate))]
 /// struct Register { ... }
@@ -61,7 +65,7 @@ pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result
 /// This should be used when your enum or enums nested in
 /// a struct don't fill their given `bitsize`.
 #[manyhow]
-#[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback, at))]
+#[proc_macro_derive(TryFromBits, attributes(bitsize_internal, fallback, at, discriminant_at))]
 pub fn derive_try_from_bits(item: TokenStream) -> manyhow::Result {
     try_from_bits::try_from_bits(item)
 }
@@ -72,7 +76,7 @@ pub fn derive_try_from_bits(item: TokenStream) -> manyhow::Result {
 /// a struct fill their given `bitsize` or if you're not
 /// using enums.
 #[manyhow]
-#[proc_macro_derive(FromBits, attributes(bitsize_internal, fallback, at))]
+#[proc_macro_derive(FromBits, attributes(bitsize_internal, fallback, at, discriminant_at))]
 pub fn derive_from_bits(item: TokenStream) -> manyhow::Result {
     from_bits::from_bits(item)
 }
@@ -88,7 +92,7 @@ pub fn debug_bits(item: TokenStream) -> manyhow::Result {
 
 /// Generate an `impl core::fmt::Binary` for bitfields.
 #[manyhow]
-#[proc_macro_derive(BinaryBits, attributes(bitsize_internal, fallback, at))]
+#[proc_macro_derive(BinaryBits, attributes(bitsize_internal, fallback, at, discriminant_at))]
 pub fn derive_binary_bits(item: TokenStream) -> manyhow::Result {
     fmt_bits::binary(item)
 }

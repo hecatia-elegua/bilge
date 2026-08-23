@@ -1,0 +1,5 @@
+error: `#[discriminant_at]` is only supported on enums
+ --> tests/ui/discriminant_at/on-struct.rs:4:1
+  |
+4 | #[discriminant_at(0..=1)]
+  | ^^^^^^^^^^^^^^^^^^^^^^^^^
