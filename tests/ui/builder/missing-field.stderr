@@ -1,0 +1,18 @@
+error[E0277]: missing required builder field `b`
+  --> tests/ui/builder/missing-field.rs:11:42
+   |
+11 |     let _ = Reg::builder().a(u4::new(1)).build();
+   |                                          ^^^^^ call `.b(...)` before `.build()`
+   |
+   = help: the trait `__Reg_finish_b` is not implemented for `()`
+help: the trait `__Reg_finish_b` is implemented for `UInt<u8, 4>`
+  --> tests/ui/builder/missing-field.rs:4:10
+   |
+ 4 | #[derive(BuilderBits)]
+   |          ^^^^^^^^^^^
+note: required by a bound in `RegBuilder::<__a, __b>::build`
+  --> tests/ui/builder/missing-field.rs:4:10
+   |
+ 4 | #[derive(BuilderBits)]
+   |          ^^^^^^^^^^^ required by this bound in `RegBuilder::<__a, __b>::build`
+   = note: this error originates in the derive macro `BuilderBits` (in Nightly builds, run with -Z macro-backtrace for more info)

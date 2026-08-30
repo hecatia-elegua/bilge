@@ -1,0 +1,16 @@
+error[E0599]: no method named `a` found for struct `RegBuilder<UInt<u8, 4>, ()>` in the current scope
+  --> tests/ui/builder/set-twice.rs:11:42
+   |
+ 4 | #[derive(BuilderBits)]
+   |          ----------- method `a` not found for this struct
+...
+11 |     let _ = Reg::builder().a(u4::new(1)).a(u4::new(2)).b(u4::new(0)).build();
+   |             --------------               ^
+   |             |
+   |             method `a` is available on `RegBuilder<(), ()>`
+   |
+help: there is a method `b` with a similar name
+   |
+11 -     let _ = Reg::builder().a(u4::new(1)).a(u4::new(2)).b(u4::new(0)).build();
+11 +     let _ = Reg::builder().a(u4::new(1)).b(u4::new(2)).b(u4::new(0)).build();
+   |

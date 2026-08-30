@@ -1,0 +1,10 @@
+error: BuilderBits is only supported on structs
+
+         = help: enums do not generate a constructor
+
+ --> tests/ui/builder/on-enum.rs:4:10
+  |
+4 | #[derive(BuilderBits)]
+  |          ^^^^^^^^^^^
+  |
+  = note: this error originates in the derive macro `BuilderBits` (in Nightly builds, run with -Z macro-backtrace for more info)

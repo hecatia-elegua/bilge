@@ -1,6 +1,27 @@
 #![cfg_attr(feature = "nightly", feature(const_convert, const_trait_impl, const_mut_refs))]
 use bilge::prelude::*;
 
+#[bitsize(8, hide_value, new = pub)]
+#[derive(BuilderBits, FromBits, PartialEq, DebugBits)]
+struct HiddenBuilt {
+    a: u4,
+    #[default(u4::new(2))]
+    b: u4,
+}
+
+#[test]
+fn hide_value_builder() {
+    let bits = HiddenBuilt::builder().a(u4::new(1)).build();
+    assert_eq!(bits, HiddenBuilt::new(u4::new(1), u4::new(2)));
+}
+
+#[test]
+fn hide_value_builder_type_keeps_its_name() {
+    let builder: HiddenBuiltBuilder<(), ()> = HiddenBuilt::builder();
+    let bits = builder.a(u4::new(1)).build();
+    assert_eq!(bits.a(), u4::new(1));
+}
+
 #[bitsize(8, hide_value)]
 #[derive(FromBits, PartialEq, DebugBits)]
 struct Hidden {

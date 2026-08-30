@@ -481,6 +481,14 @@ struct ArrayTupleDefault {
     field2: ([Cool; 2], [(u2, Cool); 3]),
 }
 
+#[bitsize(8)]
+#[derive(DefaultBits, PartialEq, DebugBits, FromBits)]
+struct FieldDefaultExpr {
+    #[default(u4::new(0xA))]
+    high: u4,
+    low: u4,
+}
+
 #[test]
 fn default_bits() {
     let default = NestedNonZeroDefault::default();
@@ -488,6 +496,10 @@ fn default_bits() {
 
     let default = ArrayTupleDefault::default();
     assert_eq!(default, ArrayTupleDefault::from(u34::new(0b1000_1000_1000_10_10_1000_01000_1000_01000)));
+
+    let default = FieldDefaultExpr::default();
+    assert_eq!(default.high(), u4::new(0xA));
+    assert_eq!(default.low(), u4::new(0));
 }
 
 // quick 'n dirty -- consider something more robust if more manual implementations are needed

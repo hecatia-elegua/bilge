@@ -3,7 +3,7 @@
 use bilge::prelude::*;
 
 #[bitsize(14)]
-#[derive(FromBits)]
+#[derive(FromBits, BuilderBits)]
 struct Register {
     header: u4,
     body: u7,
@@ -68,6 +68,12 @@ enum Subclass2 {
 
 fn main() {
     let reg1 = Register::new(u4::new(0b1010), u7::new(0b010_1010), Footer::new(true, Code::GoodExample));
+    let reg_built = Register::builder()
+        .header(u4::new(0b1010))
+        .body(u7::new(0b010_1010))
+        .footer(Footer::new(true, Code::GoodExample))
+        .build();
+    assert_eq!(reg1.value, reg_built.value);
     let mut reg2 = Register::from(u14::new(0b11_1_0101010_1010));
     assert_eq!(reg1.value, reg2.value);
     let _header = reg2.header();

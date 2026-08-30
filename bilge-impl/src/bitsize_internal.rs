@@ -57,7 +57,8 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Vi
     Ok(quote! {
         #[repr(transparent)]
         #vis struct #ident {
-            /// WARNING: modifying this value directly can break invariants
+            /// WARNING: modifying this value directly can break invariants.
+            /// Use `#[bitsize(N, hide_value)]` to make this field inaccessible.
             value: #arb_int,
         }
         impl #ident {
