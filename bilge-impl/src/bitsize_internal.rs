@@ -104,11 +104,13 @@ fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (Token
 
     let getter = generate_getter(field, field_offset, &name);
     let setter = generate_setter(field, field_offset, &name);
+    let toggle = generate_toggle(field, &name);
     let (constructor_arg, constructor_part, shifted_name) = generate_constructor_stuff(ty, &name, field_offset);
 
     let accessors = quote! {
         #getter
         #setter
+        #toggle
     };
 
     (accessors, (constructor_arg, (constructor_part, shifted_name)))
@@ -125,13 +127,13 @@ fn generate_getter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     let array_at = if let Type::Array(array) = ty {
         let elem_ty = &array.elem;
         let len_expr = &array.len;
-        let name: Ident = syn::parse_str(&format!("{name}_at")).unwrap_or_else(unreachable);
+        let at_name = at_ident(name);
         let getter_value = struct_gen::generate_getter_value(elem_ty, offset, true);
         quote! {
             // #[inline]
             #(#attrs)*
             #[allow(clippy::type_complexity, unused_parens)]
-            #vis #const_ fn #name(&self, index: usize) -> #elem_ty {
+            #vis #const_ fn #at_name(&self, index: usize) -> #elem_ty {
                 ::core::assert!(index < #len_expr);
                 #getter_value
             }
@@ -157,20 +159,20 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
     let attrs = attrs_without_at(attrs);
     let setter_value = struct_gen::generate_setter_value(ty, offset, false);
 
-    let name: Ident = syn::parse_str(&format!("set_{name}")).unwrap_or_else(unreachable);
+    let setter_name = setter_ident(name);
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
     let array_at = if let Type::Array(array) = ty {
         let elem_ty = &array.elem;
         let len_expr = &array.len;
-        let name: Ident = syn::parse_str(&format!("{name}_at")).unwrap_or_else(unreachable);
+        let setter_at = at_ident(&setter_name);
         let setter_value = struct_gen::generate_setter_value(elem_ty, offset, true);
         quote! {
             // #[inline]
             #(#attrs)*
             #[allow(clippy::type_complexity, unused_parens)]
-            #vis #const_ fn #name(&mut self, index: usize, value: #elem_ty) {
+            #vis #const_ fn #setter_at(&mut self, index: usize, value: #elem_ty) {
                 ::core::assert!(index < #len_expr);
                 #setter_value
             }
@@ -183,10 +185,82 @@ fn generate_setter(field: &Field, offset: &TokenStream, name: &Ident) -> TokenSt
         // #[inline]
         #(#attrs)*
         #[allow(clippy::type_complexity, unused_parens)]
-        #vis #const_ fn #name(&mut self, value: #ty) {
+        #vis #const_ fn #setter_name(&mut self, value: #ty) {
             #setter_value
         }
 
+        #array_at
+    }
+}
+
+fn is_bool_type(ty: &Type) -> bool {
+    shared::last_ident_of_path(ty).is_some_and(|ident| ident == "bool")
+}
+
+fn accessor_ident(prefix: &str, name: &Ident, suffix: &str) -> Ident {
+    syn::parse_str(&format!("{prefix}{name}{suffix}")).unwrap_or_else(unreachable)
+}
+
+fn setter_ident(name: &Ident) -> Ident {
+    accessor_ident("set_", name, "")
+}
+
+fn at_ident(name: &Ident) -> Ident {
+    accessor_ident("", name, "_at")
+}
+
+fn toggle_ident(name: &Ident) -> Ident {
+    accessor_ident("toggle_", name, "")
+}
+
+/// `toggle_foo` for `bool` fields, `toggle_foo_at` for `[bool; N]`.
+/// Reserved/padding fields never reach here (no setter either).
+fn generate_toggle(field: &Field, name: &Ident) -> TokenStream {
+    let Field { attrs, vis, ty, .. } = field;
+    let attrs = attrs_without_at(attrs);
+    let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+
+    let scalar = if is_bool_type(ty) {
+        let toggle_name = toggle_ident(name);
+        let setter_name = setter_ident(name);
+        quote! {
+            // #[inline]
+            #(#attrs)*
+            #[allow(clippy::type_complexity, unused_parens)]
+            #vis #const_ fn #toggle_name(&mut self) {
+                let next = !self.#name();
+                self.#setter_name(next);
+            }
+        }
+    } else {
+        quote!()
+    };
+
+    let array_at = if let Type::Array(array) = ty {
+        if is_bool_type(&array.elem) {
+            let len_expr = &array.len;
+            let at_name = at_ident(name);
+            let setter_at = setter_ident(&at_name);
+            let toggle_at = toggle_ident(&at_name);
+            quote! {
+                // #[inline]
+                #(#attrs)*
+                #[allow(clippy::type_complexity, unused_parens)]
+                #vis #const_ fn #toggle_at(&mut self, index: usize) {
+                    ::core::assert!(index < #len_expr);
+                    let next = !self.#at_name(index);
+                    self.#setter_at(index, next);
+                }
+            }
+        } else {
+            quote!()
+        }
+    } else {
+        quote!()
+    };
+
+    quote! {
+        #scalar
         #array_at
     }
 }
