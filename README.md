@@ -96,6 +96,14 @@ let header = reg2.header();
 reg2.set_footer(Footer::new(false, Code::Success));
 ```
 
+`bool` fields also get a toggle method:
+
+```rust
+let mut last = reg2.footer();
+last.toggle_is_last();
+reg2.set_footer(last);
+```
+
 Any kinds of tuple and array are also supported:
 
 ```rust
@@ -387,5 +395,7 @@ I argue most beginners would have the idea to specify bits with basic primitives
 This also opens up some possibilities for calculation and conversion on those primitives.
 
 Something similar can be said about `bitflags`, which, under this model, can be turned into simple structs with bools and enums.
+[`bitbag`](https://docs.rs/bitbag) is the enum-as-flags version of that.
+The main reason for these crates are that they allow overlapping presets. In `bilge`, these are currently made by adding extra methods (or using `TryFromBits` on an enum).
 
 Basically, `bilge` tries to convert bit fiddling, shifting and masking into more widely known concepts like struct access.

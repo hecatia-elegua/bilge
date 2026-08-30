@@ -160,6 +160,27 @@ fn bools_and_bitflags_like_usage() {
     assert!(flags.dirty());
     assert!(!flags.clean());
     assert!(!flags.smelly());
+
+    flags.toggle_clean();
+    assert!(flags.clean());
+    flags.toggle_clean();
+    assert!(!flags.clean());
+}
+
+#[bitsize(4)]
+#[derive(FromBits, PartialEq, DebugBits)]
+struct BoolArray([bool; 4]);
+
+#[test]
+fn toggle_bool_array_at() {
+    let mut bits = BoolArray::from(u4::new(0b0101));
+    assert!(bits.val_0_at(0));
+    assert!(!bits.val_0_at(1));
+    bits.toggle_val_0_at(0);
+    bits.toggle_val_0_at(1);
+    assert!(!bits.val_0_at(0));
+    assert!(bits.val_0_at(1));
+    assert_eq!(bits, BoolArray::from(u4::new(0b0110)));
 }
 
 #[bitsize(64)]

@@ -73,10 +73,17 @@ fn main() {
     let _header = reg2.header();
     reg2.set_footer(Footer::new(false, Code::Success));
 
+    let mut last = reg2.footer();
+    last.toggle_is_last();
+    reg2.set_footer(last);
+    assert!(reg2.footer().is_last());
+
     let mut ise = InterruptSetEnables::from(0b0000_0000_0000_0000_0000_0000_0001_0000);
     let ise5 = ise.val_0_at(4);
     ise.set_val_0_at(2, ise5);
     assert_eq!(0b0000_0000_0000_0000_0000_0000_0001_0100, ise.value);
+    ise.toggle_val_0_at(2);
+    assert!(!ise.val_0_at(2));
 
     assert_eq!(Subclass::Speakers, Subclass::from(2));
     assert_eq!(Subclass::Reserved, Subclass::from(3));

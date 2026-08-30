@@ -83,7 +83,11 @@ enum CrtcReg {
 }
 
 fn main() {
-    let st = Status::from(u16::new(1 << 3 | (0xA << 8)));
+    let mut st = Status::from(u16::new(1 << 3 | (0xA << 8)));
+    assert!(st.ready());
+    st.toggle_ready();
+    assert!(!st.ready());
+    st.toggle_ready();
     assert!(st.ready());
     assert_eq!(st.nack(), u4::new(0xA));
 
