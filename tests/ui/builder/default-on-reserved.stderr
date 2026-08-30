@@ -1,0 +1,9 @@
+error: `#[default]` is not supported on reserved/padding fields
+
+         = help: they are omitted from `new` and the builder
+
+ --> tests/ui/builder/default-on-reserved.rs:7:5
+  |
+7 | /     #[default(u4::new(0))]
+8 | |     reserved: u4,
+  | |________________^

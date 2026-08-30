@@ -70,9 +70,12 @@ pub fn parse_field_at(field: &Field) -> manyhow::Result<Option<AtSpec>> {
     Ok(found)
 }
 
-/// Attributes copied onto getters/setters must not include `#[at]`.
+/// Attributes copied onto getters/setters must not include `#[at]` or `#[default]`.
 pub fn attrs_without_at(attrs: &[Attribute]) -> Vec<&Attribute> {
-    attrs.iter().filter(|attr| !is_at_attribute(attr)).collect()
+    attrs
+        .iter()
+        .filter(|attr| !is_at_attribute(attr) && !super::is_default_attribute(attr))
+        .collect()
 }
 
 pub struct FieldPlacement {

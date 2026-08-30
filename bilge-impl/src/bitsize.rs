@@ -348,6 +348,8 @@ fn generate_common(ir: ItemIr, attrs: SplitAttributes, args: &BitsizeArgs) -> To
 
     if args.hide_value {
         let mod_name = format_ident!("__bilge_{}", ident);
+        // Private module: `value` is defined inside, so the parent cannot write `foo.value`.
+        // Re-exports the struct by name and stuff like `{Ident}Builder`.
         quote! {
             #[doc(hidden)]
             #[allow(non_snake_case, unused_imports)]
@@ -355,7 +357,11 @@ fn generate_common(ir: ItemIr, attrs: SplitAttributes, args: &BitsizeArgs) -> To
                 use super::*;
                 #item
             }
+            #[doc(inline)]
             #vis use #mod_name::#ident;
+            #[doc(inline)]
+            #[allow(unused_imports)]
+            #vis use #mod_name::*;
         }
     } else {
         item

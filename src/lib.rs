@@ -11,7 +11,7 @@ pub use arbitrary_int;
 pub use bilge_impl::JsonSchemaBits;
 #[doc(hidden)]
 pub use bilge_impl::bitsize_internal;
-pub use bilge_impl::{BinaryBits, DebugBits, DefaultBits, FromBits, TryFromBits, bitsize};
+pub use bilge_impl::{BinaryBits, BuilderBits, DebugBits, DefaultBits, FromBits, TryFromBits, bitsize};
 #[cfg(feature = "serde")]
 #[cfg_attr(docsrs, doc(cfg(feature = "serde")))]
 pub use bilge_impl::{DeserializeBits, SerializeBits};
@@ -22,7 +22,7 @@ pub mod prelude {
     #[doc(no_inline)]
     pub use super::{
         bitsize, Bitsized,
-        FromBits, TryFromBits, DebugBits, BinaryBits, DefaultBits,
+        FromBits, TryFromBits, DebugBits, BinaryBits, DefaultBits, BuilderBits,
         // we control the version, so this should not be a problem
         arbitrary_int::prelude::*,
     };

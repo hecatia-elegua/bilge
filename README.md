@@ -83,6 +83,16 @@ let reg1 = Register::new(
 );
 ```
 
+Or, if we want named arguments, we add `#[derive(BuilderBits)]` to `Register` and do:
+
+```rust
+let reg_built = Register::builder()
+    .header(u4::new(0b1010))
+    .body(u7::new(0b010_1010))
+    .footer(Footer::new(true, Code::GoodExample))
+    .build();
+```
+
 Or, if we add `#[derive(FromBits)]` to `Register` and want to parse a raw register value:
 
 ```rust
@@ -216,7 +226,20 @@ Ok(Device { reserved_i: 0, class: Stationary, reserved_ii: 0 })
 Device { reserved_i: 0, class: Mobile, reserved_ii: 0 }
 ```
 
+Also useful for debugging can be `#[derive(BinaryBits)]` (which adds underscores between fields):
+
+```rust
+// 0_0000_0_1_1_00000010000000010000_0_0_00
+println!("{:032b}", redist.control.read());
+```
+
 For testing + overview, the full readme example code is in `/examples/readme.rs`.
+
+### Other available derives:
+
+- `DefaultBits`
+- `SerializeBits`, `DeserializeBits`
+- `JsonSchemaBits`
 
 ### Custom -Bits derives
 

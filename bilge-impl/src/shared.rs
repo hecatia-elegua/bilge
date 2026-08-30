@@ -14,7 +14,7 @@ use fallback::{Fallback, fallback_variant};
 use manyhow::{bail, ensure};
 use proc_macro2::{Ident, Literal, TokenStream};
 use quote::quote;
-use syn::{Attribute, DeriveInput, Meta, Type};
+use syn::{Attribute, DeriveInput, Expr, Field, Meta, Type};
 use util::PathExt;
 
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
@@ -149,6 +149,46 @@ pub fn unreachable<T, U>(_: T) -> U {
 
 pub fn is_attribute(attr: &Attribute, name: &str) -> bool {
     if let Meta::Path(path) = &attr.meta { path.is_ident(name) } else { false }
+}
+
+pub fn is_default_attribute(attr: &Attribute) -> bool {
+    attr.path().is_ident("default")
+}
+
+/// `#[default(expr)]` on a struct field.
+pub fn parse_field_default(field: &Field) -> manyhow::Result<Option<Expr>> {
+    let mut found = None;
+    for attr in &field.attrs {
+        if !is_default_attribute(attr) {
+            continue;
+        }
+        ensure!(found.is_none(), attr, "duplicate `#[default]`");
+        found = Some(attr.parse_args()?);
+    }
+    Ok(found)
+}
+
+pub fn reject_default_on_reserved(field: &Field, name: &str, has_default: bool, for_default_bits: bool) -> manyhow::Result<()> {
+    if is_reserved_or_padding(name) && has_default {
+        if for_default_bits {
+            bail!(
+                field,
+                "`#[default]` is not supported on reserved/padding fields";
+                help = "construction leaves those bits 0, From/TryFrom keep the raw value"
+            );
+        } else {
+            bail!(
+                field,
+                "`#[default]` is not supported on reserved/padding fields";
+                help = "they are omitted from `new` and the builder"
+            );
+        }
+    }
+    Ok(())
+}
+
+pub fn is_reserved_or_padding(name: &str) -> bool {
+    name.contains("reserved_") || name.contains("padding_")
 }
 
 fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {

@@ -3,6 +3,7 @@ use proc_macro2::TokenStream;
 
 mod bitsize;
 mod bitsize_internal;
+mod builder_bits;
 mod debug_bits;
 mod default_bits;
 mod fmt_bits;
@@ -60,6 +61,17 @@ pub fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result
     bitsize_internal::bitsize_internal(args, item)
 }
 
+/// Generate a compile-time builder (`typed-builder` style: each field exactly once).
+///
+/// Required fields have no `#[default]` and must be set before `build`.
+/// `#[default(expr)]` makes a field optional (same as in `DefaultBits`).
+/// `reserved` / `padding` are omitted, same as in `new`.
+#[manyhow]
+#[proc_macro_derive(BuilderBits, attributes(bitsize_internal, at, default))]
+pub fn derive_builder_bits(item: TokenStream) -> manyhow::Result {
+    builder_bits::builder_bits(item)
+}
+
 /// Generate an `impl TryFrom<uN>` for unfilled bitfields.
 ///
 /// This should be used when your enum or enums nested in
@@ -98,8 +110,10 @@ pub fn derive_binary_bits(item: TokenStream) -> manyhow::Result {
 }
 
 /// Generate an `impl core::default::Default` for bitfield structs.
+///
+/// Each field uses `T::default()` unless it has `#[default(expr)]`, same as in `BuilderBits`.
 #[manyhow]
-#[proc_macro_derive(DefaultBits, attributes(bitsize_internal, at))]
+#[proc_macro_derive(DefaultBits, attributes(bitsize_internal, at, default))]
 pub fn derive_default_bits(item: TokenStream) -> manyhow::Result {
     default_bits::default_bits(item)
 }
