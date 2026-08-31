@@ -80,6 +80,15 @@ fn lsb_tag_roundtrip() {
 }
 
 #[test]
+fn tagged_union_repr_matches_tag_width() {
+    // 2-bit tag + u2 payload should not use #[repr(u64)] (16 bytes, align 8).
+    assert_eq!(core::mem::align_of::<LowTag>(), 1);
+    assert!(core::mem::size_of::<LowTag>() <= 2);
+    assert_eq!(core::mem::align_of::<Flagged>(), 1);
+    assert!(core::mem::size_of::<Flagged>() <= 2);
+}
+
+#[test]
 fn unfilled_payload_and_tag() {
     let ok = TaggedUnfilled::try_from(u4::new(0b00_00)).unwrap();
     assert_eq!(ok, TaggedUnfilled::Cool(HaveFun::Yes));
