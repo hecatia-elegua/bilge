@@ -108,3 +108,69 @@ fn unfilled_payload_and_tag() {
 
     assert_eq!(u4::from(ok).value(), 0);
 }
+
+#[bitsize(8)]
+#[discriminant_at(0..=1)]
+#[derive(FromBits, Debug, PartialEq, Clone, Copy, BinaryBits)]
+enum TaggedFallback {
+    A(u6) = 0,
+    B(u6) = 1,
+    #[fallback]
+    Raw(u8),
+}
+
+#[bitsize(4)]
+#[discriminant_at(0..=1)]
+#[derive(FromBits, Debug, PartialEq, Clone, Copy)]
+enum AlmostFull {
+    A(u2) = 0,
+    B(u2) = 1,
+    C(u2) = 2,
+    #[fallback]
+    Other(u4),
+}
+
+#[bitsize(8)]
+#[discriminant_at(6..=7)]
+#[derive(FromBits, Debug, PartialEq, Clone, Copy)]
+enum HighFallback {
+    A(u6) = 0,
+    #[fallback]
+    Raw(u8),
+}
+
+#[test]
+fn value_fallback_keeps_unknown_tags() {
+    let known = TaggedFallback::A(u6::new(0b000011));
+    let raw = u8::from(known);
+    assert_eq!(raw.value(), 0b000011_00);
+    assert_eq!(TaggedFallback::from(raw), known);
+    assert_eq!(known.as_int(), raw);
+
+    let unknown = u8::new(0b111111_10); // tag 2
+    let v = TaggedFallback::from(unknown);
+    assert_eq!(v, TaggedFallback::Raw(unknown));
+    assert_eq!(u8::from(v), unknown);
+    assert_eq!(v.as_int(), unknown);
+    assert_eq!(format!("{v:b}"), "11111110");
+}
+
+#[test]
+fn value_fallback_when_one_tag_is_unused() {
+    assert_eq!(AlmostFull::from(u4::new(0b01_10)), AlmostFull::C(u2::new(0b01)));
+    let unused_tag = u4::new(0b11_11);
+    assert_eq!(AlmostFull::from(unused_tag), AlmostFull::Other(unused_tag));
+    assert_eq!(u4::from(AlmostFull::Other(unused_tag)), unused_tag);
+}
+
+#[test]
+fn value_fallback_with_msb_tag() {
+    let known = HighFallback::A(u6::new(0b000001));
+    assert_eq!(u8::from(known).value(), 0b00_000001);
+    assert_eq!(HighFallback::from(u8::from(known)), known);
+
+    let unknown = u8::new(0b11_000001); // tag 3
+    assert_eq!(HighFallback::from(unknown), HighFallback::Raw(unknown));
+    assert_eq!(u8::from(HighFallback::Raw(unknown)), unknown);
+    assert_eq!(HighFallback::Raw(unknown).as_int(), unknown);
+}

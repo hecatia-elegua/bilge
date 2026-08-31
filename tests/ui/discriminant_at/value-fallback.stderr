@@ -1,9 +1,18 @@
-error: value fallback is not supported with `#[discriminant_at]`
-
-         = help: the fallback field would need the full enum width, but payload variants use the bits left by the tag
-
-  --> tests/ui/discriminant_at/value-fallback.rs:9:5
+error: bitsize of fallback field (6) does not match bitsize of enum (8)
+  --> tests/ui/discriminant_at/value-fallback.rs:11:10
    |
- 9 | /     #[fallback]
-10 | |     Other(u8),
-   | |_____________^
+11 |     Other(u6),
+   |          ^^^^
+
+error[E0308]: mismatched types
+ --> tests/ui/discriminant_at/value-fallback.rs:4:1
+  |
+4 | #[bitsize(8)]
+  | ^^^^^^^^^^^^^
+  | |
+  | expected `u8`, found `UInt<u8, 6>`
+  | expected `u8` because of return type
+  |
+  = note: expected type `u8`
+           found struct `UInt<u8, 6>`
+  = note: this error originates in the attribute macro `::bilge::bitsize_internal` (in Nightly builds, run with -Z macro-backtrace for more info)

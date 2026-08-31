@@ -4,7 +4,7 @@
 
 ### Added
 - `#[at(n)]` / `#[at(n..=m)]` on struct fields to place a field at backing-integer bit `n` (0 = LSB). Width comes from the field type; a range is checked against that width. Fields without `#[at]` continue after the previous one. Skipped bits are implicit padding. Overlap or going backwards is a compile error. `#[bitsize(N)]` is still the total width.
-- `#[discriminant_at(n)]` / `#[discriminant_at(n..=m)]` on enums when the tag sits in the same value. Variants look like `Variant(Payload) = tag`. Use `TryFromBits` when not every tag is used.
+- `#[discriminant_at(n)]` / `#[discriminant_at(n..=m)]` on enums when the tag sits in the same value. Variants look like `Variant(Payload) = tag`. Use `TryFromBits` when not every tag is used. `#[fallback] Raw(uN)` (full enum width) keeps unknown tags as the whole word.
 - `#[discriminant(SomeTagType)]` on enums when the tag is a separate value. `From`/`TryFrom` will then use `(tag, bits)` as the raw values. Tag types are limited to 64 bits, same as enums.
 - `toggle_*` for `bool` fields and `toggle_*_at` for `[bool; N]`
 - `BuilderBits` named typestate builder (`SomeType::builder().field(v).build()`). Required fields must be set exactly once; `#[default(expr)]` makes a field optional. This does not require `DefaultBits`.
