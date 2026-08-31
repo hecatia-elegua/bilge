@@ -102,4 +102,6 @@ fn array_element_offset() {
     assert_eq!(err.bitsize(), 2);
     assert_eq!(err.bit_start(), 2);
     assert_eq!(err.bit_end(), 3);
+    assert_eq!(err.array_index(), Some(1));
+    assert_eq!(format!("{err}"), "`HaveFun` has no representation for 0b11 (field `val_0[1]`, bits 2..=3)");
 }

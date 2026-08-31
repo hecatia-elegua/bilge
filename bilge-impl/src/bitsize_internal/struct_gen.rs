@@ -132,7 +132,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                             Ok(()) => {}
                             Err(e) => {
                                 let size = #size;
-                                break Err(e.at_offset(i * size));
+                                break Err(e.at_array_index(i, size));
                             }
                         }
                         i += 1;
