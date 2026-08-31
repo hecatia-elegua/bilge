@@ -50,19 +50,21 @@ fn generate_struct_default_impl(struct_name: &Ident, fields: &Fields, declared_b
     let default_value = parts.into_iter().reduce(|acc, next| quote!(#acc | #next));
     let aliases = if needs_ctor_aliases {
         quote! {
-            type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-            type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
+            type ArbIntOf<T> = <T as ::bilge::Bitsized>::ArbitraryInt;
+            type BaseIntOf<T> = <ArbIntOf<T> as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
         }
     } else {
         quote!()
     };
 
+    let import = shared::import_traits();
     Ok(quote! {
         impl ::core::default::Default for #struct_name {
             fn default() -> Self {
+                #import
                 #aliases
                 let value = #default_value;
-                let value = <#struct_name as Bitsized>::ArbitraryInt::new(value);
+                let value = <#struct_name as ::bilge::Bitsized>::ArbitraryInt::new(value);
                 Self { value }
             }
         }
@@ -97,8 +99,8 @@ fn generate_default_inner(ty: &Type) -> TokenStream {
             let field_size = shared::generate_type_bitsize(ty);
             // u2::from(HaveFun::default()).value() as u32;
             quote! {{
-                let as_int = <#path as Bitsized>::ArbitraryInt::from(<#path as ::core::default::Default>::default()).value();
-                let as_base_int = as_int as <<Self as Bitsized>::ArbitraryInt as Integer>::UnderlyingType;
+                let as_int = <#path as ::bilge::Bitsized>::ArbitraryInt::from(<#path as ::core::default::Default>::default()).value();
+                let as_base_int = as_int as <<Self as ::bilge::Bitsized>::ArbitraryInt as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
                 let shifted = as_base_int << offset;
                 offset += #field_size;
                 shifted

@@ -62,6 +62,7 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Vi
         .unzip();
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+    let import = shared::import_traits();
 
     Ok(quote! {
         #[repr(transparent)]
@@ -74,8 +75,9 @@ fn generate_struct(struct_data: &ItemStruct, arb_int: &TokenStream, new_vis: &Vi
             // #[inline]
             #[allow(clippy::too_many_arguments, clippy::type_complexity, missing_docs, unused_parens)]
             #new_vis #const_ fn new(#( #constructor_args )*) -> Self {
-                type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-                type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
+                #import
+                type ArbIntOf<T> = <T as ::bilge::Bitsized>::ArbitraryInt;
+                type BaseIntOf<T> = <ArbIntOf<T> as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
 
                 #( #constructor_parts )*
                 let raw_value = #( #shifted_names )|*;
@@ -301,16 +303,18 @@ fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
 /// Everything else has its own `generate_` functions.
 fn generate_common(ir: ItemIr, arb_int: &TokenStream, as_int: TokenStream) -> TokenStream {
     let ItemIr { attrs, name, expanded } = ir;
+    let import = shared::import_traits();
 
     quote! {
         #(#attrs)*
         #expanded
         impl ::bilge::Bitsized for #name {
             type ArbitraryInt = #arb_int;
-            const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
-            const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
+            const BITS: usize = <Self::ArbitraryInt as ::bilge::Bitsized>::BITS;
+            const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as ::bilge::Bitsized>::MAX;
             #[inline]
             fn as_int(&self) -> Self::ArbitraryInt {
+                #import
                 #as_int
             }
         }

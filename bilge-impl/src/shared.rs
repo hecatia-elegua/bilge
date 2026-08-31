@@ -17,6 +17,16 @@ use quote::quote;
 use syn::{Attribute, DeriveInput, Expr, Field, Meta, Type};
 use util::PathExt;
 
+/// Bring `Bitsized` and `Integer` methods into generated bodies without requiring `bilge::prelude`.
+pub fn import_traits() -> TokenStream {
+    quote! {
+        #[allow(unused_imports)]
+        use ::bilge::Bitsized as _;
+        #[allow(unused_imports)]
+        use ::bilge::arbitrary_int::traits::Integer as _;
+    }
+}
+
 /// As arbitrary_int is limited to basic rust primitives, the maximum is u128.
 /// Is there a true usecase for bitfields above this size?
 /// This would also be change-worthy when rust starts supporting LLVM's arbitrary integers.
@@ -104,7 +114,7 @@ pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
             quote!((#elem_bitsize * #len_expr))
         }
         Path(_) => {
-            quote!(<#ty as Bitsized>::BITS)
+            quote!(<#ty as ::bilge::Bitsized>::BITS)
         }
         _ => unreachable(()),
     }
@@ -113,9 +123,11 @@ pub fn generate_type_bitsize(ty: &Type) -> TokenStream {
 pub(crate) fn generate_from_enum_impl(
     arb_int: &TokenStream, enum_type: &Ident, to_int_match_arms: Vec<TokenStream>, const_: &TokenStream,
 ) -> TokenStream {
+    let import = import_traits();
     quote! {
         impl #const_ ::core::convert::From<#enum_type> for #arb_int {
             fn from(enum_value: #enum_type) -> Self {
+                #import
                 match enum_value {
                     #( #to_int_match_arms )*
                 }

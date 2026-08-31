@@ -154,7 +154,7 @@ fn generate_external_enum(
     } else {
         quote! {
             const _: () = {
-                if (#variant_count as u128) != (1u128 << <#tag_ty as Bitsized>::BITS) {
+                if (#variant_count as u128) != (1u128 << <#tag_ty as ::bilge::Bitsized>::BITS) {
                     ::core::panic!("enum doesn't fill its tag type; use TryFromBits");
                 }
             };
@@ -199,6 +199,7 @@ fn generate_enum(
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+    let import = shared::import_traits();
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
 
@@ -239,6 +240,7 @@ fn generate_enum(
     quote! {
         impl #const_ ::core::convert::From<#arb_int> for #enum_type {
             fn from(number: #arb_int) -> Self {
+                #import
                 #( #assumes )*
                 #from_body
             }

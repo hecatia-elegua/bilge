@@ -120,7 +120,7 @@ pub fn from_pair_arm(variant: &syn::Ident, payload_ty: Option<&Type>, tag: &Lite
                             e,
                             stringify!(#ty),
                             data.value() as u128,
-                            <#ty as Bitsized>::BITS as u8,
+                            <#ty as ::bilge::Bitsized>::BITS as u8,
                         )),
                     },
                 }
@@ -136,8 +136,8 @@ pub fn to_pair_arm(
 ) -> TokenStream {
     let tag_value = quote! {
         {
-            type TagInt = <#tag_ty as Bitsized>::ArbitraryInt;
-            let tag_bits = <TagInt as Integer>::new(#tag as <TagInt as Integer>::UnderlyingType);
+            type TagInt = <#tag_ty as ::bilge::Bitsized>::ArbitraryInt;
+            let tag_bits = <TagInt as ::bilge::arbitrary_int::traits::Integer>::new(#tag as <TagInt as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType);
             match <#tag_ty>::try_from(tag_bits) {
                 Ok(tag) => tag,
                 Err(_) => ::core::panic!("unreachable"),
@@ -180,10 +180,12 @@ pub fn payload_only_to_int_arm(enum_name: &syn::Ident, variant: &syn::Ident, pay
 pub fn generate_pair_from_enum(
     enum_type: &syn::Ident, tag_ty: &Type, arb_int: &TokenStream, to_pair_arms: &[TokenStream], const_: &TokenStream,
 ) -> TokenStream {
+    let import = super::import_traits();
     quote! {
         impl #enum_type {
             /// Returns the tag and the payload bits.
             pub #const_ fn to_tag_and_data(self) -> (#tag_ty, #arb_int) {
+                #import
                 match self {
                     #( #to_pair_arms )*
                 }
@@ -200,18 +202,20 @@ pub fn generate_pair_from_enum(
 pub fn generate_try_from_pair(
     enum_type: &syn::Ident, tag_ty: &Type, arb_int: &TokenStream, from_pair_arms: &[TokenStream], const_: &TokenStream,
 ) -> TokenStream {
+    let import = super::import_traits();
     quote! {
         impl #const_ ::core::convert::TryFrom<(#tag_ty, #arb_int)> for #enum_type {
             type Error = ::bilge::BitsError;
 
             fn try_from((tag, data): (#tag_ty, #arb_int)) -> ::core::result::Result<Self, Self::Error> {
-                let tag_raw = <#tag_ty as Bitsized>::ArbitraryInt::from(tag).value();
+                #import
+                let tag_raw = <#tag_ty as ::bilge::Bitsized>::ArbitraryInt::from(tag).value();
                 match tag_raw {
                     #( #from_pair_arms )*
                     _ => Err(::bilge::give_me_error(
                         stringify!(#enum_type),
                         tag_raw as u128,
-                        <#tag_ty as Bitsized>::BITS as u8,
+                        <#tag_ty as ::bilge::Bitsized>::BITS as u8,
                     )),
                 }
             }
@@ -223,12 +227,14 @@ pub fn generate_from_pair(
     enum_type: &syn::Ident, tag_ty: &Type, arb_int: &TokenStream, from_pair_arms: &[TokenStream], const_: &TokenStream, fill_check: TokenStream,
     assumes: &[TokenStream],
 ) -> TokenStream {
+    let import = super::import_traits();
     quote! {
         #fill_check
         impl #const_ ::core::convert::From<(#tag_ty, #arb_int)> for #enum_type {
             fn from((tag, data): (#tag_ty, #arb_int)) -> Self {
+                #import
                 #( #assumes )*
-                let tag_raw = <#tag_ty as Bitsized>::ArbitraryInt::from(tag).value();
+                let tag_raw = <#tag_ty as ::bilge::Bitsized>::ArbitraryInt::from(tag).value();
                 match tag_raw {
                     #( #from_pair_arms )*
                     _ => ::core::panic!("unreachable: arbitrary_int already validates that this is unreachable"),

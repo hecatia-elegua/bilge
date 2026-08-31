@@ -122,6 +122,7 @@ fn codegen_enum(
     let (from_int_match_arms, to_int_match_arms) = match_arms;
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+    let import = shared::import_traits();
 
     let from_enum_impl = shared::generate_from_enum_impl(&arb_int, enum_type, to_int_match_arms, &const_);
 
@@ -151,6 +152,7 @@ fn codegen_enum(
             type Error = ::bilge::BitsError;
 
             fn try_from(number: #arb_int) -> ::core::result::Result<Self, Self::Error> {
+                #import
                 #try_body
             }
         }
@@ -195,8 +197,8 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, de
         quote!()
     } else {
         quote! {
-            type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-            type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
+            type ArbIntOf<T> = <T as ::bilge::Bitsized>::ArbitraryInt;
+            type BaseIntOf<T> = <ArbIntOf<T> as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
 
             // cursor starts at value's first field
             let mut cursor = value.value();
@@ -205,6 +207,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, de
     };
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
+    let import = crate::shared::import_traits();
 
     quote! {
         impl #const_ ::core::convert::TryFrom<#arb_int> for #struct_type {
@@ -212,6 +215,7 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, de
 
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
             fn try_from(value: #arb_int) -> ::core::result::Result<Self, Self::Error> {
+                #import
                 #cursor_setup
                 Ok(Self { value })
             }

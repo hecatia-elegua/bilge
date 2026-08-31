@@ -183,8 +183,8 @@ pub fn payload_from_int_arm(
                 quote! {
                     #tag => {
                         let payload_raw = #payload_raw;
-                        let payload_bits = <#ty as Bitsized>::ArbitraryInt::new(
-                            payload_raw as <<#ty as Bitsized>::ArbitraryInt as Integer>::UnderlyingType
+                        let payload_bits = <#ty as ::bilge::Bitsized>::ArbitraryInt::new(
+                            payload_raw as <<#ty as ::bilge::Bitsized>::ArbitraryInt as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType
                         );
                         match <#ty>::try_from(payload_bits) {
                             Ok(payload) => Ok(Self::#variant(payload)),
@@ -192,7 +192,7 @@ pub fn payload_from_int_arm(
                                 e,
                                 stringify!(#ty),
                                 payload_bits.value() as u128,
-                                <#ty as Bitsized>::BITS as u8,
+                                <#ty as ::bilge::Bitsized>::BITS as u8,
                             )
                             .at_offset(#payload_start)),
                         }
@@ -202,8 +202,8 @@ pub fn payload_from_int_arm(
                 quote! {
                     #tag => {
                         let payload_raw = #payload_raw;
-                        let payload_bits = <#ty as Bitsized>::ArbitraryInt::new(
-                            payload_raw as <<#ty as Bitsized>::ArbitraryInt as Integer>::UnderlyingType
+                        let payload_bits = <#ty as ::bilge::Bitsized>::ArbitraryInt::new(
+                            payload_raw as <<#ty as ::bilge::Bitsized>::ArbitraryInt as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType
                         );
                         match <#ty>::try_from(payload_bits) {
                             Ok(payload) => Self::#variant(payload),
@@ -220,7 +220,7 @@ pub fn payload_to_int_arm(
     disc: &DiscriminantAt, bitsize: usize, enum_name: &syn::Ident, variant: &syn::Ident, payload_ty: Option<&Type>, tag: &proc_macro2::Literal,
     arb_int: &TokenStream,
 ) -> TokenStream {
-    let payload_int = payload_ty.map(|ty| quote! { <#ty as Bitsized>::ArbitraryInt::from(payload) });
+    let payload_int = payload_ty.map(|ty| quote! { <#ty as ::bilge::Bitsized>::ArbitraryInt::from(payload) });
     to_int_arm(disc, bitsize, enum_name, variant, tag, arb_int, payload_int)
 }
 
@@ -246,15 +246,15 @@ fn to_int_arm(
     match payload_int {
         None => quote! {
             #enum_name::#variant => {
-                let tag = #tag as <#arb_int as Integer>::UnderlyingType;
-                let payload = 0 as <#arb_int as Integer>::UnderlyingType;
+                let tag = #tag as <#arb_int as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
+                let payload = 0 as <#arb_int as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
                 #arb_int::new(#combine)
             }
         },
         Some(payload_int) => quote! {
             #enum_name::#variant(payload) => {
-                let tag = #tag as <#arb_int as Integer>::UnderlyingType;
-                let payload = #payload_int.value() as <#arb_int as Integer>::UnderlyingType;
+                let tag = #tag as <#arb_int as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
+                let payload = #payload_int.value() as <#arb_int as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
                 #arb_int::new(#combine)
             }
         },
