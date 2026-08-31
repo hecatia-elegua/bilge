@@ -45,7 +45,15 @@ impl DiscriminantAssigner {
     }
 
     fn assign(&mut self, variant: &Variant) -> manyhow::Result<u128> {
-        let value = self.value_from_discriminant(variant)?.unwrap_or(self.next_expected_assignment);
+        let value = match self.value_from_discriminant(variant)? {
+            Some(value) => value,
+            None => {
+                if self.next_expected_assignment > self.max_value() {
+                    bail!(variant, "Value of variant exceeds the given number of bits")
+                }
+                self.next_expected_assignment
+            }
+        };
         self.next_expected_assignment = value + 1;
         Ok(value)
     }

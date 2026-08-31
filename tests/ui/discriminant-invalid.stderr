@@ -24,6 +24,13 @@ error: enum overflows its bitsize
    |
    = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
 
+error: Value of variant exceeds the given number of bits
+  --> tests/ui/discriminant-invalid.rs:26:5
+   |
+26 | /     #[fallback]
+27 | |     PlusPlus,
+   | |____________^
+
 error: enum overflows its bitsize
 
          = help: there should only be at most 2 variants defined
