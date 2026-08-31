@@ -8,7 +8,7 @@ use crate::shared::{self, parse_field_default, place_struct_fields, unreachable}
 
 pub(crate) fn default_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
-    let (derive_data, _, name, bitsize, ..) = shared::analyze_derive(&derive_input, false)?;
+    let (derive_data, _, name, bitsize, ..) = shared::analyze_derive(&derive_input, crate::shared::DeriveKind::Other)?;
 
     match derive_data {
         Data::Struct(data) => generate_struct_default_impl(name, &data.fields, bitsize),

@@ -69,5 +69,5 @@ fn parse(item: TokenStream) -> DeriveInput {
 }
 
 fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
-    shared::analyze_derive(derive_input, false)
+    shared::analyze_derive(derive_input, crate::shared::DeriveKind::Other)
 }

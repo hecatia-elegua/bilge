@@ -29,10 +29,16 @@ pub(crate) fn parse_derive(item: TokenStream) -> DeriveInput {
     syn::parse2(item).unwrap_or_else(unreachable)
 }
 
-// allow since we want `if try_from` blocks to stand out
-#[allow(clippy::collapsible_if)]
+#[derive(Clone, Copy)]
+pub(crate) enum DeriveKind {
+    FromBits,
+    TryFromBits,
+    /// Formatting and other derives that only need the bitsize, not conversion policy.
+    Other,
+}
+
 pub(crate) fn analyze_derive(
-    derive_input: &DeriveInput, try_from: bool,
+    derive_input: &DeriveInput, kind: DeriveKind,
 ) -> manyhow::Result<(&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
     let DeriveInput {
         attrs,
@@ -42,17 +48,21 @@ pub(crate) fn analyze_derive(
         ..
     } = derive_input;
 
-    if !try_from {
-        if attrs.iter().any(is_non_exhaustive_attribute) {
-            bail!("Item can't be FromBits and non_exhaustive"; help = "remove #[non_exhaustive] or derive(FromBits) here")
-        }
-    } else {
-        // currently not allowed, would need some thinking:
-        if let syn::Data::Struct(_) = data {
+    match kind {
+        DeriveKind::FromBits => {
             if attrs.iter().any(is_non_exhaustive_attribute) {
-                bail!("Using #[non_exhaustive] on structs is currently not supported"; help = "open an issue on our repository if needed")
+                bail!("Item can't be FromBits and non_exhaustive"; help = "remove #[non_exhaustive] or derive(FromBits) here")
             }
         }
+        DeriveKind::TryFromBits => {
+            // currently not allowed, would need some thinking:
+            if let syn::Data::Struct(_) = data {
+                if attrs.iter().any(is_non_exhaustive_attribute) {
+                    bail!("Using #[non_exhaustive] on structs is currently not supported"; help = "open an issue on our repository if needed")
+                }
+            }
+        }
+        DeriveKind::Other => {}
     }
 
     // parsing the #[bitsize_internal(num)] attribute macro
@@ -63,7 +73,7 @@ pub(crate) fn analyze_derive(
     let (bitsize, arb_int) = bitsize_and_arbitrary_int_from(args)?;
 
     let fallback = fallback_variant(data, bitsize)?;
-    if fallback.is_some() && try_from {
+    if fallback.is_some() && matches!(kind, DeriveKind::TryFromBits) {
         bail!("fallback is not allowed with `TryFromBits`"; help = "use `#[derive(FromBits)]` or remove this `#[fallback]`")
     }
 
