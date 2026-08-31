@@ -280,10 +280,10 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
         vis, ident, variants, attrs, ..
     } = item;
     let mut asserts = TokenStream::new();
-    let mut uses_disc = false;
+    let mut tag_repr_width: Option<usize> = None;
     match parse_enum_discriminant(attrs)? {
         Some(EnumDiscriminant::At(disc)) => {
-            uses_disc = true;
+            tag_repr_width = Some(disc.width);
             let payload_w = disc.payload_width(bitsize as usize);
             for variant in variants {
                 if let Some(ty) = crate::shared::discriminant_at::variant_payload_ty(variant)? {
@@ -298,7 +298,7 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
             }
         }
         Some(EnumDiscriminant::Type(disc)) => {
-            uses_disc = true;
+            tag_repr_width = Some(disc.known_width().map(|w| w as usize).unwrap_or(MAX_ENUM_BIT_SIZE as usize));
             let tag_ty = &disc.ty;
             let payload_w = bitsize as usize;
             let max_tag = MAX_ENUM_BIT_SIZE as usize;
@@ -331,7 +331,13 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
         }
         None => {}
     }
-    let repr = if uses_disc { quote!(#[repr(u64)]) } else { quote!() };
+    let repr = match tag_repr_width {
+        Some(w) if w <= 8 => quote!(#[repr(u8)]),
+        Some(w) if w <= 16 => quote!(#[repr(u16)]),
+        Some(w) if w <= 32 => quote!(#[repr(u32)]),
+        Some(_) => quote!(#[repr(u64)]),
+        None => quote!(),
+    };
     Ok(quote! {
         #repr
         #vis enum #ident {
