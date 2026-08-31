@@ -1,0 +1,9 @@
+error: value fallback is not supported with `#[discriminant_at]`
+
+         = help: the fallback field would need the full enum width, but payload variants use the bits left by the tag
+
+  --> tests/ui/discriminant_at/value-fallback.rs:9:5
+   |
+ 9 | /     #[fallback]
+10 | |     Other(u8),
+   | |_____________^

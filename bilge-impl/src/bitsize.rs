@@ -193,6 +193,13 @@ fn analyze_enum(bitsize: BitSize, item: &ItemEnum) -> manyhow::Result<()> {
         Some(EnumDiscriminant::At(disc)) => {
             disc.validate(bitsize as usize)?;
             for variant in variants.clone() {
+                if variant.attrs.iter().any(is_fallback_attribute) && !matches!(variant.fields, Fields::Unit) {
+                    bail!(
+                        variant,
+                        "value fallback is not supported with `#[discriminant_at]`";
+                        help = "the fallback field would need the full enum width, but payload variants use the bits left by the tag"
+                    );
+                }
                 crate::shared::discriminant_at::variant_payload_ty(variant)?;
             }
             let _ = enum_fills_bitsize(disc.width as u8, variant_count)?;
