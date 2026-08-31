@@ -5,7 +5,7 @@ use syn::{Attribute, Field, Fields, Item, ItemEnum, ItemStruct, Type, Variant, V
 use crate::shared::discriminant::EnumDiscriminant;
 use crate::shared::{
     self, BitSize, BitsizeArgs, attrs_without_at, bitsize_from_type_ident, discriminant, discriminant_assigner::DiscriminantAssigner,
-    discriminant_at, last_ident_of_path, parse_enum_discriminant, place_struct_fields, unreachable,
+    discriminant_at, is_fallback_attribute, last_ident_of_path, parse_enum_discriminant, place_struct_fields, unreachable,
 };
 
 pub(crate) mod struct_gen;
@@ -370,6 +370,19 @@ fn generate_to_int_match_arms(
         .map(|variant| -> manyhow::Result<TokenStream> {
             let variant_name = &variant.ident;
             let variant_value = assigner.assign_unsuffixed(variant)?;
+
+            if variant.attrs.iter().any(is_fallback_attribute) {
+                if let Fields::Unnamed(fields) = &variant.fields {
+                    if fields.unnamed.len() == 1 {
+                        return Ok(quote! {
+                            #enum_name::#variant_name(payload) => {
+                                use ::bilge::Bitsized as _;
+                                payload.as_int()
+                            }
+                        });
+                    }
+                }
+            }
 
             if let Some(disc) = disc {
                 let payload_ty = discriminant_at::variant_payload_ty(variant)?;
