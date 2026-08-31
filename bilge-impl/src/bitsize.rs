@@ -200,6 +200,13 @@ fn analyze_enum(bitsize: BitSize, item: &ItemEnum) -> manyhow::Result<()> {
                         help = "the fallback field would need the full enum width, but payload variants use the bits left by the tag"
                     );
                 }
+                if matches!(variant.fields, Fields::Unit) {
+                    bail!(
+                        variant,
+                        "unit variants are not supported with `#[discriminant_at]`";
+                        help = "payload bits would be ignored; use `Variant(Payload)` for the remaining bits"
+                    );
+                }
                 crate::shared::discriminant_at::variant_payload_ty(variant)?;
             }
             let _ = enum_fills_bitsize(disc.width as u8, variant_count)?;

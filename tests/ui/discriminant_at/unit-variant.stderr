@@ -1,0 +1,18 @@
+error: unit variants are not supported with `#[discriminant_at]`
+
+         = help: payload bits would be ignored; use `Variant(Payload)` for the remaining bits
+
+ --> tests/ui/discriminant_at/unit-variant.rs:7:5
+  |
+7 |     A = 0,
+  |     ^^^^^
+
+error: unit variants are not supported with `#[discriminant_at]`
+
+         = help: payload bits would be ignored; use `Variant(Payload)` for the remaining bits
+
+  --> tests/ui/discriminant_at/unit-variant.rs:18:5
+   |
+18 | /     #[fallback]
+19 | |     Unknown,
+   | |___________^
