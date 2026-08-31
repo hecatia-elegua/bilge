@@ -54,7 +54,7 @@ fn parse(item: TokenStream) -> DeriveInput {
 }
 
 fn analyze(derive_input: &DeriveInput) -> manyhow::Result<(&syn::Data, TokenStream, &Ident, BitSize, Option<Fallback>)> {
-    shared::analyze_derive(derive_input, false)
+    shared::analyze_derive(derive_input, crate::shared::DeriveKind::FromBits)
 }
 
 fn analyze_enum(

@@ -109,3 +109,18 @@ fn binary_bits_does_not_need_clone_on_payloads() {
     assert_eq!(format!("{packed:b}"), "0110");
     assert_eq!(u4::from(packed), u4::new(0b01_10));
 }
+
+#[bitsize(2)]
+#[non_exhaustive]
+#[derive(TryFromBits, BinaryBits, Debug, PartialEq)]
+enum OpenSet {
+    A,
+    B,
+}
+
+#[test]
+fn binary_bits_allows_non_exhaustive_tryfrom_enum() {
+    let v = OpenSet::try_from(u2::new(0)).unwrap();
+    assert_eq!(v, OpenSet::A);
+    assert_eq!(format!("{v:b}"), "00");
+}

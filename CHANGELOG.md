@@ -16,6 +16,7 @@
 
 ### Fixed
 - `BinaryBits` (and owned `From` for tagged payload enums) no longer requires payload types to implement `Clone`
+- `BinaryBits` can be used with `#[non_exhaustive]` + `TryFromBits` enums
 
 ## [0.4.0] - 2026-08-22
 
