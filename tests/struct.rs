@@ -220,6 +220,21 @@ fn reserved_fields() {
     );
 }
 
+#[bitsize(8)]
+#[derive(FromBits, DebugBits, PartialEq)]
+struct ContainsReservedInName {
+    my_reserved_flags: u4,
+    other: u4,
+}
+
+#[test]
+fn field_name_containing_reserved_is_not_omitted() {
+    let mut bits = ContainsReservedInName::new(u4::new(1), u4::new(2));
+    bits.set_my_reserved_flags(u4::new(3));
+    assert_eq!(bits.my_reserved_flags(), u4::new(3));
+    assert_eq!(bits.other(), u4::new(2));
+}
+
 #[bitsize(32)]
 #[derive(DebugBits, FromBits)]
 struct TupleStruct(u2, u6, u7, u8, u8, u1);
