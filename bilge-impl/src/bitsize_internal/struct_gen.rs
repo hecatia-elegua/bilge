@@ -132,7 +132,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                             Ok(()) => {}
                             Err(e) => {
                                 let size = #size;
-                                break Err(e.at_array_index(i, size));
+                                break Err(e.at_offset(i.saturating_mul(size)));
                             }
                         }
                         i += 1;
@@ -207,15 +207,16 @@ fn generate_tuple_try_from(elems: &syn::punctuated::Punctuated<Type, syn::Token!
     if elems.is_empty() || elems.iter().all(shared::is_always_filled) {
         return ok;
     }
-    let checks = elems.iter().map(|elem| {
+    let checks = elems.iter().enumerate().map(|(i, elem)| {
         let check = generate_getter_inner(elem, false);
         let size = shared::generate_type_bitsize(elem);
+        let index = proc_macro2::Literal::usize_unsuffixed(i);
         quote! {
             match { #check } {
                 Ok(()) => {
                     __bilge_rel += #size;
                 }
-                Err(e) => break Err(e.at_offset(__bilge_rel)),
+                Err(e) => break Err(e.in_field(stringify!(#index), __bilge_rel)),
             }
         }
     });

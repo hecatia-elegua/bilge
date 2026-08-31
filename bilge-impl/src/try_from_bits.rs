@@ -1,6 +1,6 @@
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
+use quote::quote;
 use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
 use crate::shared::discriminant::EnumDiscriminant;
@@ -181,13 +181,19 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, de
             }
             let offset = &place.offset;
             let check = generate_field_check(ty);
-            let field_name = field.ident.clone().unwrap_or_else(|| format_ident!("val_{i}"));
+            let field_path = match &field.ident {
+                Some(ident) => quote!(stringify!(#ident)),
+                None => {
+                    let index = proc_macro2::Literal::usize_unsuffixed(i);
+                    quote!(stringify!(#index))
+                }
+            };
             Some(quote! {
                 cursor = value.value();
                 cursor >>= #offset;
                 match { #check } {
                     Ok(()) => {}
-                    Err(e) => return Err(e.in_field(stringify!(#field_name), #offset)),
+                    Err(e) => return Err(e.in_field(#field_path, #offset)),
                 }
             })
         })

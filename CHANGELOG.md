@@ -11,7 +11,7 @@
 - `#[default(expr)]` on struct fields is also honored by `DefaultBits`
 
 ### Changed
-- `BitsError` now names the innermost failing type, the field path (`wrapper.inner.bar`), the invalid bit pattern, and that field's bit range in the value passed to `try_from`
+- `BitsError` now names the innermost failing type, a short field path (`wrapper.inner.bar`, tuple positions as `0`), the invalid bit pattern, and that field's bit range in the value passed to `try_from`. We only keep one level of array depth, so prefer the bit-range for accurate handling.
 - `Bitsized` now has `as_int(&self)` so by-ref conversions do not need `Clone`. Manual `Bitsized` impls need this method.
 
 ### Fixed

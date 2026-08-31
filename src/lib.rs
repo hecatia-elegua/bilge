@@ -63,6 +63,7 @@ unsafe impl<T> Filled for T where T: Bitsized + From<<T as Bitsized>::ArbitraryI
 #[doc(hidden)]
 pub const fn assume_filled<T: Filled>() {}
 
+/// Nested field names reported by [`BitsError`]. Inside-out, so beyond this, outer names are dropped.
 const MAX_FIELD_PATH: usize = 8;
 
 /// Error returned by `TryFromBits` conversions.
@@ -71,13 +72,18 @@ const MAX_FIELD_PATH: usize = 8;
 /// Nested structs keep the innermost failing type (for example `Bar` in `Nested { inner: Byte { bar: Bar } }`)
 /// and the bit pattern that had no matching representation.
 ///
+/// [`Self::bit_start`] / [`Self::bit_end`] locate the field more accurately by bit range.
+/// [`Self::field_path`] is extra context (named fields and tuple positions like `0`),
+/// truncated to at most [`MAX_FIELD_PATH`] names.
+///
 /// Fields are private so more context can be added later without breaking pattern matching.
 /// Use the accessors below.
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub struct BitsError {
     type_name: &'static str,
-    /// The chain of struct fields from the type you called `try_from` on down to this error (`["inner", "bar"]`).
+    /// Struct fields and tuple positions from the type you called `try_from` on down to this error
+    /// (`["inner", "bar"]`, or `["data", "0"]` for a tuple element).
     field_path: [&'static str; MAX_FIELD_PATH],
     field_path_len: u8,
     /// The pattern that did not match.
@@ -85,11 +91,6 @@ pub struct BitsError {
     bitsize: u8,
     /// The bit range of the field that did not match in the value passed to `try_from` (0 = LSB).
     bit_start: u8,
-    /// Element index when the failing field is an array. `u8::MAX` means none.
-    array_index: u8,
-    /// Path slot that should show `[i]`. Incremented as outer fields are prepended.
-    array_slot: u8,
-    pending_array: bool,
 }
 
 impl BitsError {
@@ -98,7 +99,7 @@ impl BitsError {
         self.type_name
     }
 
-    /// Innermost struct field that contained the failing type.
+    /// Innermost path segment: a field name, or a tuple index like `"0"`.
     pub const fn field_name(&self) -> Option<&'static str> {
         if self.field_path_len == 0 {
             None
@@ -107,8 +108,8 @@ impl BitsError {
         }
     }
 
-    /// Field names from the `try_from` type down to the failure, e.g.
-    /// `["inner", "bar"]` for `Nested { inner: Byte { bar } }`.
+    /// Field names and tuple positions from the `try_from` type down to the failure, e.g.
+    /// `["inner", "bar"]` or `["data", "1"]`. At most [`MAX_FIELD_PATH`] names.
     pub const fn field_path(&self) -> &[&'static str] {
         self.field_path.split_at(self.field_path_len as usize).0
     }
@@ -133,15 +134,6 @@ impl BitsError {
         self.bit_start.saturating_add(self.bitsize.saturating_sub(1))
     }
 
-    /// Index of the failing array element, if the field is an array.
-    pub const fn array_index(&self) -> Option<u8> {
-        if self.array_index == u8::MAX {
-            None
-        } else {
-            Some(self.array_index)
-        }
-    }
-
     /// Remember the field that produced this error and shift its bit range by that field's offset in the parent integer.
     /// Outer names are prepended so the path reads `wrapper.inner.bar`.
     #[doc(hidden)]
@@ -160,34 +152,15 @@ impl BitsError {
             path[0] = field_name;
             len += 1;
         }
-        let mut array_slot = self.array_slot;
-        let mut pending_array = self.pending_array;
-        if pending_array {
-            array_slot = 0;
-            pending_array = false;
-        } else if self.array_index != u8::MAX {
-            array_slot = array_slot.saturating_add(1);
-        }
         BitsError {
             field_path: path,
             field_path_len: len,
             bit_start: self.bit_start.saturating_add(bit_start as u8),
-            array_slot,
-            pending_array,
             ..self
         }
     }
 
-    /// Shift the reported bit range for array element `index` (`elem_bits` wide).
-    #[doc(hidden)]
-    pub const fn at_array_index(self, index: usize, elem_bits: usize) -> Self {
-        let mut err = self.at_offset(index.saturating_mul(elem_bits));
-        err.array_index = if index > u8::MAX as usize { u8::MAX } else { index as u8 };
-        err.pending_array = true;
-        err
-    }
-
-    /// Shift the reported bit range, e.g. for a tuple element.
+    /// Shift the reported bit range, e.g. for an array element.
     #[doc(hidden)]
     pub const fn at_offset(self, bit_start: usize) -> Self {
         BitsError {
@@ -203,9 +176,6 @@ impl BitsError {
                 f.write_str(".")?;
             }
             f.write_str(name)?;
-            if self.array_index != u8::MAX && i == self.array_slot as usize {
-                write!(f, "[{}]", self.array_index)?;
-            }
         }
         Ok(())
     }
@@ -257,9 +227,6 @@ pub const fn give_me_error(type_name: &'static str, invalid_bits: u128, bitsize:
         invalid_bits,
         bitsize,
         bit_start: 0,
-        array_index: u8::MAX,
-        array_slot: 0,
-        pending_array: false,
     }
 }
 
