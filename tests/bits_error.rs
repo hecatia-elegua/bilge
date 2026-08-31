@@ -97,11 +97,96 @@ fn array_element_offset() {
     // second HaveFun = 3, first is Yes=0
     let err = Pair::try_from(u4::new(0b11_00)).unwrap_err();
     assert_eq!(err.type_name(), "HaveFun");
-    assert_eq!(err.field_name(), Some("val_0"));
+    assert_eq!(err.field_name(), Some("0"));
     assert_eq!(err.invalid_bits(), 3);
     assert_eq!(err.bitsize(), 2);
     assert_eq!(err.bit_start(), 2);
     assert_eq!(err.bit_end(), 3);
-    assert_eq!(err.array_index(), Some(1));
-    assert_eq!(format!("{err}"), "`HaveFun` has no representation for 0b11 (field `val_0[1]`, bits 2..=3)");
+    assert_eq!(format!("{err}"), "`HaveFun` has no representation for 0b11 (field `0`, bits 2..=3)");
+}
+
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D1 {
+    e: HaveFun,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D2 {
+    d1: D1,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D3 {
+    d2: D2,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D4 {
+    d3: D3,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D5 {
+    d4: D4,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D6 {
+    d5: D5,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D7 {
+    d6: D6,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D8 {
+    d7: D7,
+}
+#[bitsize(2)]
+#[derive(TryFromBits, DebugBits)]
+struct D9 {
+    d8: D8,
+}
+
+#[test]
+fn field_path_keeps_eight_nested_names() {
+    let err = D9::try_from(u2::new(3)).unwrap_err();
+    assert_eq!(err.type_name(), "HaveFun");
+    // outermost name is dropped; bits still point at the field
+    assert_eq!(err.field_path(), &["d7", "d6", "d5", "d4", "d3", "d2", "d1", "e"]);
+    assert_eq!(err.bit_start(), 0);
+    assert_eq!(err.bit_end(), 1);
+}
+
+#[bitsize(4)]
+#[derive(TryFromBits, DebugBits)]
+struct NamedArray {
+    vals: [HaveFun; 2],
+}
+
+#[test]
+fn array_uses_bit_range_not_an_index() {
+    let err = NamedArray::try_from(u4::new(0b11_00)).unwrap_err();
+    assert_eq!(err.field_path(), &["vals"]);
+    assert_eq!(err.bit_start(), 2);
+    assert_eq!(err.bit_end(), 3);
+    assert_eq!(format!("{err}"), "`HaveFun` has no representation for 0b11 (field `vals`, bits 2..=3)");
+}
+
+#[bitsize(4)]
+#[derive(TryFromBits, DebugBits)]
+struct TupleField {
+    data: (HaveFun, HaveFun),
+}
+
+#[test]
+fn tuple_element_is_a_path_index() {
+    let err = TupleField::try_from(u4::new(0b11_00)).unwrap_err();
+    assert_eq!(err.field_path(), &["data", "1"]);
+    assert_eq!(err.bit_start(), 2);
+    assert_eq!(err.bit_end(), 3);
+    assert_eq!(format!("{err}"), "`HaveFun` has no representation for 0b11 (field `data.1`, bits 2..=3)");
 }
