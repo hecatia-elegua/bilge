@@ -8,3 +8,16 @@ error: only one enum variant may be `#[fallback]`
   |          ^^^^^^^^
   |
   = note: this error originates in the derive macro `FromBits` (in Nightly builds, run with -Z macro-backtrace for more info)
+
+error[E0308]: mismatched types
+ --> tests/ui/fallback/multiple-fallbacks.rs:3:1
+  |
+3 | #[bitsize(15)]
+  | ^^^^^^^^^^^^^^
+  | |
+  | expected `UInt<u16, 15>`, found `UInt<u8, 3>`
+  | expected `UInt<u16, 15>` because of return type
+  |
+  = note: expected struct `UInt<u16, 15>`
+             found struct `UInt<u8, 3>`
+  = note: this error originates in the attribute macro `::bilge::bitsize_internal` (in Nightly builds, run with -Z macro-backtrace for more info)
