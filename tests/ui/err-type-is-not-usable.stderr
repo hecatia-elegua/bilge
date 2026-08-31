@@ -1,14 +1,10 @@
-error[E0603]: unit struct `BitsError` is private
-  --> tests/ui/err-type-is-not-usable.rs:17:20
+error[E0532]: expected unit struct, unit variant or constant, found struct `bilge::BitsError`
+  --> tests/ui/err-type-is-not-usable.rs:17:13
    |
 17 |         Err(bilge::BitsError) => println!("thymine"),
-   |                    ^^^^^^^^^ private unit struct
+   |             ^^^^^^^^^^^^^^^^
    |
-note: the unit struct `BitsError` is defined here
-  --> src/lib.rs
+  ::: src/lib.rs
    |
-   | #[non_exhaustive]
-   | ----------------- cannot be constructed because it is `#[non_exhaustive]`
-   | #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-   | pub struct BitsError;
-   | ^^^^^^^^^^^^^^^^^^^^
+   | pub struct BitsError {
+   | -------------------- `bilge::BitsError` defined here

@@ -25,6 +25,10 @@
 //! lots of new scopes (curly brackets). We need the scope since `#value_shifted` expands to multiple lines.
 use super::*;
 
+fn ok_bits() -> TokenStream {
+    quote!(::core::result::Result::<(), ::bilge::BitsError>::Ok(()))
+}
+
 /// Top-level function which initializes the cursor and offsets it to what we want to read
 ///
 /// `is_array_elem_getter` allows us to generate an array_at getter more easily
@@ -67,37 +71,26 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
     use Type::*;
     match ty {
         Tuple(tuple) => {
-            let unbraced = tuple
-                .elems
-                .iter()
-                .map(|elem| {
-                    // for every tuple element, generate its getter code
-                    let getter = generate_getter_inner(elem, is_getter);
-                    // and add a scope around it
-                    quote! { {#getter} }
-                })
-                .reduce(|acc, next| {
-                    // join all getter codes with:
-                    if is_getter {
-                        // comma, to later produce (val_1, val_2, ...)
-                        quote!(#acc, #next)
-                    } else {
-                        // bool-and, since for try_from we just generate bools
-                        quote!(#acc && #next)
-                    }
-                })
-                // `field: (),` will be handled like this:
-                .unwrap_or_else(|| quote!());
-            // add tuple braces, to produce (val_1, val_2, ...)
-            quote! { (#unbraced) }
+            if is_getter {
+                let unbraced = tuple
+                    .elems
+                    .iter()
+                    .map(|elem| {
+                        let getter = generate_getter_inner(elem, true);
+                        quote! { {#getter} }
+                    })
+                    .reduce(|acc, next| quote!(#acc, #next))
+                    .unwrap_or_else(|| quote!());
+                quote! { (#unbraced) }
+            } else {
+                generate_tuple_try_from(&tuple.elems)
+            }
         }
         Array(array) => {
             // [[T; N1]; N2] -> (N1*N2, T)
             let (len_expr, elem_ty) = length_and_type_of_nested_array(array);
-            // generate the getter code for one array element
-            let array_elem = generate_getter_inner(&elem_ty, is_getter);
-            // either generate an array or only check each value
             if is_getter {
+                let array_elem = generate_getter_inner(&elem_ty, true);
                 quote! {
                     // constness: iter, array::from_fn, for-loop, range are not const, so we're using while loops
                     // Modified version of the array init example in [`MaybeUninit`]:
@@ -121,21 +114,27 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                     };
                     array
                 }
+            } else if shared::is_always_filled(&elem_ty) {
+                ok_bits()
             } else {
+                let array_elem = generate_getter_inner(&elem_ty, false);
+                let size = shared::generate_type_bitsize(&elem_ty);
+                let ok = ok_bits();
                 quote! { {
-                    let mut is_filled = true;
-                    let mut i = 0;
-                    // TODO: this could be simplified for always-filled values
-                    while i < #len_expr {
-                        // for every element, get its filled check
-                        let elem_filled = {
-                            #array_elem
-                        };
-                        // and join it with the others
-                        is_filled = is_filled && elem_filled;
+                    let mut i = 0usize;
+                    loop {
+                        if i >= #len_expr {
+                            break #ok;
+                        }
+                        match { #array_elem } {
+                            Ok(()) => {}
+                            Err(e) => {
+                                let size = #size;
+                                break Err(e.at_offset(i * size));
+                            }
+                        }
                         i += 1;
                     }
-                    is_filled
                 } }
             }
         }
@@ -170,25 +169,61 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 // generate only the filled check
                 if shared::is_always_filled(ty) {
                     // skip the obviously filled values
+                    let ok = ok_bits();
                     quote! {
                         // we still need to shift by the element's size
                         let size = #size;
                         cursor = cursor.wrapping_shr(size as u32);
-                        true
+                        #ok
                     }
                 } else {
                     // handle structs, enums - everything which can be unfilled
+                    let ok = ok_bits();
                     quote! { {
                         #elem_value
                         // so, has try_from impl
                         // note this is available even if the type is `From`
-                        <#ty>::try_from(elem_value).is_ok()
+                        match <#ty>::try_from(elem_value) {
+                            Ok(_) => #ok,
+                            Err(e) => Err(::bilge::IntoBitsError::into_bits_error(
+                                e,
+                                stringify!(#ty),
+                                elem_value.value() as u128,
+                                <#ty as Bitsized>::BITS as u8,
+                            )),
+                        }
                     } }
                 }
             }
         }
         _ => unreachable(()),
     }
+}
+
+fn generate_tuple_try_from(elems: &syn::punctuated::Punctuated<Type, syn::Token![,]>) -> TokenStream {
+    let ok = ok_bits();
+    if elems.is_empty() || elems.iter().all(shared::is_always_filled) {
+        return ok;
+    }
+    let checks = elems.iter().map(|elem| {
+        let check = generate_getter_inner(elem, false);
+        let size = shared::generate_type_bitsize(elem);
+        quote! {
+            match { #check } {
+                Ok(()) => {
+                    __bilge_rel += #size;
+                }
+                Err(e) => break Err(e.at_offset(__bilge_rel)),
+            }
+        }
+    });
+    quote! { {
+        let mut __bilge_rel = 0usize;
+        loop {
+            #(#checks)*
+            break #ok;
+        }
+    } }
 }
 
 /// Top-level function which initializes the offset, masks other values and combines the final value

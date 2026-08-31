@@ -96,7 +96,12 @@ pub fn from_pair_arm(variant: &syn::Ident, payload_ty: Option<&Type>, tag: &Lite
                 quote! {
                     #tag => match <#ty>::try_from(data) {
                         Ok(payload) => Ok(Self::#variant(payload)),
-                        Err(_) => Err(::bilge::give_me_error()),
+                        Err(e) => Err(::bilge::IntoBitsError::into_bits_error(
+                            e,
+                            stringify!(#ty),
+                            data.value() as u128,
+                            <#ty as Bitsized>::BITS as u8,
+                        )),
                     },
                 }
             } else {
@@ -180,7 +185,11 @@ pub fn generate_try_from_pair(
                 let tag_raw = <#tag_ty as Bitsized>::ArbitraryInt::from(tag).value();
                 match tag_raw {
                     #( #from_pair_arms )*
-                    _ => Err(::bilge::give_me_error()),
+                    _ => Err(::bilge::give_me_error(
+                        stringify!(#enum_type),
+                        tag_raw as u128,
+                        <#tag_ty as Bitsized>::BITS as u8,
+                    )),
                 }
             }
         }

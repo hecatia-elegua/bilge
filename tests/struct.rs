@@ -45,7 +45,11 @@ fn conversions() {
                 }
                 assert_eq!(u2::from(a), value);
             }
-            Err(e) => assert_eq!(format!("{e:?}"), "BitsError"),
+            Err(e) => {
+                assert_eq!(e.type_name(), "Unfilled");
+                assert_eq!(e.invalid_bits(), 3);
+                assert_eq!(e.bitsize(), 2);
+            }
         }
     }
 }
@@ -418,8 +422,10 @@ fn that_one_test() {
     assert_eq!(uem1.value, uem2.value);
     assert_eq!(uem1, uem2);
     let raw = u18::new(0b1_0101_11___11____0_1010_1010);
-    let err = UnfilledEnumMess::try_from(raw);
-    assert!(err.is_err());
+    let err = UnfilledEnumMess::try_from(raw).unwrap_err();
+    assert_eq!(err.type_name(), "HaveFun");
+    assert_eq!(err.invalid_bits(), 3);
+    assert_eq!(err.bitsize(), 2);
 
     // mess.arr_arr_ay_ay_at(2); //panics, like it should
 

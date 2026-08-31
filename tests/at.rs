@@ -84,8 +84,13 @@ fn try_from_validates_the_placed_bits() {
     assert_eq!(ok.class(), Class::Stationary);
 
     // 0b10 in those bits is the gap in Class
-    let err = ClassAtBitThree::try_from(u8::new(0b0001_0000));
-    assert!(err.is_err());
+    let err = ClassAtBitThree::try_from(u8::new(0b0001_0000)).unwrap_err();
+    assert_eq!(err.type_name(), "Class");
+    assert_eq!(err.field_name(), Some("class"));
+    assert_eq!(err.invalid_bits(), 0b10);
+    assert_eq!(err.bitsize(), 2);
+    assert_eq!(err.bit_start(), 3);
+    assert_eq!(err.bit_end(), 4);
 
     // hole bits must not be mistaken for the enum
     let ok = ClassAtBitThree::try_from(u8::new(0b0000_0010)).unwrap();

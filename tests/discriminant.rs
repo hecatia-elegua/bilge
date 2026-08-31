@@ -65,7 +65,10 @@ fn crtc_roundtrip() {
     let (index, data): (CrtcIndex, u8) = reg.into();
     assert_eq!(CrtcReg::try_from((index, data)).unwrap(), reg);
 
-    assert!(CrtcReg::try_from((CrtcIndex::from(0x00), 0)).is_err());
+    let err = CrtcReg::try_from((CrtcIndex::from(0x00), 0)).unwrap_err();
+    assert_eq!(err.type_name(), "CrtcReg");
+    assert_eq!(err.invalid_bits(), 0);
+    assert_eq!(err.bitsize(), 8);
     assert_eq!(format!("{:b}", CrtcReg::Horiz(HorizontalDisplayEnd::from(0b1010_0101))), "10100101");
 }
 
@@ -82,8 +85,15 @@ fn unfilled_payload_and_tag() {
     let ok = TaggedUnfilled::try_from((u2::new(0), u2::new(0))).unwrap();
     assert_eq!(ok, TaggedUnfilled::Cool(HaveFun::Yes));
 
-    assert!(TaggedUnfilled::try_from((u2::new(0), u2::new(3))).is_err());
-    assert!(TaggedUnfilled::try_from((u2::new(2), u2::new(0))).is_err());
+    let payload_err = TaggedUnfilled::try_from((u2::new(0), u2::new(3))).unwrap_err();
+    assert_eq!(payload_err.type_name(), "HaveFun");
+    assert_eq!(payload_err.invalid_bits(), 3);
+    assert_eq!(payload_err.bitsize(), 2);
+
+    let tag_err = TaggedUnfilled::try_from((u2::new(2), u2::new(0))).unwrap_err();
+    assert_eq!(tag_err.type_name(), "TaggedUnfilled");
+    assert_eq!(tag_err.invalid_bits(), 2);
+    assert_eq!(tag_err.bitsize(), 2);
 
     assert_eq!(ok.to_tag_and_data(), (u2::new(0), u2::new(0)));
 }

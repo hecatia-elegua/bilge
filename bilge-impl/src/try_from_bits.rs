@@ -1,14 +1,13 @@
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, Type, Variant, punctuated::Iter};
 
 use crate::shared::discriminant::EnumDiscriminant;
 use crate::shared::{
     self, BitSize, discriminant, discriminant_assigner::DiscriminantAssigner, discriminant_at, enum_fills_bitsize, fallback::Fallback,
-    parse_enum_discriminant, place_struct_fields, unreachable,
+    is_always_filled, parse_enum_discriminant, place_struct_fields, unreachable,
 };
-use crate::shared::{bitsize_from_type_ident, last_ident_of_path};
 
 pub(super) fn try_from_bits(item: TokenStream) -> manyhow::Result {
     let derive_input = parse(item);
@@ -121,19 +120,21 @@ fn codegen_enum(
 
     let try_body = if let Some(disc) = disc {
         let tag = disc.extract_tag(bitsize as usize);
+        let tag_bitsize = disc.width as u8;
+        let tag_start = disc.start;
         quote! {
             let raw = number.value();
             let tag = #tag;
             match tag {
                 #( #from_int_match_arms )*
-                _ => Err(::bilge::give_me_error()),
+                _ => Err(::bilge::give_me_error(stringify!(#enum_type), tag as u128, #tag_bitsize).at_offset(#tag_start)),
             }
         }
     } else {
         quote! {
             match number.value() {
                 #( #from_int_match_arms )*
-                i => Err(::bilge::give_me_error()),
+                i => Err(::bilge::give_me_error(stringify!(#enum_type), i as u128, #bitsize)),
             }
         }
     };
@@ -159,32 +160,42 @@ fn generate_field_check(ty: &Type) -> TokenStream {
 
 fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, declared_bitsize: BitSize) -> TokenStream {
     let layout = place_struct_fields(fields, declared_bitsize as usize).unwrap_or_else(|_| unreachable(()));
-    let is_ok: TokenStream = fields
+    let field_checks: Vec<TokenStream> = fields
         .iter()
         .zip(layout.fields.iter())
-        .map(|(field, place)| {
+        .enumerate()
+        .filter_map(|(i, (field, place))| {
             let ty = &field.ty;
+            // primitives, and arrays/tuples of them, always convert
+            if is_always_filled(ty) {
+                return None;
+            }
             let offset = &place.offset;
-            let size_from_type = last_ident_of_path(ty).and_then(bitsize_from_type_ident);
-            let check = if let Some(size) = size_from_type {
-                quote! { {
-                    // we still need to shift by the element's size
-                    let size = #size;
-                    cursor = cursor.wrapping_shr(size as u32);
-                    true
-                } }
-            } else {
-                generate_field_check(ty)
-            };
-            quote! { {
+            let check = generate_field_check(ty);
+            let field_name = field.ident.clone().unwrap_or_else(|| format_ident!("val_{i}"));
+            Some(quote! {
                 cursor = value.value();
                 cursor >>= #offset;
-                #check
-            } }
+                match { #check } {
+                    Ok(()) => {}
+                    Err(e) => return Err(e.in_field(stringify!(#field_name), #offset)),
+                }
+            })
         })
-        .reduce(|acc, next| quote!((#acc && #next)))
-        // `Struct {}` would be handled like this:
-        .unwrap_or_else(|| quote!(true));
+        .collect();
+
+    let cursor_setup = if field_checks.is_empty() {
+        quote!()
+    } else {
+        quote! {
+            type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
+            type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
+
+            // cursor starts at value's first field
+            let mut cursor = value.value();
+            #(#field_checks)*
+        }
+    };
 
     let const_ = if cfg!(feature = "nightly") { quote!(const) } else { quote!() };
 
@@ -194,19 +205,8 @@ fn codegen_struct(arb_int: TokenStream, struct_type: &Ident, fields: &Fields, de
 
             // validates all values, which means enums, even in inner structs (TODO: and reserved fields?)
             fn try_from(value: #arb_int) -> ::core::result::Result<Self, Self::Error> {
-                type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-                type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
-
-                // cursor starts at value's first field
-                let mut cursor = value.value();
-
-                let is_ok: bool = {#is_ok};
-
-                if is_ok {
-                    Ok(Self { value })
-                } else {
-                    Err(::bilge::give_me_error())
-                }
+                #cursor_setup
+                Ok(Self { value })
             }
         }
 
