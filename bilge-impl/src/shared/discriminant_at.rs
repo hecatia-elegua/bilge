@@ -218,10 +218,32 @@ pub fn payload_from_int_arm(
 
 pub fn payload_to_int_arm(
     disc: &DiscriminantAt, bitsize: usize, enum_name: &syn::Ident, variant: &syn::Ident, payload_ty: Option<&Type>, tag: &proc_macro2::Literal,
-    arb_int: &TokenStream, by_value: bool,
+    arb_int: &TokenStream,
+) -> TokenStream {
+    let payload_int = payload_ty.map(|ty| quote! { <#ty as Bitsized>::ArbitraryInt::from(payload) });
+    to_int_arm(disc, bitsize, enum_name, variant, tag, arb_int, payload_int)
+}
+
+/// Same as [`payload_to_int_arm`], but reads the payload through `as_int` (`&self` / autoderef).
+pub fn payload_to_int_arm_ref(
+    disc: &DiscriminantAt, bitsize: usize, enum_name: &syn::Ident, variant: &syn::Ident, payload_ty: Option<&Type>, tag: &proc_macro2::Literal,
+    arb_int: &TokenStream,
+) -> TokenStream {
+    let payload_int = payload_ty.map(|_| {
+        quote! {{
+            use ::bilge::Bitsized as _;
+            payload.as_int()
+        }}
+    });
+    to_int_arm(disc, bitsize, enum_name, variant, tag, arb_int, payload_int)
+}
+
+fn to_int_arm(
+    disc: &DiscriminantAt, bitsize: usize, enum_name: &syn::Ident, variant: &syn::Ident, tag: &proc_macro2::Literal, arb_int: &TokenStream,
+    payload_int: Option<TokenStream>,
 ) -> TokenStream {
     let combine = disc.combine(bitsize);
-    match payload_ty {
+    match payload_int {
         None => quote! {
             #enum_name::#variant => {
                 let tag = #tag as <#arb_int as Integer>::UnderlyingType;
@@ -229,22 +251,12 @@ pub fn payload_to_int_arm(
                 #arb_int::new(#combine)
             }
         },
-        Some(ty) => {
-            let payload_int = if by_value {
-                quote! { <#ty as Bitsized>::ArbitraryInt::from(payload) }
-            } else {
-                quote! {{
-                    use ::bilge::Bitsized as _;
-                    payload.as_int()
-                }}
-            };
-            quote! {
-                #enum_name::#variant(payload) => {
-                    let tag = #tag as <#arb_int as Integer>::UnderlyingType;
-                    let payload = #payload_int.value() as <#arb_int as Integer>::UnderlyingType;
-                    #arb_int::new(#combine)
-                }
+        Some(payload_int) => quote! {
+            #enum_name::#variant(payload) => {
+                let tag = #tag as <#arb_int as Integer>::UnderlyingType;
+                let payload = #payload_int.value() as <#arb_int as Integer>::UnderlyingType;
+                #arb_int::new(#combine)
             }
-        }
+        },
     }
 }
