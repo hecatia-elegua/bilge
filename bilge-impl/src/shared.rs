@@ -115,11 +115,18 @@ pub(crate) fn generate_from_enum_impl(
 }
 
 /// Filters fields which are always `FILLED`, meaning all bit-patterns are possible,
-/// meaning they are (should be) From<uN>, not TryFrom<uN>
+/// meaning they are (should be) From<uN>, not TryFrom<uN>.
 ///
-/// Currently, this is exactly the set of types we can extract a bitsize out of, just by looking at their ident: `uN` and `bool`.
+/// Currently, this is exactly the set of types we can extract  a bitsize out of, just by looking at their ident: `uN` and  `bool`.
+/// Arrays and tuples of those of course too.
+/// Nested `FromBits` structs are not detected, since we can't see `Filled` from the ident.
 pub fn is_always_filled(ty: &Type) -> bool {
-    last_ident_of_path(ty).and_then(bitsize_from_type_ident).is_some()
+    match ty {
+        Type::Tuple(tuple) => tuple.elems.iter().all(is_always_filled),
+        Type::Array(array) => is_always_filled(&array.elem),
+        Type::Path(_) => last_ident_of_path(ty).and_then(bitsize_from_type_ident).is_some(),
+        _ => false,
+    }
 }
 
 pub fn last_ident_of_path(ty: &Type) -> Option<&Ident> {

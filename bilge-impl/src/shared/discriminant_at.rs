@@ -179,6 +179,7 @@ pub fn payload_from_int_arm(
         Some(ty) => {
             let payload_raw = disc.extract_payload(bitsize);
             if try_from {
+                let payload_start = if disc.tag_at_lsb() { disc.width } else { 0 };
                 quote! {
                     #tag => {
                         let payload_raw = #payload_raw;
@@ -187,7 +188,13 @@ pub fn payload_from_int_arm(
                         );
                         match <#ty>::try_from(payload_bits) {
                             Ok(payload) => Ok(Self::#variant(payload)),
-                            Err(_) => Err(::bilge::give_me_error()),
+                            Err(e) => Err(::bilge::IntoBitsError::into_bits_error(
+                                e,
+                                stringify!(#ty),
+                                payload_bits.value() as u128,
+                                <#ty as Bitsized>::BITS as u8,
+                            )
+                            .at_offset(#payload_start)),
                         }
                     }
                 }

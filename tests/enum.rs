@@ -39,7 +39,11 @@ fn conversions() {
                 }
                 assert_eq!(u2::from(a), value);
             }
-            Err(e) => assert_eq!(format!("{e:?}"), "BitsError"),
+            Err(e) => {
+                assert_eq!(e.type_name(), "Activity");
+                assert_eq!(e.invalid_bits(), 3);
+                assert_eq!(e.bitsize(), 2);
+            }
         }
     }
 }
@@ -55,5 +59,9 @@ fn bits_error_impls_common_traits() {
     };
     let err2 = err;
     assert_eq!(err, err2);
-    assert_eq!(format!("{err}"), "unable to parse bit pattern");
+    assert_eq!(format!("{err}"), "`Activity` has no representation for 0b11");
+    assert_eq!(
+        format!("{err:?}"),
+        "BitsError { type_name: \"Activity\", field_path: [], invalid_bits: 3, bitsize: 2, bit_start: 0 }"
+    );
 }

@@ -85,9 +85,17 @@ fn unfilled_payload_and_tag() {
     assert_eq!(ok, TaggedUnfilled::Cool(HaveFun::Yes));
 
     // HaveFun has no discriminant 3
-    assert!(TaggedUnfilled::try_from(u4::new(0b11_00)).is_err());
+    let payload_err = TaggedUnfilled::try_from(u4::new(0b11_00)).unwrap_err();
+    assert_eq!(payload_err.type_name(), "HaveFun");
+    assert_eq!(payload_err.invalid_bits(), 3);
+    assert_eq!(payload_err.bitsize(), 2);
+    assert_eq!(payload_err.bit_start(), 2);
     // tag 2 is unused
-    assert!(TaggedUnfilled::try_from(u4::new(0b00_10)).is_err());
+    let tag_err = TaggedUnfilled::try_from(u4::new(0b00_10)).unwrap_err();
+    assert_eq!(tag_err.type_name(), "TaggedUnfilled");
+    assert_eq!(tag_err.invalid_bits(), 2);
+    assert_eq!(tag_err.bitsize(), 2);
+    assert_eq!(tag_err.bit_start(), 0);
 
     assert_eq!(u4::from(ok).value(), 0);
 }

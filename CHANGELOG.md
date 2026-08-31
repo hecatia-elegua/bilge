@@ -10,6 +10,9 @@
 - `BuilderBits` named typestate builder (`SomeType::builder().field(v).build()`). Required fields must be set exactly once; `#[default(expr)]` makes a field optional. This does not require `DefaultBits`.
 - `#[default(expr)]` on struct fields is also honored by `DefaultBits`
 
+### Changed
+- `BitsError` now names the innermost failing type, the field path (`wrapper.inner.bar`), the invalid bit pattern, and that field's bit range in the value passed to `try_from`
+
 ## [0.4.0] - 2026-08-22
 
 ### Added
