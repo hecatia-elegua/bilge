@@ -294,6 +294,14 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
             uses_disc = true;
             let tag_ty = &disc.ty;
             let payload_w = bitsize as usize;
+            let max_tag = MAX_ENUM_BIT_SIZE as usize;
+            let limit_msg = format!("discriminant tag type is limited to {max_tag} bits");
+            asserts.extend(quote! {
+                const _: () = ::core::assert!(
+                    <#tag_ty as Bitsized>::BITS <= #max_tag,
+                    #limit_msg
+                );
+            });
             let mut assigner = crate::shared::discriminant_assigner::DiscriminantAssigner::new(disc.assigner_width());
             for variant in variants {
                 let tag_val = assigner.assign_unsuffixed(variant)?;

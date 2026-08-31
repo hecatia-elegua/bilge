@@ -1,0 +1,14 @@
+error: discriminant tag type is limited to 64 bits
+
+         = help: use `u1`..=`u64`, `bool`, or a bitsized type of at most 64 bits
+
+ --> tests/ui/discriminant/tag-too-wide.rs:4:16
+  |
+4 | #[discriminant(u128)]
+  |                ^^^^
+
+error[E0080]: evaluation panicked: discriminant tag type is limited to 64 bits
+  --> tests/ui/discriminant/tag-too-wide.rs:16:1
+   |
+16 | #[bitsize(8)]
+   | ^^^^^^^^^^^^^ evaluation of `_` failed here

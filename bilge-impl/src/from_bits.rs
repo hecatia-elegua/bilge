@@ -99,7 +99,7 @@ fn analyze_enum(
                 let to_int_match_arm = if is_value_fallback(variant_name) {
                     quote! { #name::#variant_name(number) => number, }
                 } else if let Some(disc) = disc {
-                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, None, &variant_value, arb_int)
+                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, None, &variant_value, arb_int, true)
                 } else {
                     shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
                 };
@@ -110,8 +110,16 @@ fn analyze_enum(
                 let payload_ty = discriminant_at::variant_payload_ty(variant)?;
                 let from_int_match_arm =
                     discriminant_at::payload_from_int_arm(disc, internal_bitsize as usize, variant_name, payload_ty, &variant_value, false);
-                let to_int_match_arm =
-                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, payload_ty, &variant_value, arb_int);
+                let to_int_match_arm = discriminant_at::payload_to_int_arm(
+                    disc,
+                    internal_bitsize as usize,
+                    name,
+                    variant_name,
+                    payload_ty,
+                    &variant_value,
+                    arb_int,
+                    true,
+                );
                 Ok((from_int_match_arm, to_int_match_arm))
             } else {
                 let from_int_match_arm = quote! { #variant_value => Self::#variant_name, };

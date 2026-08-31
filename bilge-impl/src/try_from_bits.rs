@@ -59,8 +59,16 @@ fn analyze_enum(
                 let payload_ty = discriminant_at::variant_payload_ty(variant)?;
                 let from_int_match_arm =
                     discriminant_at::payload_from_int_arm(disc, internal_bitsize as usize, variant_name, payload_ty, &variant_value, true);
-                let to_int_match_arm =
-                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, payload_ty, &variant_value, arb_int);
+                let to_int_match_arm = discriminant_at::payload_to_int_arm(
+                    disc,
+                    internal_bitsize as usize,
+                    name,
+                    variant_name,
+                    payload_ty,
+                    &variant_value,
+                    arb_int,
+                    true,
+                );
                 Ok((from_int_match_arm, to_int_match_arm))
             } else {
                 let from_int_match_arm = quote! {
