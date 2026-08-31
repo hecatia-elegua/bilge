@@ -42,6 +42,11 @@ pub trait Bitsized {
     const BITS: usize;
     /// The maximum value this type can hold.
     const MAX: Self::ArbitraryInt;
+    /// The backing integer, from `&self`.
+    ///
+    /// `From<Self> for Self::ArbitraryInt` takes `Self` by value. This is the
+    /// `&self` equivalent, so formatting and other by-ref conversions do not need [`Clone`].
+    fn as_int(&self) -> Self::ArbitraryInt;
 }
 
 /// Internally used marker trait.
@@ -252,6 +257,10 @@ where
     type ArbitraryInt = Self;
     const BITS: usize = BITS;
     const MAX: Self::ArbitraryInt = <Self as arbitrary_int::traits::Integer>::MAX;
+    #[inline]
+    fn as_int(&self) -> Self::ArbitraryInt {
+        *self
+    }
 }
 
 impl<BaseType, const BITS: usize> Bitsized for arbitrary_int::Int<BaseType, BITS>
@@ -262,6 +271,10 @@ where
     type ArbitraryInt = Self;
     const BITS: usize = BITS;
     const MAX: Self::ArbitraryInt = <Self as arbitrary_int::traits::Integer>::MAX;
+    #[inline]
+    fn as_int(&self) -> Self::ArbitraryInt {
+        *self
+    }
 }
 
 macro_rules! bitsized_impl {
@@ -271,6 +284,10 @@ macro_rules! bitsized_impl {
                 type ArbitraryInt = Self;
                 const BITS: usize = $bits;
                 const MAX: Self::ArbitraryInt = <Self as arbitrary_int::traits::Integer>::MAX;
+                #[inline]
+                fn as_int(&self) -> Self::ArbitraryInt {
+                    *self
+                }
             }
         )+
     };
@@ -283,4 +300,8 @@ impl Bitsized for bool {
     type ArbitraryInt = arbitrary_int::u1;
     const BITS: usize = 1;
     const MAX: Self::ArbitraryInt = <arbitrary_int::u1 as arbitrary_int::traits::Integer>::MAX;
+    #[inline]
+    fn as_int(&self) -> Self::ArbitraryInt {
+        arbitrary_int::u1::new(*self as u8)
+    }
 }

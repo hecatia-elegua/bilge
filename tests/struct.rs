@@ -540,6 +540,9 @@ impl<T> Bitsized for Generic<T> {
     type ArbitraryInt = u2;
     const BITS: usize = u2::BITS;
     const MAX: Self::ArbitraryInt = <u2 as Bitsized>::MAX;
+    fn as_int(&self) -> Self::ArbitraryInt {
+        self.0
+    }
 }
 
 impl_from!(T; u2 => Generic<T>; |val| Self(val, std::marker::PhantomData));

@@ -1,8 +1,12 @@
 use proc_macro2::{Ident, TokenStream};
 use quote::quote;
-use syn::{Attribute, Field, Item, ItemEnum, ItemStruct, Type, Visibility};
+use syn::{Attribute, Field, Fields, Item, ItemEnum, ItemStruct, Type, Variant, Visibility, punctuated::Iter};
 
-use crate::shared::{self, BitsizeArgs, attrs_without_at, place_struct_fields, unreachable};
+use crate::shared::discriminant::EnumDiscriminant;
+use crate::shared::{
+    self, BitSize, BitsizeArgs, attrs_without_at, bitsize_from_type_ident, discriminant, discriminant_assigner::DiscriminantAssigner,
+    discriminant_at, last_ident_of_path, parse_enum_discriminant, place_struct_fields, unreachable,
+};
 
 pub(crate) mod struct_gen;
 
@@ -16,22 +20,27 @@ struct ItemIr<'a> {
 
 pub(super) fn bitsize_internal(args: TokenStream, item: TokenStream) -> manyhow::Result {
     let (item, args) = parse(item, args)?;
-    let ir = match item {
-        Item::Struct(ref item) => {
+    let as_int = generate_as_int(&item, &args.arb_int, args.bitsize)?;
+    let ir = match &item {
+        Item::Struct(item) => {
             let expanded = generate_struct(item, &args.arb_int, &args.new_vis, args.bitsize)?;
-            let attrs = &item.attrs;
-            let name = &item.ident;
-            ItemIr { attrs, name, expanded }
+            ItemIr {
+                attrs: &item.attrs,
+                name: &item.ident,
+                expanded,
+            }
         }
-        Item::Enum(ref item) => {
+        Item::Enum(item) => {
             let expanded = generate_enum(item);
-            let attrs = &item.attrs;
-            let name = &item.ident;
-            ItemIr { attrs, name, expanded }
+            ItemIr {
+                attrs: &item.attrs,
+                name: &item.ident,
+                expanded,
+            }
         }
         _ => unreachable(()),
     };
-    Ok(generate_common(ir, &args.arb_int))
+    Ok(generate_common(ir, &args.arb_int, as_int))
 }
 
 fn parse(item: TokenStream, args: TokenStream) -> manyhow::Result<(Item, BitsizeArgs)> {
@@ -290,7 +299,7 @@ fn generate_enum(enum_data: &ItemEnum) -> TokenStream {
 
 /// We have _one_ `generate_common` function, which holds everything struct and enum have _in common_.
 /// Everything else has its own `generate_` functions.
-fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
+fn generate_common(ir: ItemIr, arb_int: &TokenStream, as_int: TokenStream) -> TokenStream {
     let ItemIr { attrs, name, expanded } = ir;
 
     quote! {
@@ -300,6 +309,97 @@ fn generate_common(ir: ItemIr, arb_int: &TokenStream) -> TokenStream {
             type ArbitraryInt = #arb_int;
             const BITS: usize = <Self::ArbitraryInt as Bitsized>::BITS;
             const MAX: Self::ArbitraryInt = <Self::ArbitraryInt as Bitsized>::MAX;
+            #[inline]
+            fn as_int(&self) -> Self::ArbitraryInt {
+                #as_int
+            }
         }
     }
+}
+
+fn generate_as_int(item: &Item, arb_int: &TokenStream, bitsize: BitSize) -> manyhow::Result<TokenStream> {
+    match item {
+        Item::Struct(_) => Ok(quote! { self.value }),
+        Item::Enum(item) => generate_enum_as_int(item, arb_int, bitsize),
+        _ => unreachable(()),
+    }
+}
+
+fn generate_enum_as_int(item: &ItemEnum, arb_int: &TokenStream, bitsize: BitSize) -> manyhow::Result<TokenStream> {
+    let name = &item.ident;
+
+    let arms = match parse_enum_discriminant(&item.attrs)? {
+        Some(EnumDiscriminant::Type(_)) => {
+            let mut arms = Vec::new();
+            for variant in &item.variants {
+                let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+                arms.push(discriminant::payload_only_to_int_arm(name, &variant.ident, payload_ty, arb_int));
+            }
+            arms
+        }
+        tag => {
+            let disc = match tag {
+                Some(EnumDiscriminant::At(disc)) => {
+                    disc.validate(bitsize as usize)?;
+                    Some(disc)
+                }
+                _ => None,
+            };
+            generate_to_int_match_arms(item.variants.iter(), name, bitsize, arb_int, disc.as_ref())?
+        }
+    };
+
+    Ok(quote! {
+        match self {
+            #(#arms)*
+        }
+    })
+}
+
+fn generate_to_int_match_arms(
+    variants: Iter<Variant>, enum_name: &Ident, bitsize: BitSize, arb_int: &TokenStream, disc: Option<&discriminant_at::DiscriminantAt>,
+) -> manyhow::Result<Vec<TokenStream>> {
+    let fill_width = disc.map(|d| d.width as u8).unwrap_or(bitsize);
+    let mut assigner = DiscriminantAssigner::new(fill_width);
+
+    variants
+        .map(|variant| -> manyhow::Result<TokenStream> {
+            let variant_name = &variant.ident;
+            let variant_value = assigner.assign_unsuffixed(variant)?;
+
+            if let Some(disc) = disc {
+                let payload_ty = discriminant_at::variant_payload_ty(variant)?;
+                return Ok(discriminant_at::payload_to_int_arm(
+                    disc,
+                    bitsize as usize,
+                    enum_name,
+                    variant_name,
+                    payload_ty,
+                    &variant_value,
+                    arb_int,
+                    false,
+                ));
+            }
+
+            Ok(match &variant.fields {
+                Fields::Unit => shared::to_int_match_arm(enum_name, variant_name, arb_int, variant_value),
+                Fields::Unnamed(fields) if fields.unnamed.len() == 1 => {
+                    let ty = &fields.unnamed[0].ty;
+                    let same_width = last_ident_of_path(ty).and_then(bitsize_from_type_ident) == Some(bitsize);
+                    if same_width {
+                        quote! {
+                            #enum_name::#variant_name(payload) => {
+                                use ::bilge::Bitsized as _;
+                                payload.as_int()
+                            }
+                        }
+                    } else {
+                        quote! { #enum_name::#variant_name(_) => #arb_int::new(#variant_value), }
+                    }
+                }
+                Fields::Unnamed(_) => quote! { #enum_name::#variant_name(..) => #arb_int::new(#variant_value), },
+                Fields::Named(_) => quote! { #enum_name::#variant_name { .. } => #arb_int::new(#variant_value), },
+            })
+        })
+        .collect()
 }

@@ -218,7 +218,7 @@ pub fn payload_from_int_arm(
 
 pub fn payload_to_int_arm(
     disc: &DiscriminantAt, bitsize: usize, enum_name: &syn::Ident, variant: &syn::Ident, payload_ty: Option<&Type>, tag: &proc_macro2::Literal,
-    arb_int: &TokenStream,
+    arb_int: &TokenStream, by_value: bool,
 ) -> TokenStream {
     let combine = disc.combine(bitsize);
     match payload_ty {
@@ -229,13 +229,22 @@ pub fn payload_to_int_arm(
                 #arb_int::new(#combine)
             }
         },
-        Some(ty) => quote! {
-            #enum_name::#variant(payload) => {
-                let tag = #tag as <#arb_int as Integer>::UnderlyingType;
-                let payload = <#ty as Bitsized>::ArbitraryInt::from(payload.clone()).value()
-                    as <#arb_int as Integer>::UnderlyingType;
-                #arb_int::new(#combine)
+        Some(ty) => {
+            let payload_int = if by_value {
+                quote! { <#ty as Bitsized>::ArbitraryInt::from(payload) }
+            } else {
+                quote! {{
+                    use ::bilge::Bitsized as _;
+                    payload.as_int()
+                }}
+            };
+            quote! {
+                #enum_name::#variant(payload) => {
+                    let tag = #tag as <#arb_int as Integer>::UnderlyingType;
+                    let payload = #payload_int.value() as <#arb_int as Integer>::UnderlyingType;
+                    #arb_int::new(#combine)
+                }
             }
-        },
+        }
     }
 }

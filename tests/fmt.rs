@@ -66,3 +66,46 @@ fn binary_formatting() {
         "0b1100101100101010011011101101100110001111011001100000_00_1100110011"
     );
 }
+
+#[bitsize(8)]
+#[derive(FromBits, PartialEq, DebugBits)]
+struct NoCloneByte {
+    raw: u8,
+}
+
+#[bitsize(8)]
+#[discriminant(u1)]
+#[derive(FromBits, PartialEq, Debug, BinaryBits)]
+enum TaggedNoClone {
+    Lo(NoCloneByte) = 0,
+    Hi(NoCloneByte) = 1,
+}
+
+#[bitsize(2)]
+#[derive(FromBits, PartialEq, DebugBits)]
+struct NoClonePair {
+    a: bool,
+    b: bool,
+}
+
+#[bitsize(4)]
+#[discriminant_at(0..=1)]
+#[derive(FromBits, PartialEq, Debug, BinaryBits)]
+enum PackedNoClone {
+    A(NoClonePair) = 0,
+    B(NoClonePair) = 1,
+    C(NoClonePair) = 2,
+    D(NoClonePair) = 3,
+}
+
+#[test]
+fn binary_bits_does_not_need_clone_on_payloads() {
+    let tagged = TaggedNoClone::Hi(NoCloneByte::from(0b1010_0101));
+    assert_eq!(format!("{tagged:b}"), "10100101");
+    assert_eq!(tagged.to_tag_and_data(), (u1::new(1), 0b1010_0101));
+
+    let packed = PackedNoClone::C(NoClonePair::new(true, false));
+    // tag 0b10 in bits 0..=1, payload a=1 b=0 in bits 2..=3 → 0b01_10
+    assert_eq!(format!("{packed:b}"), "0110");
+    assert_eq!(u4::from(packed), u4::new(0b01_10));
+}

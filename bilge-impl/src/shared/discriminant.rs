@@ -5,7 +5,7 @@ use syn::parse::{Parse, ParseStream};
 use syn::{Attribute, Type};
 
 use super::discriminant_at::DiscriminantAt;
-use super::{bitsize_from_type_ident, last_ident_of_path, parse_discriminant_at};
+use super::{MAX_ENUM_BIT_SIZE, bitsize_from_type_ident, last_ident_of_path, parse_discriminant_at};
 
 /// `#[discriminant(TagType)]` on a bitsized enum: the tag is a separate value,
 /// not bits in the payload integer.
@@ -21,7 +21,24 @@ impl Discriminant {
     }
 
     pub fn assigner_width(&self) -> u8 {
-        self.known_width().unwrap_or(super::MAX_ENUM_BIT_SIZE)
+        self.known_width().unwrap_or(MAX_ENUM_BIT_SIZE)
+    }
+
+    /// Rejects `uN` / `bool` wider than `MAX_ENUM_BIT_SIZE` at expansion.
+    /// Custom bitsized types are checked later with a const assert on `BITS`.
+    pub fn validate(&self) -> manyhow::Result<()> {
+        if let Some(width) = self.known_width() {
+            if width > MAX_ENUM_BIT_SIZE {
+                bail!(
+                    self.span,
+                    "discriminant tag type is limited to {} bits",
+                    MAX_ENUM_BIT_SIZE;
+                    help = "use `u1`..=`u64`, `bool`, or a bitsized type of at most {} bits",
+                    MAX_ENUM_BIT_SIZE
+                );
+            }
+        }
+        Ok(())
     }
 }
 
@@ -77,7 +94,10 @@ pub fn parse_enum_discriminant(attrs: &[Attribute]) -> manyhow::Result<Option<En
             )
         }
         (Some(at), None) => Ok(Some(EnumDiscriminant::At(at))),
-        (None, Some(ty)) => Ok(Some(EnumDiscriminant::Type(ty))),
+        (None, Some(ty)) => {
+            ty.validate()?;
+            Ok(Some(EnumDiscriminant::Type(ty)))
+        }
         (None, None) => Ok(None),
     }
 }
@@ -142,14 +162,17 @@ pub fn to_pair_arm(
     }
 }
 
-/// Payload bits only, for `BinaryBits` (`&self`).
+/// Payload bits only, from `&self` (or owned, via autoderef).
 pub fn payload_only_to_int_arm(enum_name: &syn::Ident, variant: &syn::Ident, payload_ty: Option<&Type>, arb_int: &TokenStream) -> TokenStream {
     match payload_ty {
         None => quote! {
             #enum_name::#variant => #arb_int::new(0),
         },
         Some(_) => quote! {
-            #enum_name::#variant(payload) => #arb_int::from(payload.clone()),
+            #enum_name::#variant(payload) => {
+                use ::bilge::Bitsized as _;
+                payload.as_int()
+            },
         },
     }
 }
