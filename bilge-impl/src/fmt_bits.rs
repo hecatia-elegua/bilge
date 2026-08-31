@@ -35,11 +35,13 @@ fn generate_struct_binary_impl(struct_name: &Ident, fields: &Fields, declared_bi
         }
     });
 
+    let import = crate::shared::import_traits();
     quote! {
         impl ::core::fmt::Binary for #struct_name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
-                let struct_size = <#struct_name as Bitsized>::BITS;
-                let mask = <#struct_name as Bitsized>::MAX;
+                #import
+                let struct_size = <#struct_name as ::bilge::Bitsized>::BITS;
+                let mask = <#struct_name as ::bilge::Bitsized>::MAX;
                 let mut started = false;
                 #(#writes)*
                 Ok(())
@@ -57,7 +59,7 @@ fn generate_enum_binary_impl(enum_name: &Ident) -> TokenStream {
                     f,
                     "{:0width$b}",
                     self.as_int(),
-                    width = <#enum_name as Bitsized>::BITS
+                    width = <#enum_name as ::bilge::Bitsized>::BITS
                 )
             }
         }

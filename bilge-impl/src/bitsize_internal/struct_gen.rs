@@ -46,10 +46,12 @@ pub(crate) fn generate_getter_value(ty: &Type, offset: &TokenStream, is_array_el
     };
 
     let inner = generate_getter_inner(ty, true);
+    let import = shared::import_traits();
     quote! {
+        #import
         // for ease of reading
-        type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-        type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
+        type ArbIntOf<T> = <T as ::bilge::Bitsized>::ArbitraryInt;
+        type BaseIntOf<T> = <ArbIntOf<T> as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
         // cursor is the value we read from and starts at the struct's first field
         let mut cursor = self.value.value();
         // this field's offset
@@ -153,7 +155,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                 // cast the element value (e.g. u32 -> u8),
                 let raw_value: BaseIntOf<#ty> = raw_value as BaseIntOf<#ty>;
                 // which allows it to be used here (e.g. u4::masked_new(u8))
-                let elem_value = <#ty as Bitsized>::ArbitraryInt::masked_new(raw_value);
+                let elem_value = <#ty as ::bilge::Bitsized>::ArbitraryInt::masked_new(raw_value);
             };
 
             if is_getter {
@@ -189,7 +191,7 @@ pub(crate) fn generate_getter_inner(ty: &Type, is_getter: bool) -> TokenStream {
                                 e,
                                 stringify!(#ty),
                                 elem_value.value() as u128,
-                                <#ty as Bitsized>::BITS as u8,
+                                <#ty as ::bilge::Bitsized>::BITS as u8,
                             )),
                         }
                     } }
@@ -245,9 +247,11 @@ pub(crate) fn generate_setter_value(ty: &Type, offset: &TokenStream, is_array_el
     let value_shifted = generate_setter_inner(ty);
     // get the mask, so we can set this field's value
     let mask = generate_ty_mask(ty);
+    let import = shared::import_traits();
     quote! {
-        type ArbIntOf<T> = <T as Bitsized>::ArbitraryInt;
-        type BaseIntOf<T> = <ArbIntOf<T> as Integer>::UnderlyingType;
+        #import
+        type ArbIntOf<T> = <T as ::bilge::Bitsized>::ArbitraryInt;
+        type BaseIntOf<T> = <ArbIntOf<T> as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType;
 
         // offset now starts at this field
         let mut offset = #offset;
@@ -333,7 +337,7 @@ fn generate_setter_inner(ty: &Type) -> TokenStream {
             let size = shared::generate_type_bitsize(ty);
             quote! {
                 // the element's value as it's underlying unsigned type
-                let value = (<ArbIntOf<#ty>>::from(value).value() & (<<ArbIntOf<#ty> as Integer>::UnsignedInteger as Integer>::MAX.value() as <ArbIntOf<#ty> as Integer>::UnderlyingType)) as <<ArbIntOf<#ty> as Integer>::UnsignedInteger as Integer>::UnderlyingType; // FIXME: to_bits
+                let value = (<ArbIntOf<#ty>>::from(value).value() & (<<ArbIntOf<#ty> as ::bilge::arbitrary_int::traits::Integer>::UnsignedInteger as ::bilge::arbitrary_int::traits::Integer>::MAX.value() as <ArbIntOf<#ty> as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType)) as <<ArbIntOf<#ty> as ::bilge::arbitrary_int::traits::Integer>::UnsignedInteger as ::bilge::arbitrary_int::traits::Integer>::UnderlyingType; // FIXME: to_bits
                 // cast the element value (e.g. u8 -> u32),
                 // which allows it to be combined with the struct's value later
                 let value: BaseIntOf<Self> = value as BaseIntOf<Self>;
@@ -417,7 +421,7 @@ fn generate_ty_mask(ty: &Type) -> TokenStream {
         Path(_) => quote! {
             // Casting this is needed in some places, but it might not be needed in some others.
             // (u2, u12) -> u8 << 0 | u16 << 2 -> u8 | u16 not possible
-            (<<ArbIntOf<#ty> as Integer>::UnsignedInteger as Integer>::MAX.value() as BaseIntOf<Self>) // FIXME: MASK
+            (<<ArbIntOf<#ty> as ::bilge::arbitrary_int::traits::Integer>::UnsignedInteger as ::bilge::arbitrary_int::traits::Integer>::MAX.value() as BaseIntOf<Self>) // FIXME: MASK
         },
         _ => unreachable(()),
     }

@@ -305,7 +305,7 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
             let limit_msg = format!("discriminant tag type is limited to {max_tag} bits");
             asserts.extend(quote! {
                 const _: () = ::core::assert!(
-                    <#tag_ty as Bitsized>::BITS <= #max_tag,
+                    <#tag_ty as ::bilge::Bitsized>::BITS <= #max_tag,
                     #limit_msg
                 );
             });
@@ -314,7 +314,7 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
                 let tag_val = assigner.assign_unsuffixed(variant)?;
                 asserts.extend(quote! {
                     const _: () = ::core::assert!(
-                        (#tag_val as u128) < (1u128 << <#tag_ty as Bitsized>::BITS),
+                        (#tag_val as u128) < (1u128 << <#tag_ty as ::bilge::Bitsized>::BITS),
                         "discriminant exceeds the tag type's bitsize"
                     );
                 });
