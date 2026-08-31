@@ -110,6 +110,12 @@ fn binary_bits_does_not_need_clone_on_payloads() {
     assert_eq!(u4::from(packed), u4::new(0b01_10));
 }
 
+#[test]
+fn as_int_matches_from_for_value_fallback() {
+    let e = Bangers::from(u10::new(0b1100110011));
+    assert_eq!(e.as_int(), u10::from(e));
+}
+
 #[bitsize(2)]
 #[non_exhaustive]
 #[derive(TryFromBits, BinaryBits, Debug, PartialEq)]
