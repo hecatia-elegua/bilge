@@ -205,7 +205,7 @@ pub fn reject_default_on_reserved(field: &Field, name: &str, has_default: bool, 
 }
 
 pub fn is_reserved_or_padding(name: &str) -> bool {
-    name.contains("reserved_") || name.contains("padding_")
+    name.starts_with("reserved_") || name.starts_with("padding_")
 }
 
 fn is_non_exhaustive_attribute(attr: &Attribute) -> bool {

@@ -17,6 +17,7 @@
 ### Fixed
 - `BinaryBits` (and owned `From` for tagged payload enums) no longer requires payload types to implement `Clone`
 - `BinaryBits` can be used with `#[non_exhaustive]` + `TryFromBits` enums
+- Only field names that start with `reserved_` / `padding_` are treated as reserved (not names that merely contain those strings)
 
 ## [0.4.0] - 2026-08-22
 

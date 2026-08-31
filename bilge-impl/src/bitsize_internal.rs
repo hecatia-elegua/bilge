@@ -98,7 +98,7 @@ fn generate_field(field: &Field, field_offset: &TokenStream, i: usize) -> (Token
 
     // skip reserved fields in constructors and setters
     let name_str = name.to_string();
-    if name_str.contains("reserved_") || name_str.contains("padding_") {
+    if shared::is_reserved_or_padding(&name_str) {
         // needed for `DebugBits`
         let getter = generate_getter(field, field_offset, &name);
         let accessors = quote!(#getter);
