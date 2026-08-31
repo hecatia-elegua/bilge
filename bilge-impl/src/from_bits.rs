@@ -99,7 +99,7 @@ fn analyze_enum(
                 let to_int_match_arm = if is_value_fallback(variant_name) {
                     quote! { #name::#variant_name(number) => number, }
                 } else if let Some(disc) = disc {
-                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, None, &variant_value, arb_int, true)
+                    discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, None, &variant_value, arb_int)
                 } else {
                     shared::to_int_match_arm(name, variant_name, arb_int, variant_value)
                 };
@@ -118,7 +118,6 @@ fn analyze_enum(
                     payload_ty,
                     &variant_value,
                     arb_int,
-                    true,
                 );
                 Ok((from_int_match_arm, to_int_match_arm))
             } else {

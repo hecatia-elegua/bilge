@@ -67,7 +67,6 @@ fn analyze_enum(
                     payload_ty,
                     &variant_value,
                     arb_int,
-                    true,
                 );
                 Ok((from_int_match_arm, to_int_match_arm))
             } else {

@@ -369,7 +369,7 @@ fn generate_to_int_match_arms(
 
             if let Some(disc) = disc {
                 let payload_ty = discriminant_at::variant_payload_ty(variant)?;
-                return Ok(discriminant_at::payload_to_int_arm(
+                return Ok(discriminant_at::payload_to_int_arm_ref(
                     disc,
                     bitsize as usize,
                     enum_name,
@@ -377,7 +377,6 @@ fn generate_to_int_match_arms(
                     payload_ty,
                     &variant_value,
                     arb_int,
-                    false,
                 ));
             }
 
