@@ -36,6 +36,9 @@ pub(super) fn from_bits(item: TokenStream) -> manyhow::Result {
                 let mut assumes = Vec::new();
                 if disc.is_some() {
                     for variant in enum_data.variants.iter() {
+                        if fallback.as_ref().is_some_and(|f| f.is_fallback_variant(&variant.ident)) {
+                            continue;
+                        }
                         if let Ok(Some(ty)) = discriminant_at::variant_payload_ty(variant) {
                             generate_filled_check_for(ty, &mut assumes);
                         }
@@ -63,17 +66,6 @@ fn analyze_enum(
 ) -> manyhow::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
     validate_enum_variants(variants.clone(), fallback, disc)?;
 
-    let fill_width = disc.map(|d| d.width as u8).unwrap_or(internal_bitsize);
-    let enum_is_filled = enum_fills_bitsize(fill_width, variants.len())?;
-    if !enum_is_filled && fallback.is_none() {
-        bail!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
-    }
-    if enum_is_filled && fallback.is_some() {
-        bail!("enum already has {} variants", variants.len(); help = "remove the `#[fallback]` attribute")
-    }
-
-    let mut assigner = DiscriminantAssigner::new(fill_width);
-
     let is_fallback = |variant_name| {
         if let Some(Fallback::Unit(name) | Fallback::WithValue(name)) = fallback {
             variant_name == name
@@ -90,15 +82,34 @@ fn analyze_enum(
         }
     };
 
+    let fill_width = disc.map(|d| d.width as u8).unwrap_or(internal_bitsize);
+    let tag_variant_count = if disc.is_some() {
+        variants.clone().filter(|v| !is_fallback(&v.ident)).count()
+    } else {
+        variants.clone().count()
+    };
+    let enum_is_filled = enum_fills_bitsize(fill_width, tag_variant_count)?;
+    if !enum_is_filled && fallback.is_none() {
+        bail!("enum doesn't fill its bitsize"; help = "you need to use `#[derive(TryFromBits)]` instead, or specify one of the variants as #[fallback]")
+    }
+    if enum_is_filled && fallback.is_some() {
+        bail!("enum already has {} variants", tag_variant_count; help = "remove the `#[fallback]` attribute")
+    }
+
+    let mut assigner = DiscriminantAssigner::new(fill_width);
+
     variants
         .map(|variant| -> manyhow::Result<(TokenStream, TokenStream)> {
             let variant_name = &variant.ident;
+            if is_value_fallback(variant_name) {
+                let to_int_match_arm = quote! { #name::#variant_name(number) => number, };
+                return Ok((quote!(), to_int_match_arm));
+            }
+
             let variant_value = assigner.assign_unsuffixed(variant)?;
 
             if is_fallback(variant_name) {
-                let to_int_match_arm = if is_value_fallback(variant_name) {
-                    quote! { #name::#variant_name(number) => number, }
-                } else if let Some(disc) = disc {
+                let to_int_match_arm = if let Some(disc) = disc {
                     discriminant_at::payload_to_int_arm(disc, internal_bitsize as usize, name, variant_name, None, &variant_value, arb_int)
                 } else {
                     shared::to_int_match_arm(name, variant_name, arb_int, variant_value)

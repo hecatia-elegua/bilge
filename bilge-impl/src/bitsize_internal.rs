@@ -369,8 +369,6 @@ fn generate_to_int_match_arms(
     variants
         .map(|variant| -> manyhow::Result<TokenStream> {
             let variant_name = &variant.ident;
-            let variant_value = assigner.assign_unsuffixed(variant)?;
-
             if variant.attrs.iter().any(is_fallback_attribute) {
                 if let Fields::Unnamed(fields) = &variant.fields {
                     if fields.unnamed.len() == 1 {
@@ -383,6 +381,8 @@ fn generate_to_int_match_arms(
                     }
                 }
             }
+
+            let variant_value = assigner.assign_unsuffixed(variant)?;
 
             if let Some(disc) = disc {
                 let payload_ty = discriminant_at::variant_payload_ty(variant)?;

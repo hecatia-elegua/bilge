@@ -193,13 +193,6 @@ fn analyze_enum(bitsize: BitSize, item: &ItemEnum) -> manyhow::Result<()> {
         Some(EnumDiscriminant::At(disc)) => {
             disc.validate(bitsize as usize)?;
             for variant in variants.clone() {
-                if variant.attrs.iter().any(is_fallback_attribute) && !matches!(variant.fields, Fields::Unit) {
-                    bail!(
-                        variant,
-                        "value fallback is not supported with `#[discriminant_at]`";
-                        help = "the fallback field would need the full enum width, but payload variants use the bits left by the tag"
-                    );
-                }
                 if matches!(variant.fields, Fields::Unit) {
                     bail!(
                         variant,
@@ -207,9 +200,13 @@ fn analyze_enum(bitsize: BitSize, item: &ItemEnum) -> manyhow::Result<()> {
                         help = "payload bits would be ignored; use `Variant(Payload)` for the remaining bits"
                     );
                 }
+                if variant.attrs.iter().any(is_fallback_attribute) {
+                    continue;
+                }
                 crate::shared::discriminant_at::variant_payload_ty(variant)?;
             }
-            let _ = enum_fills_bitsize(disc.width as u8, variant_count)?;
+            let tag_variants = variants.clone().filter(|v| !v.attrs.iter().any(is_fallback_attribute)).count();
+            let _ = enum_fills_bitsize(disc.width as u8, tag_variants)?;
         }
         Some(EnumDiscriminant::Type(disc)) => {
             for variant in variants.clone() {
@@ -293,6 +290,9 @@ fn generate_enum(item: &ItemEnum, bitsize: u8) -> manyhow::Result<TokenStream> {
             tag_repr_width = Some(disc.width);
             let payload_w = disc.payload_width(bitsize as usize);
             for variant in variants {
+                if variant.attrs.iter().any(is_fallback_attribute) {
+                    continue;
+                }
                 if let Some(ty) = crate::shared::discriminant_at::variant_payload_ty(variant)? {
                     let width = shared::generate_type_bitsize(ty);
                     asserts.extend(quote! {
