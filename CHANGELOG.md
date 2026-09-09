@@ -9,16 +9,15 @@
 - `toggle_*` for `bool` fields and `toggle_*_at` for `[bool; N]`
 - `BuilderBits` named typestate builder (`SomeType::builder().field(v).build()`). Required fields must be set exactly once; `#[default(expr)]` makes a field optional. This does not require `DefaultBits`.
 - `#[default(expr)]` on struct fields is also honored by `DefaultBits`
-- `DeserializeBits` treats `#[default(expr)]` like `#[serde(default = "...")]` (the field may be omitted). `#[at]` holes are omitted like `reserved` / `padding` and reconstruct as 0 via `new`.
+- `#[default(expr)]` is treated by `DeserializeBits` like `#[serde(default = "...")]`.
 
 ### Changed
 - `BitsError` now names the innermost failing type, a short field path (`wrapper.inner.bar`, tuple positions as `0`), the invalid bit pattern, and that field's bit range in the value passed to `try_from`. We only keep one level of array depth, so prefer the bit-range for accurate handling.
-- `Bitsized` now has `as_int(&self)` so by-ref conversions do not need `Clone`. Manual `Bitsized` impls need this method.
+- `Bitsized` now has `as_int(&self)` so by-ref conversions do not need `Clone`. BREAKING: Manual `Bitsized` impls need this method.
 
 ### Fixed
 - `BinaryBits` (and owned `From` for tagged payload enums) no longer requires payload types to implement `Clone`
 - `BinaryBits` can be used with `#[non_exhaustive]` + `TryFromBits` enums
-- Only field names that start with `reserved_` / `padding_` are treated as reserved (not names that merely contain those strings)
 - Generated code no longer requires `bilge::prelude` for `Bitsized` / `Integer`
 
 ## [0.4.0] - 2026-08-22
