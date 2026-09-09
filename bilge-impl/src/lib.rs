@@ -133,17 +133,18 @@ pub fn json_schema_bits(item: TokenStream) -> manyhow::Result {
 /// Please use normal #[derive(Serialize)] for enums.
 #[cfg(feature = "serde")]
 #[manyhow]
-#[proc_macro_derive(SerializeBits, attributes(bitsize_internal, at))]
+#[proc_macro_derive(SerializeBits, attributes(bitsize_internal, at, default))]
 pub fn serialize_bits(item: TokenStream) -> manyhow::Result {
     serde_bits::serialize_bits(item)
 }
 
 /// Generate an `impl serde::Deserialize` for bitfield structs.
 ///
+/// `#[default(expr)]` is optional and works like `#[serde(default = "...")]`.
 /// Please use normal #[derive(Deserialize)] for enums.
 #[cfg(feature = "serde")]
 #[manyhow]
-#[proc_macro_derive(DeserializeBits, attributes(bitsize_internal, at))]
+#[proc_macro_derive(DeserializeBits, attributes(bitsize_internal, at, default))]
 pub fn deserialize_bits(item: TokenStream) -> manyhow::Result {
     serde_bits::deserialize_bits(item)
 }
