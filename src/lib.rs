@@ -232,8 +232,9 @@ pub const fn give_me_error(type_name: &'static str, invalid_bits: u128, bitsize:
 
 /// Convert a field's `TryFrom` error into [`BitsError`].
 ///
-/// `BitsError` is kept as-is so nested structs report the innermost enum.
-/// `Infallible` (from `FromBits` fields) never actually happens.
+/// Nested `#[bitsize]` types keep their `BitsError` (inner path intact).
+/// `Infallible` never happens (`FromBits` fields).
+/// There is no blanket impl since a custom `TryFrom::Error` needs its own impl.
 #[doc(hidden)]
 pub trait IntoBitsError {
     fn into_bits_error(self, type_name: &'static str, invalid_bits: u128, bitsize: u8) -> BitsError;

@@ -9,6 +9,7 @@
 - `toggle_*` for `bool` fields and `toggle_*_at` for `[bool; N]`
 - `BuilderBits` named typestate builder (`SomeType::builder().field(v).build()`). Required fields must be set exactly once; `#[default(expr)]` makes a field optional. This does not require `DefaultBits`.
 - `#[default(expr)]` on struct fields is also honored by `DefaultBits`
+- `DeserializeBits` treats `#[default(expr)]` like `#[serde(default = "...")]` (the field may be omitted). `#[at]` holes are omitted like `reserved` / `padding` and reconstruct as 0 via `new`.
 
 ### Changed
 - `BitsError` now names the innermost failing type, a short field path (`wrapper.inner.bar`, tuple positions as `0`), the invalid bit pattern, and that field's bit range in the value passed to `try_from`. We only keep one level of array depth, so prefer the bit-range for accurate handling.

@@ -2,9 +2,9 @@ use itertools::MultiUnzip;
 use manyhow::bail;
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Data, Field, Fields};
+use syn::{Data, Expr, Field, Fields};
 
-use crate::shared::{self, unreachable};
+use crate::shared::{self, parse_field_default, unreachable};
 
 fn filter_not_reserved_or_padding(field: &&Field) -> bool {
     let field_name_string = field.ident.as_ref().unwrap().to_string();
@@ -80,7 +80,7 @@ pub(super) fn serialize_bits(item: TokenStream) -> manyhow::Result {
 }
 
 fn deserialize_field_parts(
-    i: usize, field_ident: &Ident,
+    i: usize, field_ident: &Ident, default: Option<&Expr>,
 ) -> (
     TokenStream,
     TokenStream,
@@ -92,11 +92,21 @@ fn deserialize_field_parts(
     String,
 ) {
     let field_name_string = field_ident.to_string();
+    let visit_seq = if let Some(expr) = default {
+        quote!(let #field_ident = seq.next_element()?.unwrap_or_else(|| #expr);)
+    } else {
+        quote!(let #field_ident = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;)
+    };
+    let visit_map_check = if let Some(expr) = default {
+        quote!(let #field_ident = #field_ident.unwrap_or_else(|| #expr);)
+    } else {
+        quote!(let #field_ident = #field_ident.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;)
+    };
     (
         quote!(#field_ident,),
         quote!(#field_name_string => Ok(Field::#field_ident),),
         quote!(#field_name_string,),
-        quote!(let #field_ident = seq.next_element()?.ok_or_else(|| ::serde::de::Error::invalid_length(#i, &self))?;),
+        visit_seq,
         quote!(let mut #field_ident = None;),
         quote!(Field::#field_ident => {
             if #field_ident.is_some() {
@@ -104,7 +114,7 @@ fn deserialize_field_parts(
             }
             #field_ident = Some(map.next_value()?);
         }),
-        quote!(let #field_ident = #field_ident.ok_or_else(|| ::serde::de::Error::missing_field(#field_name_string))?;),
+        visit_map_check,
         format!("`{}`", field_name_string),
     )
 }
@@ -131,20 +141,32 @@ pub(super) fn deserialize_bits(item: TokenStream) -> manyhow::Result {
         field_visit_map_match,
         field_visit_map_check,
         mut field_expecting,
-    ): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = match struct_data.fields {
-        Fields::Named(fields) => fields
-            .named
-            .iter()
-            .filter(filter_not_reserved_or_padding)
-            .enumerate()
-            .map(|(i, f)| deserialize_field_parts(i, f.ident.as_ref().unwrap()))
-            .multiunzip(),
-        Fields::Unnamed(fields) => fields
-            .unnamed
-            .iter()
-            .enumerate()
-            .map(|(i, _)| deserialize_field_parts(i, &format_ident!("val_{i}")))
-            .multiunzip(),
+    ): (Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>, Vec<_>) = match &struct_data.fields {
+        Fields::Named(fields) => {
+            let rows: Vec<_> = fields
+                .named
+                .iter()
+                .filter(filter_not_reserved_or_padding)
+                .enumerate()
+                .map(|(i, f)| {
+                    let default = parse_field_default(f)?;
+                    Ok(deserialize_field_parts(i, f.ident.as_ref().unwrap(), default.as_ref()))
+                })
+                .collect::<manyhow::Result<Vec<_>>>()?;
+            rows.into_iter().multiunzip()
+        }
+        Fields::Unnamed(fields) => {
+            let rows: Vec<_> = fields
+                .unnamed
+                .iter()
+                .enumerate()
+                .map(|(i, f)| {
+                    let default = parse_field_default(f)?;
+                    Ok(deserialize_field_parts(i, &format_ident!("val_{i}"), default.as_ref()))
+                })
+                .collect::<manyhow::Result<Vec<_>>>()?;
+            rows.into_iter().multiunzip()
+        }
         Fields::Unit => bail!("unit structs are not supported"),
     };
 
