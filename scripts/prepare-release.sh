@@ -50,8 +50,9 @@ bump_version() {
     echo "${major}.${minor}.${patch}"
 }
 
+# Prints the heading whose section becomes this release, or nothing if there is none.
 # Literal substring checks so '.' in 1.2.3 is not a regex wildcard.
-changelog_heading_ok() {
+changelog_heading_for() {
     local version="$1"
     awk -v v="$version" '
         BEGIN { want = "## [" v "]" }
@@ -62,22 +63,25 @@ changelog_heading_ok() {
         index(line, want) == 1 {
             rest = substr(line, length(want) + 1)
             if (rest == " - Unreleased" || rest ~ /^ - [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]$/) {
-                found_heading = 1
+                versioned = line
             }
         }
-        END { exit found_heading ? 0 : 1 }
+        line == "## [Unreleased]" { plain = line }
+        END {
+            if (versioned != "") print versioned
+            else if (plain != "") print plain
+        }
     ' CHANGELOG.md
 }
 
 changelog_has_bullets() {
-    local version="$1"
-    awk -v v="$version" '
-        BEGIN { want = "## [" v "]" }
+    local heading="$1"
+    awk -v heading="$heading" '
         {
             line = $0
             sub(/\r$/, "", line)
         }
-        index(line, want) == 1 { p = 1; next }
+        line == heading { p = 1; next }
         p && index(line, "## ") == 1 { exit found ? 0 : 1 }
         p && index(line, "- ") == 1 { found = 1 }
         END { exit found ? 0 : 1 }
@@ -85,25 +89,25 @@ changelog_has_bullets() {
 }
 
 check_changelog() {
-    local version="$1"
-    if ! changelog_heading_ok "$version"; then
-        echo "CHANGELOG.md must contain '## [${version}] - Unreleased' (or that heading already dated YYYY-MM-DD)" >&2
+    local version="$1" heading="$2"
+    if [[ -z "$heading" ]]; then
+        echo "CHANGELOG.md must contain '## [Unreleased]' or '## [${version}] - Unreleased' (or that heading already dated YYYY-MM-DD)" >&2
         exit 1
     fi
-    if ! changelog_has_bullets "$version"; then
-        echo "CHANGELOG.md heading ## [${version}] has no bullet entries" >&2
+    if ! changelog_has_bullets "$heading"; then
+        echo "CHANGELOG.md section '${heading}' has no bullet entries" >&2
         exit 1
     fi
 }
 
 rewrite_changelog() {
-    local version="$1" today="$2"
+    local version="$1" today="$2" heading="$3"
     local tmp
     tmp="$(mktemp)"
-    awk -v v="$version" -v today="$today" '
+    awk -v v="$version" -v today="$today" -v heading="$heading" '
         BEGIN {
-            want = "## [" v "]"
-            dated = want " - " today
+            plain = "## [Unreleased]"
+            dated = "## [" v "] - " today
         }
         {
             line = $0
@@ -112,33 +116,41 @@ rewrite_changelog() {
         }
         NR == 1 && line != "# Changelog" {
             print "expected CHANGELOG.md to start with \"# Changelog\"" > "/dev/stderr"
+            bad = 1
             exit 1
         }
         { lines[NR] = line; n = NR }
         END {
-            i = 2
-            while (i <= n && lines[i] == "") i++
-            first_h = (i <= n) ? lines[i] : ""
-            if (first_h != "## [Unreleased]") {
-                print "# Changelog"
-                print ""
-                print "## [Unreleased]"
-                print ""
-                start = (lines[1] == "# Changelog") ? 2 : 1
-                while (start <= n && lines[start] == "") start++
-            } else {
-                start = 1
+            if (bad) exit 1
+            start = 1
+            if (heading != plain) {
+                i = 2
+                while (i <= n && lines[i] == "") i++
+                first_h = (i <= n) ? lines[i] : ""
+                if (first_h != plain) {
+                    print "# Changelog"
+                    print ""
+                    print plain
+                    print ""
+                    start = (lines[1] == "# Changelog") ? 2 : 1
+                    while (start <= n && lines[start] == "") start++
+                }
             }
             for (j = start; j <= n; j++) {
                 line = lines[j]
-                if (index(line, want) == 1) {
-                    rest = substr(line, length(want) + 1)
-                    if (rest == " - Unreleased") line = dated
-                    dated_ok = 1
+                if (!done && line == heading) {
+                    if (heading == plain) {
+                        # The notes below this heading are the release, so hand the
+                        # heading itself to the release and open an empty one above.
+                        print plain
+                        print ""
+                    }
+                    if (line == plain || line ~ / - Unreleased$/) line = dated
+                    done = 1
                 }
                 print line
             }
-            if (!dated_ok) {
+            if (!done) {
                 print "failed to date changelog heading for " v > "/dev/stderr"
                 exit 1
             }
@@ -256,11 +268,12 @@ if ! is_xyz "$new"; then
     exit 2
 fi
 
-check_changelog "$new"
+heading="$(changelog_heading_for "$new")"
+check_changelog "$new" "$heading"
 
 # UTC so CI and local runs produce the same date; not the machine timezone.
 today="$(date -u +%F)"
-rewrite_changelog "$new" "$today"
+rewrite_changelog "$new" "$today" "$heading"
 apply_version "$current" "$new"
 assert_applied "$new"
 
