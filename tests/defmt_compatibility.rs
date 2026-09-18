@@ -1,10 +1,11 @@
 #![cfg(feature = "serde")]
+#![allow(clippy::unusual_byte_groupings)]
 use bilge::prelude::*;
 
 // defmt is intended to be used with macro_use to fully override all core formatting.
 // We're checking that our macros don't use any unqualified macros shadowed by defmt (e.g. write!())
 // in proc macros where we don't intend to interact with the target's stdout.
-#[allow(unused)]
+#[allow(unused_imports)]
 #[macro_use]
 extern crate defmt;
 

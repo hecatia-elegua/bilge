@@ -2,8 +2,7 @@
 #![allow(clippy::unusual_byte_groupings)]
 // you can use the "Expand glob import" command on
 // use bilge::prelude::*;
-// but still need to add Bitsized, Integer yourself
-use bilge::prelude::{Bitsized, DebugBits, DefaultBits, FromBits, Integer, TryFromBits, bitsize, u1, u2, u18, u39};
+use bilge::prelude::{DebugBits, DefaultBits, FromBits, TryFromBits, bitsize, u1, u2, u18, u39};
 
 // This file basically just informs you that yes, combinations of different nestings work.
 // also see `tests/struct.rs`
