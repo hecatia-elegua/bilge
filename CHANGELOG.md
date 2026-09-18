@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-18
+
 ### Added
 - `#[at(n)]` / `#[at(n..=m)]` on struct fields to place a field at backing-integer bit `n` (0 = LSB). Width comes from the field type; a range is checked against that width. Fields without `#[at]` continue after the previous one. Skipped bits are implicit padding. Overlap or going backwards is a compile error. `#[bitsize(N)]` is still the total width.
 - `#[discriminant_at(n)]` / `#[discriminant_at(n..=m)]` on enums when the tag sits in the same value. Variants look like `Variant(Payload) = tag`. Use `TryFromBits` when not every tag is used. `#[fallback] Raw(uN)` (full enum width) keeps unknown tags as the whole word.
